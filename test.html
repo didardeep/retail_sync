@@ -1,0 +1,2265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Store Audit and Analysis</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;background:#eef1f7;color:#1a1a2e;-webkit-font-smoothing:antialiased;}
+:root{
+  --navy:#00338D;--accent:#00338D;--accent-soft:#e8eefa;
+  --green:#0e9f6e;--green-soft:#def7ec;
+  --orange:#ff5a1f;--orange-soft:#feecdc;
+  --yellow:#c27803;--yellow-soft:#fdf6b2;
+  --red:#e02424;--red-soft:#fde8e8;
+  --blue:#0080DB;--blue-soft:#e3f3ff;
+  --gray:#6b7280;--gray-soft:#f3f4f6;
+  --border:#d7deea;--surface:#fff;
+  --text:#0a1830;--text2:#31435c;--text3:#63748e;
+}
+.app{display:flex;height:100vh;overflow:hidden;}
+.sidebar{width:222px;flex-shrink:0;background:var(--navy);display:flex;flex-direction:column;overflow-y:auto;}
+.sidebar-brand{padding:16px 14px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07);}
+.brand-icon{width:36px;height:36px;background:url('store-logo.jpg') center/cover;border-radius:8px;flex-shrink:0;}
+.brand-text{color:#fff;font-size:13px;font-weight:700;line-height:1.3;}
+.brand-text{color:#fff;font-size:14px;font-weight:700;line-height:1.3;}
+.brand-text span{display:block;font-size:11px;font-weight:400;color:#8B94A3;}
+.sidebar-user{padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.07);margin-bottom:4px;}
+.user-dot{width:7px;height:7px;background:#fbbf24;border-radius:50%;}
+.user-lbl{font-size:11px;color:#8B94A3;} .user-lbl b{display:block;color:#fff;font-size:12px;}
+nav{flex:1;padding:4px 8px;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;cursor:pointer;color:#fff;font-size:12.5px;font-weight:500;transition:all .15s;margin-bottom:2px;white-space:nowrap;}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff;}
+.nav-item.active{background:rgba(0,128,219,.32);color:#fff;}
+.nav-item svg{width:15px;height:15px;flex-shrink:0;}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 22px;height:50px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.topbar-title{font-size:14px;font-weight:600;color:var(--text);}
+.topbar-right{display:flex;align-items:center;gap:8px;}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.icon-btn{width:30px;height:30px;border-radius:7px;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;}
+.avatar-btn{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#00338D,#0080DB);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;cursor:pointer;}
+.content{flex:1;overflow-y:auto;padding:18px 22px 40px;}
+.page{display:none;}.page.active{display:block;}
+.page-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+.page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+.page-hdr h2{font-size:20px;font-weight:700;color:var(--text);}
+.page-hdr p{font-size:12px;color:var(--text3);margin-top:2px;}
+.btn-row{display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
+.btn{padding:7px 13px;border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer;border:none;display:inline-flex;align-items:center;gap:5px;transition:all .15s;font-family:inherit;}
+.btn-primary{background:var(--accent);color:#fff;}.btn-primary:hover{background:#002569;}
+.btn-outline{background:var(--surface);border:1px solid var(--border);color:var(--text2);}.btn-outline:hover{background:#f9fafb;}
+.btn-sm{padding:5px 10px;font-size:11.5px;}
+.kpi-row{display:grid;gap:12px;margin-bottom:16px;}
+.kpi-row.c3{grid-template-columns:repeat(3,1fr);}
+.kpi-row.c4{grid-template-columns:repeat(4,1fr);}
+.kpi-row.c4{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));}
+.kpi-row.c5{grid-template-columns:repeat(5,1fr);}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;}
+.kpi-ico{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.kpi-lbl{font-size:11px;color:var(--text3);margin-bottom:2px;}
+.kpi-val{font-size:24px;font-weight:700;color:var(--text);line-height:1;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:12px;}
+.card-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;}
+.filter-bar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+.srch{position:relative;flex:1;min-width:180px;}
+.srch input{width:100%;padding:7px 10px 7px 30px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;color:var(--text);background:var(--surface);outline:none;}
+.srch input:focus{border-color:var(--accent);}
+.srch-ic{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--gray);}
+select.sel{padding:6px 9px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;color:var(--text2);background:var(--surface);outline:none;cursor:pointer;}
+input[type=date].sel{padding:6px 9px;border:1px solid var(--border);border-radius:7px;font-size:12px;color:var(--text2);background:var(--surface);outline:none;}
+.tbl-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;padding:9px 12px;font-size:11.5px;font-weight:600;color:var(--text3);border-bottom:1px solid var(--border);white-space:nowrap;background:#fafafa;}
+td{padding:9px 12px;font-size:12.5px;color:var(--text2);border-bottom:1px solid var(--border);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#fafbff;}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:20px;font-size:10.5px;font-weight:600;white-space:nowrap;}
+.bg{background:var(--green-soft);color:#057a55;}
+.bo{background:var(--orange-soft);color:#9a3412;}
+.bb{background:var(--blue-soft);color:#0062b3;}
+.br{background:var(--red-soft);color:#9b1c1c;}
+.by{background:var(--yellow-soft);color:#78350f;}
+.bgr{background:#f3f4f6;color:#4b5563;border:1px solid var(--border);}
+.bpu{background:#ede9fe;color:#6d28d9;}
+.prog-bg{height:5px;border-radius:3px;background:#e5e7eb;overflow:hidden;}
+.prog-fill{height:100%;border-radius:3px;}
+.pg{background:#0e9f6e;}.po{background:#f59e0b;}.pr{background:#e02424;}.pb{background:#00338D;}
+.av{width:26px;height:26px;border-radius:50%;font-size:10px;font-weight:700;color:#fff;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+.aa{background:#6366f1;}.ab{background:#0e9f6e;}.ac{background:#f59e0b;}
+.ad{background:#ef4444;}.ae{background:#8b5cf6;}.af{background:#06b6d4;}
+.pagination{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:12px;font-size:12px;color:var(--text3);}
+.pgbtn{width:27px;height:27px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text2);}
+.pgbtn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.qtab{padding:4px 11px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text3);}
+.qtab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.chip{background:#f3f4f6;color:#374151;border:1px solid #e5e7eb;padding:2px 6px;border-radius:4px;font-size:10.5px;font-weight:500;}
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:1000;display:none;align-items:center;justify-content:center;}
+.modal-ov.open{display:flex;}
+.drawer-ov{position:fixed;inset:0;background:rgba(0,0,0,.32);z-index:1000;display:none;}
+.drawer-ov.open{display:block;}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:380px;max-width:92vw;background:var(--surface);box-shadow:-14px 0 40px rgba(0,0,0,.14);padding:22px;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+.drawer-ov.open .drawer{transform:translateX(0);}
+.drawer-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:16px;}
+.drawer-ic{width:30px;height:30px;border-radius:7px;background:#e8eefa;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+.drawer-lbl{font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px;}
+.drawer-val{font-size:12.5px;font-weight:600;color:var(--text);}
+.drawer-sub{font-size:11.5px;color:var(--text3);}
+.modal{background:var(--surface);border-radius:12px;padding:22px;width:460px;max-width:93vw;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.18);}
+.modal-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:16px;}
+.modal-grid{display:grid;gap:12px;}
+.fg{margin-bottom:12px;}
+.fl{font-size:11.5px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block;}
+.fi,.fs,.fta{width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;color:var(--text);font-family:inherit;outline:none;}
+.fi:focus,.fs:focus,.fta:focus{border-color:var(--accent);}
+.fta{resize:vertical;min-height:72px;}
+.modal-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:18px;}
+.si-tab{padding:11px 16px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--text3);border-bottom:2px solid transparent;transition:color .15s,border-color .15s;}
+.si-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.si-row{display:grid;grid-template-columns:120px 1fr;align-items:start;gap:14px;padding:11px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.si-row:last-child{border-bottom:none;}
+.si-lbl{color:var(--text3);text-align:left;}
+.si-val{color:var(--text);font-weight:600;text-align:left;}
+.toast{position:fixed;bottom:22px;right:22px;background:#1f2937;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;z-index:2000;transform:translateY(70px);opacity:0;transition:all .28s;}
+.toast.show{transform:translateY(0);opacity:1;}
+.dash-g21{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px;}
+.dash-g11{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.dash-g21b{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px;}
+.ch-wrap{position:relative;width:100%;height:190px;}
+.sc-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px;}
+.sc-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;}
+.sc-row:last-child{border-bottom:none;}
+.obs-item{display:flex;gap:7px;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--text2);}
+.obs-item:last-child{border-bottom:none;}
+.obs-dot{width:6px;height:6px;border-radius:50%;background:var(--orange);margin-top:5px;flex-shrink:0;}
+.aq-layout{display:flex;gap:14px;}
+.aq-sb{width:196px;flex-shrink:0;}
+.aq-pi{display:flex;align-items:center;justify-content:space-between;padding:7px 9px;border-radius:7px;cursor:pointer;font-size:12.5px;color:var(--text2);margin-bottom:1px;}
+.aq-pi:hover{background:var(--gray-soft);}
+.aq-pi.active{background:var(--accent-soft);color:var(--accent);font-weight:600;}
+.aq-pc{background:var(--accent);color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 6px;}
+.aq-main{flex:1;}
+.aq-gh{display:grid;grid-template-columns:1fr 150px 155px 55px 75px 75px;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);background:#fafafa;}
+.aq-gr{display:flex;border-bottom:1px solid var(--border);}
+.aq-gr:last-child{border-bottom:none;}
+.aq-gr:hover{background:#fafbff;}
+.aq-grc{display:grid;grid-template-columns:1fr 150px 155px 55px 75px 75px;gap:8px;padding:8px 10px;flex:1;align-items:center;}
+.crit-bar{width:3px;background:#e02424;flex-shrink:0;border-radius:2px 0 0 2px;}
+.toggle{width:32px;height:17px;border-radius:9px;background:#d1d5db;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;}
+.toggle.on{background:var(--accent);}
+.toggle::after{content:'';position:absolute;left:2px;top:1.5px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .18s;box-shadow:0 1px 3px rgba(0,0,0,.2);}
+.toggle.on::after{left:16px;}
+.wdot{width:19px;height:19px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;}
+.score-bar-row{display:grid;grid-template-columns:2fr 1fr repeat(var(--score-cols, 2), 1.5fr) 70px;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);}
+.score-bar-row:hover{background:#fafbff;}
+.score-bar-row:last-child{border-bottom:none;}
+.sn{font-size:16px;font-weight:700;min-width:30px;}
+.db-up{background:#def7ec;color:#057a55;padding:2px 6px;border-radius:5px;font-size:10px;font-weight:700;}
+.db-dn{background:#fde8e8;color:#9b1c1c;padding:2px 6px;border-radius:5px;font-size:10px;font-weight:700;}
+.db-fl{background:#f3f4f6;color:#6b7280;padding:2px 6px;border-radius:5px;font-size:10px;font-weight:700;}
+.em-layout{display:flex;height:calc(100vh - 148px);gap:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.em-sb{width:190px;flex-shrink:0;border-right:1px solid var(--border);padding:10px;}
+.em-fld{display:flex;align-items:center;justify-content:space-between;padding:6px 9px;border-radius:7px;cursor:pointer;font-size:12.5px;color:var(--text2);margin-bottom:1px;}
+.em-fld:hover,.em-fld.active{background:var(--accent-soft);color:var(--accent);}
+.em-fi{display:flex;align-items:center;gap:7px;}
+.em-fc{background:var(--accent);color:#fff;border-radius:10px;font-size:9.5px;font-weight:700;padding:1px 5px;}
+.em-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.em-tb{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;}
+.em-list{flex:1;overflow-y:auto;}
+.em-row{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;}
+.em-row:hover{background:#f9fafb;}
+.em-star{color:#e5e7eb;cursor:pointer;font-size:13px;flex-shrink:0;margin-top:2px;}
+.em-star.starred{color:#f59e0b;}
+.em-from{font-size:12px;font-weight:600;color:var(--text);}
+.em-date{font-size:11px;color:var(--text3);}
+.em-subj{font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:2px;}
+.em-prev{font-size:11.5px;color:var(--text3);margin-bottom:3px;}
+.em-tags{display:flex;gap:3px;flex-wrap:wrap;}
+.iss-row{padding:10px 12px;border-bottom:1px solid var(--border);}
+.iss-row.ov-row{background:#fff8f8;}
+.iss-row:last-child{border-bottom:none;}
+.iss-grid{display:grid;grid-template-columns:95px 24px 1fr 120px 95px 115px 105px;gap:8px;align-items:start;}
+@media(max-width:900px){.dash-g21,.dash-g11,.dash-g21b{grid-template-columns:1fr;}.kpi-row.c5,.kpi-row.c4{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon"></div>
+    <div class="brand-text">Store Audit<span>and Analysis</span></div>
+  </div>
+  <div class="sidebar-user">
+    <div class="user-dot"></div>
+    <div class="user-lbl"><b>Hi, Welcome</b>Jitendra</div>
+  </div>
+  <nav>
+    <div class="nav-item" data-page="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="6" width="4" height="15"/><rect x="17" y="2" width="4" height="19"/></svg>Dashboard &amp; Analytics</div>
+    <div class="nav-item" data-page="scores"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,17 9,11 13,15 21,5"/></svg>Store Audit Scores</div>
+    <div class="nav-item" data-page="issues"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L22 20H2Z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16.5" r=".5" fill="currentColor"/></svg>Action Taken Tracking</div>
+    <div class="nav-item" data-page="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="8,12 11,15 16,9"/></svg>Audit Status</div>
+    <div class="nav-item" data-page="scheduling"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>Audit Scheduling</div>
+    <div class="nav-item" data-page="questions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="1"/><polyline points="8,9 10,11 14,7"/><line x1="8" y1="15" x2="16" y2="15"/></svg>Audit Questions</div>
+    <div class="nav-item" data-page="stores"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="1"/><path d="M16 21V7a4 4 0 00-8 0v14"/></svg>Store Management</div>
+    <div class="nav-item" data-page="email"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="1"/><polyline points="3,7 12,13 21,7"/></svg>Email Communications</div>
+  </nav>
+</aside>
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="topbar-title">Audit Scheduling</div>
+    <div class="topbar-right">
+      <button class="icon-btn">🔔</button>
+      <button class="icon-btn">⚙️</button>
+      <div class="avatar-btn">J</div>
+    </div>
+  </div>
+  <div class="content">
+
+<!-- DASHBOARD -->
+<div class="page" id="page-dashboard">
+  <div class="page-hdr">
+    <div><h2>Audit Operations</h2><p>Consolidated View &bull; Q4</p></div>
+    <div class="btn-row">
+      <button class="btn btn-outline btn-sm">Q1</button><button class="btn btn-outline btn-sm">Q2</button><button class="btn btn-outline btn-sm">Q3</button><button class="btn btn-primary btn-sm">Q4</button><button class="btn btn-outline btn-sm">BI Dashboard</button>
+    </div>
+  </div>
+  <div class="kpi-row c3" style="margin-bottom:12px;">
+    <div class="kpi"><div class="kpi-ico" style="background:#e8eefa;">📋</div><div><div class="kpi-lbl">Planned</div><div class="kpi-val" id="d-planned"></div></div></div>
+    <div class="kpi"><div class="kpi-ico" style="background:#fffbeb;">⏳</div><div><div class="kpi-lbl">Ongoing</div><div class="kpi-val" id="d-ongoing"></div></div></div>
+    <div class="kpi"><div class="kpi-ico" style="background:#ecfdf5;">✅</div><div><div class="kpi-lbl">Completed</div><div class="kpi-val" id="d-completed"></div></div></div>
+  </div>
+  <div class="dash-g21">
+    <div class="card"><div class="card-title">Performance Trends<span style="font-size:11px;color:var(--text3);font-weight:400;">Benchmark: 90%</span></div><div class="ch-wrap"><canvas id="trendChart"></canvas></div></div>
+    <div class="card"><div class="card-title">All Observations by Risk</div><div style="display:flex;align-items:center;justify-content:center;gap:16px;height:190px;"><div style="position:relative;width:155px;height:155px;flex-shrink:0;"><canvas id="riskChart"></canvas></div><div id="riskLeg" style="font-size:11.5px;"></div></div></div>
+  </div>
+  <div class="dash-g21">
+    <div class="card"><div class="card-title">Store-wise Compliance Score (%)</div><div class="ch-wrap"><canvas id="storeChart"></canvas></div></div>
+    <div class="card"><div class="card-title">Audit Distribution by Region</div><div style="display:flex;align-items:center;justify-content:center;gap:14px;height:190px;"><div style="position:relative;width:150px;height:150px;flex-shrink:0;"><canvas id="regChart"></canvas></div><div id="regLeg" style="font-size:11.5px;"></div></div></div>
+  </div>
+  <div class="dash-g21b">
+    <div class="card">
+      <div class="card-title">Store Format Performance (Avg. Score)</div>
+      <div style="display:flex;gap:18px;">
+        <div style="flex:1;"><canvas id="fmtChart" height="145"></canvas></div>
+        <div style="min-width:155px;font-size:12px;">
+          <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:.05em;margin-bottom:8px;">Format Summary</div>
+          <div id="fmtSum"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card"><div class="card-title">Store Score Distribution</div><div style="display:flex;align-items:center;justify-content:center;gap:12px;height:185px;"><div style="position:relative;width:145px;height:145px;flex-shrink:0;"><canvas id="distChart"></canvas></div><div id="distLeg" style="font-size:11.5px;"></div></div></div>
+  </div>
+  <div class="dash-g11">
+    <div class="card">
+      <div class="card-title">Store Scorecards</div>
+      <div style="display:flex;gap:18px;">
+        <div style="flex:1;"><div class="sc-lbl" style="color:var(--green);">🏆 Top 5 Stores</div><div id="topS"></div></div>
+        <div style="flex:1;"><div class="sc-lbl" style="color:var(--red);">⚠ Bottom 5 Stores</div><div id="botS"></div></div>
+      </div>
+    </div>
+    <div class="card"><div class="card-title">Repeat Observations</div><div id="repObs"></div></div>
+  </div>
+  <div class="dash-g11">
+    <div class="card">
+      <div class="card-title">Recent Communications<span style="font-size:11px;color:var(--text3);font-weight:400;cursor:pointer;" onclick="document.querySelector('.nav-item[data-page=email]').click()">View all →</span></div>
+      <div id="d-recent-email"></div>
+    </div>
+    <div class="card" style="align-self:start;">
+      <div class="card-title">Recent Issues<span style="font-size:11px;color:var(--text3);font-weight:400;cursor:pointer;" onclick="document.querySelector('.nav-item[data-page=issues]').click()">View all →</span></div>
+      <div id="d-recent-issues"></div>
+    </div>
+  </div>
+</div>
+
+<!-- STORE AUDIT SCORES -->
+<div class="page" id="page-scores">
+  <div class="page-hdr">
+    <div><h2>Store Audit Scores</h2><p>Multi-year trend analysis</p></div>
+    <button class="btn btn-outline btn-sm" onclick="exportCSV('scores')">⬇ Export CSV</button>
+  </div>
+  <div class="filter-bar" style="justify-content:space-between;">
+    <div class="srch" style="max-width:260px;"><span class="srch-ic">🔍</span><input placeholder="Search stores..." id="sc-q" oninput="renderScores()"></div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span style="font-size:12px;color:var(--text3);">YEAR RANGE:</span>
+      <select class="sel" id="yr1" onchange="rScores()"></select>
+      <span style="color:var(--text3);">→</span>
+      <select class="sel" id="yr2" onchange="rScores()"></select>
+      <div style="display:flex;gap:4px;">
+        <button class="qtab active" onclick="scFilter('all',this)">All</button>
+        <button class="qtab" onclick="scFilter('open',this)">Operating</button>
+        <button class="qtab" onclick="scFilter('closed',this)">Dehired</button>
+      </div>
+      <button class="icon-btn" onclick="rScores()">🔄</button>
+    </div>
+  </div>
+  <div class="tbl-card" id="scores-table">
+    <div id="sc-body"></div>
+  </div>
+  <div class="pagination"><span id="sc-cnt" style="margin-right:8px;"></span></div>
+</div>
+
+<!-- TRACK ISSUES -->
+<div class="page" id="page-issues">
+  <div class="page-hdr">
+    <div><h2>Action Taken Tracking</h2><p>Monitor, prioritise and resolve issues across stores</p></div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-sm" id="iv-table" onclick="setIssueView('table')">📋 Table</button>
+      <button class="btn btn-outline btn-sm" id="iv-board" onclick="setIssueView('board')">📌 Board</button>
+      <button class="btn btn-outline btn-sm" onclick="exportCSV('issues')">⬇ Export</button>
+      <button class="btn btn-primary btn-sm" onclick="openIssueModal()">+ New Issue</button>
+    </div>
+  </div>
+  <div class="kpi-row c4">
+    <div class="kpi"><div class="kpi-ico" style="background:#f3f4f6;">📊</div><div><div class="kpi-lbl">Total Issues</div><div class="kpi-val" id="i-total">8</div></div></div>
+    <div class="kpi"><div class="kpi-ico" style="background:#fffbeb;">🟡</div><div><div class="kpi-lbl">Open (Not Due)</div><div class="kpi-val" id="i-open">4</div></div></div>
+    <div class="kpi"><div class="kpi-ico" style="background:#fde8e8;">🔴</div><div><div class="kpi-lbl">Open (Overdue)</div><div class="kpi-val" id="i-ov">3</div></div></div>
+    <div class="kpi"><div class="kpi-ico" style="background:#ecfdf5;">✅</div><div><div class="kpi-lbl">Completed</div><div class="kpi-val" id="i-done">1</div></div></div>
+  </div>
+  <div class="filter-bar">
+    <div class="srch" style="max-width:250px;"><span class="srch-ic">🔍</span><input placeholder="Search title, tags..." id="i-q" oninput="rIssues()"></div>
+    <select class="sel" id="i-sf" onchange="rIssues()"><option value="">Status</option><option>Open</option><option>In Progress</option><option>On Hold</option><option>Closed</option></select>
+    <select class="sel" id="i-pf" onchange="rIssues()"><option value="">Priority</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option></select>
+    <select class="sel" id="i-stf" onchange="rIssues()"><option value="">Store</option></select>
+    <select class="sel" id="i-af" onchange="rIssues()"><option value="">Assignee</option></select>
+    <button class="icon-btn" onclick="clearIssueFilters()" title="Clear filters">🔄</button>
+  </div>
+  <div id="i-status-tabs" style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;">
+    <button class="qtab active" onclick="iST('',this)">All Status</button>
+    <button class="qtab" onclick="iST('Open',this)">Open</button>
+    <button class="qtab" onclick="iST('In Progress',this)">In Progress</button>
+    <button class="qtab" onclick="iST('On Hold',this)">On Hold</button>
+    <button class="qtab" onclick="iST('Closed',this)">Closed</button>
+  </div>
+  <div id="i-table-view">
+    <div id="i-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;"></div>
+    <div class="pagination"><span id="i-cnt"></span></div>
+  </div>
+  <div id="i-board-view" style="display:none;overflow-x:auto;padding-bottom:6px;">
+    <div id="i-board" style="display:flex;gap:12px;align-items:flex-start;min-height:220px;"></div>
+  </div>
+</div>
+
+<!-- AUDIT QUESTIONS -->
+<div class="page" id="page-questions">
+  <div class="page-hdr">
+    <div><h2>Audit Questions</h2></div>
+    <button class="btn btn-primary btn-sm" onclick="openAddQuestion()">+ New Question</button>
+  </div>
+  <div class="aq-layout" id="aq-layout">
+    <div class="aq-sb">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;font-weight:600;color:var(--text2);">Process<button class="btn btn-outline btn-sm" onclick="openM('m-process')">Add</button></div>
+      <div id="aq-proc-list"></div>
+    </div>
+    <div class="aq-main">
+      <div class="filter-bar">
+        <div class="srch"><span class="srch-ic">🔍</span><input placeholder="Search questions..." id="aq-q" oninput="renderQ()"></div>
+        <select class="sel" id="aq-tf" onchange="renderQ()"><option value="">Type</option></select>
+      </div>
+      <div class="tbl-card">
+        <div class="aq-gh"><span style="font-size:11.5px;font-weight:600;color:var(--text3);">Audit Question</span><span style="font-size:11.5px;font-weight:600;color:var(--text3);">Process</span><span style="font-size:11.5px;font-weight:600;color:var(--text3);">Sub-Process</span><span style="font-size:11.5px;font-weight:600;color:var(--text3);">Weight</span><span style="font-size:11.5px;font-weight:600;color:var(--text3);">Status</span><span style="font-size:11.5px;font-weight:600;color:var(--text3);">Actions</span></div>
+        <div id="aq-list"></div>
+      </div>
+      <div class="pagination"><span id="aq-cnt"></span></div>
+    </div>
+  </div>
+</div>
+
+<!-- AUDIT SCHEDULING -->
+<div class="page active" id="page-scheduling">
+  <div class="kpi-row c5">
+    <div class="kpi"><div class="kpi-ico" style="background:#e8eefa;">🕐</div><div><div class="kpi-lbl">Total Audits</div><div class="kpi-val" id="s-total">12</div></div></div>
+    <div class="kpi"><div class="kpi-ico" style="background:#e8eefa;">📅</div><div><div class="kpi-lbl">Scheduled</div><div class="kpi-val" id="s-sched">3</div></div></div>
+    <div class="kpi"><div class="kpi-ico" style="background:#fffbeb;">👤</div><div><div class="kpi-lbl">Assigned</div><div class="kpi-val" id="s-assign">4</div></div></div>
+    <div class="kpi"><div class="kpi-ico" style="background:#ecfdf5;">✅</div><div><div class="kpi-lbl">Completed</div><div class="kpi-val" id="s-comp">3</div></div></div>
+    <div class="kpi"><div class="kpi-ico" style="background:#fde8e8;">⏰</div><div><div class="kpi-lbl">Pending Assignment</div><div class="kpi-val" id="s-pend">2</div></div></div>
+  </div>
+  <div class="filter-bar">
+    <div class="srch"><span class="srch-ic">🔍</span><input placeholder="Search audit or store..." id="s-q" oninput="renderSch()"></div>
+    <select class="sel" id="s-rf" onchange="renderSch()"><option value="">Region</option><option>North India</option><option>South India</option><option>East India</option><option>West India</option></select>
+    <select class="sel" id="s-sf" onchange="renderSch()"><option value="">Status</option><option>Scheduled</option><option>Assigned</option><option>Completed</option></select>
+    <button class="btn btn-primary btn-sm" onclick="openAddSchedule()">+ Schedule Audit</button>
+  </div>
+  <div class="tbl-card">
+    <table><thead><tr><th>Audit Detail</th><th>Schedule ⇅</th><th>Auditor</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="s-body"></tbody></table>
+  </div>
+  <div class="pagination"><span id="s-cnt" style="margin-right:8px;"></span><div style="display:flex;gap:4px;" id="s-pages"></div></div>
+</div>
+
+<!-- AUDIT SCHEDULE DETAIL DRAWER -->
+<div class="drawer-ov" id="sch-drawer" onclick="if(event.target===this)closeSchDetail();">
+  <div class="drawer">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;">Audit Reference</div>
+      <span style="cursor:pointer;color:var(--text3);font-size:15px;" onclick="closeSchDetail()">✕</span>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <div style="font-size:16px;font-weight:700;color:var(--text);" id="sd2-id"></div>
+      <span class="badge" id="sd2-status"></span>
+    </div>
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:16px;" id="sd2-title"></div>
+
+    <div class="drawer-row">
+      <div class="drawer-ic">📍</div>
+      <div><div class="drawer-lbl">Store Location</div><div class="drawer-val" id="sd2-store"></div><div class="drawer-sub" id="sd2-storesub"></div></div>
+    </div>
+    <div class="drawer-row">
+      <div class="drawer-ic">📅</div>
+      <div><div class="drawer-lbl">Scheduled Execution</div><div class="drawer-val" id="sd2-date"></div><div class="drawer-sub" id="sd2-time"></div></div>
+    </div>
+
+    <div class="drawer-lbl" style="margin-bottom:8px;">Assigned Personnel</div>
+    <div id="sd2-personnel" style="margin-bottom:18px;"></div>
+
+    <div class="drawer-lbl" style="margin-bottom:6px;">Completion Progress</div>
+    <div class="prog-bg" style="margin-bottom:18px;"><div class="prog-fill" id="sd2-progfill" style="height:6px;"></div></div>
+
+    <div class="drawer-lbl" style="margin-bottom:6px;">Audit Notes &amp; Objectives</div>
+    <textarea id="sd2-notes" rows="3" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12.5px;color:var(--text2);resize:vertical;font-family:inherit;margin-bottom:20px;"></textarea>
+
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="editSch(S_schDetailId)">✎ Edit Audit</button>
+      <button class="btn btn-outline" style="color:var(--red);border-color:var(--red-soft);" onclick="delSchFromDrawer()">🗑 Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- AUDIT STATUS -->
+<div class="page" id="page-status">
+  <div class="filter-bar">
+    <div class="srch" style="max-width:260px;"><span class="srch-ic">🔍</span><input placeholder="Search by ID, store or auditor..." id="as-q" oninput="rStatus()"></div>
+    <select class="sel" id="as-sf" onchange="rStatus()"><option value="">Status</option><option>In Progress</option><option>Planned</option><option>Overdue</option><option>Completed</option></select>
+    <select class="sel" id="as-rf" onchange="rStatus()"><option value="">Region</option><option>North India</option><option>South India</option><option>East India</option><option>West India</option></select>
+    <select class="sel" id="as-af" onchange="rStatus()"><option value="">Auditor</option></select>
+    <input type="date" class="sel" id="as-sd" onchange="rStatus()">
+    <input type="date" class="sel" id="as-ed" onchange="rStatus()">
+    <button class="icon-btn" onclick="clearStatusFilters()" title="Clear filters">🔄</button>
+  </div>
+  <div class="tbl-card">
+    <table><thead><tr><th><input type="checkbox"></th><th>Audit ID</th><th>Store</th><th>Scheduled ⇅</th><th>Status ▼</th><th>Score</th><th>Issues</th><th>Auditor</th><th>Actions</th></tr></thead>
+    <tbody id="as-body"></tbody></table>
+  </div>
+  <div class="pagination"><span id="as-cnt"></span></div>
+</div>
+
+<!-- EMAIL -->
+<div class="page" id="page-email">
+  <div class="page-hdr">
+    <div><h2>Email</h2></div>
+    <button class="btn btn-primary btn-sm" onclick="cpOpen()">+ Compose</button>
+  </div>
+  <div class="em-layout">
+    <div class="em-sb">
+      <div id="em-folders"></div>
+      <div style="margin-top:14px;">
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:7px;padding:0 9px;">Labels</div>
+        <div id="em-labels"></div>
+      </div>
+    </div>
+    <div class="em-main">
+      <div class="em-tb">
+        <div style="position:relative;flex:1;"><span style="position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:11px;">🔍</span><input style="width:100%;padding:6px 10px 6px 28px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;" placeholder="Search subject, people, content..." id="em-q" oninput="rEM()"></div>
+        <select class="sel" id="em-lf" onchange="rEM()"><option value="">Filter by label</option><option>Audit</option><option>Billing</option><option>Customer</option><option>Legal</option><option>Operations</option></select>
+        <input type="date" class="sel"><span style="font-size:11px;color:var(--text3);">→</span><input type="date" class="sel">
+        <select class="sel"><option>Default</option><option>Newest</option></select>
+        <button class="icon-btn" onclick="rEM()">🔄</button>
+      </div>
+      <div style="display:grid;grid-template-columns:36px 185px 1fr;padding:7px 14px;border-bottom:1px solid var(--border);background:#fafafa;">
+        <span></span><span style="font-size:11.5px;font-weight:600;color:var(--text3);">From / To</span><span style="font-size:11.5px;font-weight:600;color:var(--text3);">Subject</span>
+      </div>
+      <div class="em-list" id="em-list"></div>
+      <div style="padding:8px 14px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);text-align:right;" id="em-cnt"></div>
+    </div>
+  </div>
+</div>
+
+<!-- STORE MANAGEMENT -->
+<div class="page" id="page-stores">
+  <div class="page-hdr">
+    <div><h2>Store Management</h2><p>Manage your retail locations and audit performance</p></div>
+    <div class="btn-row">
+      <button class="btn btn-outline btn-sm" onclick="exportCSV('stores')">⬇ Export</button>
+      <button class="btn btn-primary btn-sm" onclick="openAddStore()">+ Add Store</button>
+    </div>
+  </div>
+  <div class="kpi-row c4">
+    <div class="kpi"><div class="kpi-ico" style="background:#e8eefa;">🏪</div><div><div class="kpi-lbl">Total Stores</div><div class="kpi-val" id="st-tot">10</div></div></div>
+    <div class="kpi"><div class="kpi-ico" style="background:#ecfdf5;">↑</div><div><div class="kpi-lbl">Operational</div><div class="kpi-val" id="st-op">3</div></div></div>
+    <div class="kpi"><div class="kpi-ico" style="background:#fde8e8;">⚠</div><div><div class="kpi-lbl">Critical Audit</div><div class="kpi-val" id="st-cr">2</div></div></div>
+    <div class="kpi"><div class="kpi-ico" style="background:#f3f4f6;">◌</div><div><div class="kpi-lbl">Avg. Audit Score</div><div class="kpi-val" id="st-av">76%</div></div></div>
+  </div>
+  <div class="filter-bar" style="justify-content:space-between;">
+    <div class="srch" style="max-width:360px;"><span class="srch-ic">🔍</span><input placeholder="Search name, ID or city..." id="st-q" oninput="renderST()"></div>
+    <div style="display:flex;gap:5px;align-items:center;">
+      <button class="qtab active" onclick="stF('',this)">All</button>
+      <button class="qtab" onclick="stF('Operating',this)">Operating</button>
+      <button class="qtab" onclick="stF('Dehired',this)">Dehired</button>
+      <button class="icon-btn" onclick="renderST()">🔄</button>
+    </div>
+  </div>
+  <div class="tbl-card">
+    <table><thead><tr><th>Store Details</th><th>Status</th><th>Audit Score</th><th>Manager</th><th>Actions</th></tr></thead>
+    <tbody id="st-body"></tbody></table>
+  </div>
+  <div class="pagination"><span id="st-cnt" style="margin-right:8px;"></span><div style="display:flex;gap:4px;" id="st-pages"></div></div>
+</div>
+
+  </div></div></div>
+
+<!-- MODALS -->
+<div class="modal-ov" id="m-schedule"><div class="modal" style="width:620px;">
+  <div class="modal-title" id="sch-modal-title">Schedule New Audit</div>
+  <div class="modal-grid">
+    <div class="fg"><label class="fl">Audit Title <span style="color:var(--red)">*</span></label><input class="fi" id="ms-title" placeholder="e.g. Q3 Compliance Audit"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="fg"><label class="fl">Store <span style="color:var(--red)">*</span></label><select class="fs" id="ms-store"></select></div>
+      <div class="fg"><label class="fl">Date &amp; Time <span style="color:var(--red)">*</span></label><input type="datetime-local" class="fi" id="ms-dt"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="fg"><label class="fl">Auditor</label><select class="fs" id="ms-aud"><option value="">Unassigned</option><option>Rohit Sharma</option><option>Meera Patel</option><option>Sara Khan</option><option>Amit Singh</option><option>Priya Das</option></select></div>
+      <div class="fg"><label class="fl">Status</label><select class="fs" id="ms-status"><option>Scheduled</option><option>Assigned</option><option>In Progress</option><option>Completed</option></select></div>
+    </div>
+    <div class="fg">
+      <label class="fl">Notes</label><textarea class="fta" id="ms-notes" placeholder="Add any relevant notes for this audit..." style="min-height:90px;"></textarea>
+    </div>
+  </div>
+  <div class="modal-actions"><button class="btn btn-outline" onclick="closeM('m-schedule')">Cancel</button><button class="btn btn-primary" id="sch-modal-btn" onclick="saveSch()">Schedule</button></div>
+</div></div>
+
+<div class="modal-ov" id="m-issue"><div class="modal" style="width:660px;max-width:95vw;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span style="cursor:pointer;color:var(--text3);font-size:16px;" onclick="closeM('m-issue')">✕</span>
+      <span class="modal-title" style="margin-bottom:0;" id="iss-modal-title">New Issue</span>
+    </div>
+    <button class="btn btn-primary btn-sm" id="iss-modal-btn" onclick="saveIssue()">Save</button>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div class="fg"><label class="fl">Title <span style="color:var(--red)">*</span></label><input class="fi" placeholder="Short summary of the issue" id="ni-t"></div>
+    <div class="fg"><label class="fl">Status</label><select class="fs" id="ni-st"><option>Open</option><option>In Progress</option><option>On Hold</option><option>Resolved</option><option>Closed</option></select></div>
+  </div>
+  <div class="fg"><label class="fl">Description</label><textarea class="fta" placeholder="Describe the issue, steps, context..." id="ni-d"></textarea></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+    <div class="fg"><label class="fl">Priority <span style="color:var(--red)">*</span></label><select class="fs" id="ni-p"><option>Critical</option><option>High</option><option>Medium</option><option>Low</option></select></div>
+    <div class="fg"><label class="fl">Store <span style="color:var(--red)">*</span></label><select class="fs" id="ni-s"><option value="">Select store</option></select></div>
+    <div class="fg"><label class="fl">Assignee</label><select class="fs" id="ni-a"><option>Jitendra</option><option>Lisa</option><option>Raj</option><option>Zed</option></select></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div class="fg"><label class="fl">Created At <span style="color:var(--red)">*</span></label><input type="datetime-local" class="fi" id="ni-created"></div>
+    <div class="fg"><label class="fl">Due At <span style="color:var(--red)">*</span></label><input type="datetime-local" class="fi" id="ni-due"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div class="fg"><label class="fl">Audit ID</label><input class="fi" placeholder="Link to Audit (optional)" id="ni-aid"></div>
+    <div class="fg"><label class="fl">Tags</label><input class="fi" placeholder="Type and press Enter to add tags" id="ni-tg"></div>
+  </div>
+  <div class="fg">
+    <label class="fl">Attachments</label>
+    <input type="file" id="ni-files" multiple style="display:none;" onchange="niAddFiles(this)">
+    <button class="btn btn-outline btn-sm" onclick="document.getElementById('ni-files').click()">📎 Add files</button>
+    <div id="ni-file-list" style="margin-top:6px;"></div>
+  </div>
+  <div class="fg"><label class="fl">Comments</label><textarea class="fta" placeholder="Write a comment..." id="ni-comment" style="min-height:52px;"></textarea></div>
+</div></div>
+
+<div class="modal-ov" id="m-question"><div class="modal" style="width:620px;">
+  <div class="modal-title" id="q-modal-title">New Audit Question</div>
+  <div class="modal-grid">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="fg"><label class="fl">Process <span style="color:var(--red)">*</span></label><select class="fs" id="nq-pr" onchange="handleNewProcess(this)"></select></div>
+      <div class="fg"><label class="fl">Sub-Process</label><input class="fi" id="nq-sp" placeholder="e.g. Cash sales & Recon"></div>
+    </div>
+    <div class="fg"><label class="fl">Question <span style="color:var(--red)">*</span></label><textarea class="fta" id="nq-t" placeholder="Whether..."></textarea></div>
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;align-items:flex-end;">
+      <div class="fg"><label class="fl">Question Type</label><select class="fs" id="nq-at" onchange="handleNewRespType(this)"></select></div>
+      <div class="fg"><label class="fl">Weights</label><input type="number" class="fi" id="nq-w" min="1" max="5" value="3"></div>
+      <div class="fg" style="display:flex;align-items:center;gap:8px;padding-bottom:8px;">
+        <label class="fl" style="margin:0;">Critical Risk</label><div class="toggle" id="nq-cr-toggle" onclick="this.classList.toggle('on')"></div>
+      </div>
+    </div>
+    <div class="fg"><label class="fl">Guidance</label><textarea class="fta" id="nq-g" placeholder="Provide guidance for the auditor..."></textarea></div>
+    <div class="fg"><label class="fl">Tags (comma separated)</label><input class="fi" id="nq-tg" placeholder="cash, reconciliation"></div>
+  </div>
+  <div class="modal-actions"><button class="btn btn-outline" onclick="closeM('m-question')">Cancel</button><button class="btn btn-primary" id="q-modal-btn" onclick="saveQ()">Add Question</button></div>
+</div></div>
+
+<div class="modal-ov" id="m-process"><div class="modal" style="width:320px;">
+  <div class="modal-title">Add Process Category</div>
+  <div class="fg"><label class="fl">Category Name</label><input class="fi" id="np-n" placeholder="e.g. Inventory Management"></div>
+  <div class="modal-actions"><button class="btn btn-outline" onclick="closeM('m-process')">Cancel</button><button class="btn btn-primary" onclick="saveProc()">Add</button></div>
+</div></div>
+
+<div class="modal-ov" id="m-response-type"><div class="modal" style="width:320px;">
+  <div class="modal-title">Add Question Type</div>
+  <div class="modal-title">Add Response Type</div>
+  <div class="fg"><label class="fl">Type Name</label><input class="fi" id="nrt-n" placeholder="e.g. Barcode Scan"></div>
+  <div class="modal-actions"><button class="btn btn-outline" onclick="closeM('m-response-type')">Cancel</button><button class="btn btn-primary" onclick="saveRespType()">Add</button></div>
+</div></div>
+
+<div class="modal-ov" id="m-response-type"><div class="modal" style="width:320px;">
+  <div class="modal-title">Add Response Type</div>
+  <div class="fg"><label class="fl">Type Name</label><input class="fi" id="nrt-n" placeholder="e.g. Barcode Scan"></div>
+  <div class="modal-actions"><button class="btn btn-outline" onclick="closeM('m-response-type')">Cancel</button><button class="btn btn-primary" onclick="saveRespType()">Add</button></div>
+</div></div>
+
+<div class="modal-ov" id="m-store"><div class="modal">
+  <div class="modal-title" id="st-modal-title">Add New Store</div>
+  <div class="fg"><label class="fl">Store Name</label><input class="fi" id="ns-n" placeholder="e.g. Phoenix Mall"></div>
+  <div class="fg"><label class="fl">City</label><input class="fi" id="ns-c" placeholder="e.g. Mumbai"></div>
+  <div class="fg"><label class="fl">Format</label><select class="fs" id="ns-f"><option>COCO</option><option>COFO</option><option>FOCO</option><option>FOFO</option></select></div>
+  <div class="fg"><label class="fl">Type of Store</label><select class="fs" id="ns-type"><option>Flagship</option><option>Standard</option><option>Compact</option><option>Kiosk</option></select></div>
+  <div class="fg"><label class="fl">Manager</label><input class="fi" id="ns-m" placeholder="Manager name"></div>
+  <div class="fg"><label class="fl">Region</label><select class="fs" id="ns-r"><option>North India</option><option>South India</option><option>East India</option><option>West India</option></select></div>
+  <div class="fg"><label class="fl">Status</label><select class="fs" id="ns-status"><option>Operating</option><option>Dehired</option></select></div>
+  <div class="modal-actions"><button class="btn btn-outline" onclick="closeM('m-store')">Cancel</button><button class="btn btn-primary" id="st-modal-btn" onclick="saveST()">Add Store</button></div>
+</div></div>
+
+<div class="modal-ov" id="m-compose"><div class="modal" style="width:900px;max-width:96vw;padding:0;overflow:hidden;">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 22px;border-bottom:1px solid var(--border);">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="icon-btn" style="width:26px;height:26px;border:none;font-size:13px;" onclick="closeM('m-compose')">✕</button>
+      <span style="font-size:14px;font-weight:700;color:var(--text);">Compose</span>
+    </div>
+    <div style="display:flex;gap:7px;">
+      <button class="btn btn-outline btn-sm" onclick="cpSubmit('schedule')">🕐 Schedule</button>
+      <button class="btn btn-primary btn-sm" onclick="cpSubmit('send')">➤ Send</button>
+      <button class="btn btn-outline btn-sm" onclick="cpSubmit('draft')">Save draft</button>
+    </div>
+  </div>
+  <div style="padding:18px 22px;max-height:70vh;overflow-y:auto;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px;">
+      <div class="fg"><label class="fl">From</label><input class="fi" id="cp-from" value="QA Team &lt;qa@brand.com&gt;" readonly style="background:#f9fafb;color:var(--text3);"></div>
+      <div class="fg"><label class="fl">Labels</label><div id="cp-labels" style="border:1px solid var(--border);border-radius:7px;padding:6px 8px;min-height:33px;"></div></div>
+    </div>
+    <div class="fg" style="margin-bottom:14px;"><label class="fl">To <span style="color:var(--red)">*</span></label><input class="fi" id="cp-to" placeholder="Add recipients"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px;">
+      <div class="fg"><label class="fl">Cc</label><input class="fi" id="cp-cc" placeholder="Add cc"></div>
+      <div class="fg"><label class="fl">Bcc</label><input class="fi" id="cp-bcc" placeholder="Add bcc"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:14px;">
+      <div class="fg"><label class="fl">Subject <span style="color:var(--red)">*</span></label><input class="fi" id="cp-subject" placeholder="Subject..."></div>
+      <div class="fg"><label class="fl">Template</label><select class="fs" id="cp-template" onchange="cpApplyTemplate()">
+        <option value="">Insert template...</option>
+        <option value="audit">Audit Summary</option>
+        <option value="issue">Issue Follow-up</option>
+        <option value="reminder">Compliance Reminder</option>
+      </select></div>
+    </div>
+    <div class="fg" style="margin-bottom:12px;"><label class="fl">Message</label><textarea class="fta" id="cp-message" placeholder="Write your message..." style="min-height:170px;"></textarea></div>
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:16px;">
+      <input type="checkbox" id="cp-sig" checked style="width:15px;height:15px;">
+      <label for="cp-sig" style="font-size:12px;color:var(--text2);">Add signature <span style="color:var(--text3);">– uses 'From' identity</span></label>
+    </div>
+    <div>
+      <label class="fl">Attachments</label>
+      <input type="file" id="cp-files" multiple style="display:none;" onchange="cpAddFiles(this)">
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('cp-files').click()">📎 Add files</button>
+      <div id="cp-file-list" style="margin-top:8px;"></div>
+    </div>
+  </div>
+</div></div>
+
+<div class="modal-ov" id="m-store-detail"><div class="modal">
+  <div class="modal-title" id="sd-title">Store Details</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12.5px;">
+    <div style="color:var(--text3);">Store ID: <b style="color:var(--text2);" id="sd-id"></b></div>
+    <div style="color:var(--text3);">Region: <b style="color:var(--text2);" id="sd-region"></b></div>
+    <div style="color:var(--text3);">Format: <b style="color:var(--text2);" id="sd-format"></b></div>
+    <div style="color:var(--text3);">Type of Store: <b style="color:var(--text2);" id="sd-type"></b></div>
+    <div style="color:var(--text3);">Manager: <b style="color:var(--text2);" id="sd-manager"></b></div>
+  </div>
+  <div style="margin-top:16px;">
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;">Score History</div>
+    <div class="ch-wrap" style="height:150px;"><canvas id="sd-chart"></canvas></div>
+  </div>
+  <div style="margin-top:16px;">
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;">Recent Audits</div>
+    <div id="sd-audits" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;"></div>
+  </div>
+  <div class="modal-actions"><button class="btn btn-outline" onclick="closeM('m-store-detail')">Close</button></div>
+</div></div>
+
+<div class="drawer-ov" id="drill-drawer" onclick="if(event.target===this)closeDrill();">
+  <div class="drawer">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:15px;font-weight:700;color:var(--text);" id="drill-title"></div>
+      <span style="cursor:pointer;color:var(--text3);font-size:15px;" onclick="closeDrill()">✕</span>
+    </div>
+    <div id="drill-list"></div>
+  </div>
+</div>
+
+<div class="modal-ov" id="m-audit-detail"><div class="modal" style="width:700px;max-width:95vw;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div class="modal-title" id="ad-title" style="margin-bottom:0;">Audit Report</div>
+    <span style="cursor:pointer;color:var(--text3);font-size:16px;" onclick="closeM('m-audit-detail')">✕</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:12px;margin-bottom:16px;">
+    <div><div style="color:var(--text3);margin-bottom:2px;">Store</div><b style="color:var(--text2);" id="ad-store"></b></div>
+    <div><div style="color:var(--text3);margin-bottom:2px;">Scheduled</div><b style="color:var(--text2);" id="ad-sched"></b></div>
+    <div><div style="color:var(--text3);margin-bottom:2px;">Status</div><span id="ad-status"></span></div>
+    <div><div style="color:var(--text3);margin-bottom:2px;">Auditor</div><b style="color:var(--text2);" id="ad-auditor"></b></div>
+    <div><div style="color:var(--text3);margin-bottom:2px;">Issues Raised</div><b style="color:var(--text2);" id="ad-issues"></b></div>
+    <div><div style="color:var(--text3);margin-bottom:2px;">Score</div><div id="ad-score"></div></div>
+  </div>
+  <div id="ad-observations" style="margin-bottom:16px;">
+    <div id="ad-observations-title" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;">Audit Questions Answered</div>
+    <div id="ad-obs-list" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;"></div>
+  </div>
+  <div id="ad-findings" style="margin-bottom:16px;">
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;">Observations</div>
+    <div id="ad-findings-list" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;"></div>
+  </div>
+  <div>
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;">Auditor &amp; Store Comments</div>
+    <div id="ad-comments" style="display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+  <div class="modal-actions"><button class="btn btn-outline" onclick="closeM('m-audit-detail')">Close</button></div>
+</div></div>
+
+<div class="modal-ov" id="m-store-insight"><div class="modal" style="width:480px;padding:0;overflow:hidden;">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);">
+    <span style="font-size:13px;font-weight:600;color:var(--text3);">Store Insights</span>
+    <button class="icon-btn" style="width:26px;height:26px;border:none;font-size:13px;" onclick="closeM('m-store-insight')">✕</button>
+  </div>
+  <div style="padding:22px 20px 16px;text-align:center;border-bottom:1px solid var(--border);">
+    <div style="width:52px;height:52px;background:var(--accent-soft);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 12px;color:var(--accent);">🏬</div>
+    <div style="font-size:16px;font-weight:700;color:var(--text);" id="si-name">Phoenix Mall</div>
+    <div style="display:inline-block;margin-top:8px;background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:700;padding:3px 11px;border-radius:20px;" id="si-id">SI-1000</div>
+  </div>
+  <div style="display:flex;border-bottom:1px solid var(--border);padding:0 20px;">
+    <div class="si-tab active" id="si-tab-info" onclick="siTab('info')">General Info</div>
+    <div class="si-tab" id="si-tab-perf" onclick="siTab('perf')">Performance</div>
+  </div>
+  <div style="padding:16px 20px 6px;">
+    <div id="si-info-panel">
+      <div class="si-row"><span class="si-lbl">Manager</span><span class="si-val" id="si-manager"></span></div>
+      <div class="si-row"><span class="si-lbl">Type of Store</span><span class="si-val" id="si-type"></span></div>
+      <div class="si-row"><span class="si-lbl">Location</span><span class="si-val" id="si-location"></span></div>
+      <div class="si-row"><span class="si-lbl">Contact</span><span class="si-val" id="si-contact"></span></div>
+      <div class="si-row"><span class="si-lbl">Email</span><span class="si-val" id="si-email"></span></div>
+      <div class="si-row"><span class="si-lbl">Address</span><span class="si-val" id="si-address"></span></div>
+    </div>
+    <div id="si-perf-panel" style="display:none;">
+      <div class="ch-wrap" style="height:170px;"><canvas id="si-chart"></canvas></div>
+    </div>
+  </div>
+  <div class="modal-actions" style="padding:4px 20px 20px;margin-top:8px;">
+    <button class="btn btn-outline btn-sm" onclick="closeM('m-store-insight')">Close</button>
+    <button class="btn btn-primary btn-sm" id="si-full-history">Full History</button>
+  </div>
+</div></div>
+
+<div class="modal-ov" id="m-pbi"><div class="modal" style="width:1020px;max-width:96vw;height:640px;max-height:92vh;padding:0;overflow:hidden;">
+  <div style="display:flex;height:100%;">
+    <div style="width:46px;background:#7a1f3d;display:flex;flex-direction:column;align-items:center;padding:10px 0;flex-shrink:0;">
+      <div style="color:#fff;font-size:16px;margin-bottom:14px;">🏠</div>
+      <div style="width:30px;height:22px;background:rgba(255,255,255,.15);color:#fff;font-size:8.5px;font-weight:600;display:flex;align-items:center;justify-content:center;border-radius:4px;margin-bottom:6px;">KPI 1</div>
+      <div style="width:30px;height:22px;background:#fff;color:#7a1f3d;font-size:8.5px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:4px;">KPI 2</div>
+    </div>
+    <div style="flex:1;min-width:0;background:#f4f5f9;display:flex;flex-direction:column;">
+      <div style="padding:6px 14px 0;display:flex;justify-content:flex-end;flex-shrink:0;">
+        <span style="cursor:pointer;color:var(--text3);font-size:15px;" onclick="closeM('m-pbi')">✕</span>
+      </div>
+      <div style="padding:0 16px 8px;flex:1;min-height:0;display:flex;flex-direction:column;">
+        <div style="background:linear-gradient(90deg,#5a2a6e,#7d3a8c);border-radius:6px;padding:9px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;flex-shrink:0;">
+          <span style="color:#fff;font-size:15px;font-weight:700;">Sales Return of Ineligible SKUs</span>
+          <span style="color:#fff;font-size:15px;">→</span>
+        </div>
+        <div style="font-size:10px;color:var(--text3);padding:4px 2px 8px;font-style:italic;flex-shrink:0;">Objective: To enforce company return policies and reduce revenue leakage from unauthorized returns.</div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:8px;flex-shrink:0;">
+          <div style="background:linear-gradient(135deg,#0b6e63,#12a394);border-radius:6px;padding:8px 6px;text-align:center;color:#fff;">
+            <div style="font-size:16px;font-weight:800;">393K</div><div style="font-size:8.5px;opacity:.9;margin-top:1px;">Total Returns</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#0b6e63,#12a394);border-radius:6px;padding:8px 6px;text-align:center;color:#fff;">
+            <div style="font-size:16px;font-weight:800;">3009</div><div style="font-size:8.5px;opacity:.9;margin-top:1px;">&gt; 14 Days Returns</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#0b6e63,#12a394);border-radius:6px;padding:8px 6px;text-align:center;color:#fff;">
+            <div style="font-size:16px;font-weight:800;">138.12K</div><div style="font-size:8.5px;opacity:.9;margin-top:1px;">Ineligible Returns</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#0b6e63,#12a394);border-radius:6px;padding:8px 6px;text-align:center;color:#fff;">
+            <div style="font-size:16px;font-weight:800;">141K</div><div style="font-size:8.5px;opacity:.9;margin-top:1px;">Total Exception Returns</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#0b6e63,#12a394);border-radius:6px;padding:8px 6px;text-align:center;color:#fff;">
+            <div style="font-size:16px;font-weight:800;">35.93%</div><div style="font-size:8.5px;opacity:.9;margin-top:1px;">Violation %</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px;flex-shrink:0;">
+          <div style="background:#fff;border-radius:6px;padding:6px 12px;">
+            <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">Date Range</div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <span style="background:#00338D;color:#fff;font-size:9.5px;padding:3px 7px;border-radius:4px;">4/1/2024 📅</span>
+              <span style="background:#00338D;color:#fff;font-size:9.5px;padding:3px 7px;border-radius:4px;">12/31/2024 📅</span>
+            </div>
+          </div>
+          <div style="background:#fff;border-radius:6px;padding:6px 12px;">
+            <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">Division</div>
+            <div style="background:#00338D;color:#fff;font-size:10px;padding:4px 9px;border-radius:4px;display:flex;justify-content:space-between;">All <span>⌄</span></div>
+          </div>
+          <div style="background:#fff;border-radius:6px;padding:6px 12px;">
+            <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">Department</div>
+            <div style="background:#00338D;color:#fff;font-size:10px;padding:4px 9px;border-radius:4px;display:flex;justify-content:space-between;">All <span>⌄</span></div>
+          </div>
+          <div style="background:#fff;border-radius:6px;padding:6px 12px;">
+            <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">City</div>
+            <div style="background:#00338D;color:#fff;font-size:10px;padding:4px 9px;border-radius:4px;display:flex;justify-content:space-between;">All <span>⌄</span></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:8px;flex:1;min-height:0;">
+          <div style="background:#fff;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;">
+            <div style="background:linear-gradient(90deg,#5a2a6e,#7d3a8c);color:#fff;font-size:11px;font-weight:700;text-align:center;padding:5px;flex-shrink:0;">Distribution of Returns</div>
+            <div style="padding:6px;flex:1;min-height:0;"><div class="ch-wrap" style="height:100%;"><canvas id="pbi-donut"></canvas></div></div>
+          </div>
+          <div style="background:#fff;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;">
+            <div style="background:linear-gradient(90deg,#5a2a6e,#7d3a8c);color:#fff;font-size:11px;font-weight:700;text-align:center;padding:5px;flex-shrink:0;">Distribution of Return Value</div>
+            <div style="padding:6px;flex:1;min-height:0;"><div class="ch-wrap" style="height:100%;"><canvas id="pbi-bar"></canvas></div></div>
+          </div>
+          <div style="background:#fff;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;">
+            <div style="background:linear-gradient(90deg,#5a2a6e,#7d3a8c);color:#fff;font-size:11px;font-weight:700;text-align:center;padding:5px;flex-shrink:0;">Violations by Division</div>
+            <div style="padding:6px;flex:1;min-height:0;"><div class="ch-wrap" style="height:100%;"><canvas id="pbi-hbar"></canvas></div></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:2px;background:#e5e2ea;padding:4px 10px;font-size:9px;color:var(--text3);overflow-x:auto;white-space:nowrap;flex-shrink:0;">
+        <span style="padding:3px 7px;">▤ KPI 1 Drill-through</span>
+        <span style="padding:3px 7px;">KPI 2</span>
+        <span style="padding:3px 7px;border-bottom:2px solid #0e9f6e;color:#0e9f6e;font-weight:700;">KPI 2 - Summary</span>
+        <span style="padding:3px 7px;">KPI 2 Drill-through</span>
+        <span style="padding:3px 7px;">KPI 3</span>
+        <span style="padding:3px 7px;">Duplicate of KPI 3</span>
+        <span style="padding:3px 7px;">KPI 1 Summary</span>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+<script>
+// ═══════════════════ DATABASE ═══════════════════
+const DB={
+stores:[
+  {id:'ST001',name:'Phoenix Mall',city:'Mumbai',region:'West India',format:'COCO',type:'Flagship',manager:'P. Rao',status:'Operating',s25:92,s24:94,s23:90,s22:88,s26:93,contact:'+91 90123 13208',email:'store1000@retail-chain.com',address:'H3 Main St, Mumbai'},
+  {id:'ST002',name:'DLF Avenue',city:'Delhi',region:'North India',format:'COFO',type:'Flagship',manager:'J. Patel',status:'Operating',s25:92,s24:94,s23:91,s22:85,s26:91,contact:'+91 98110 22456',email:'store1001@retail-chain.com',address:'Sector 24, DLF Phase 3, Delhi'},
+  {id:'ST003',name:'Ub City',city:'Bengaluru',region:'South India',format:'COCO',type:'Standard',manager:'N. Singh',status:'Operating',s25:74,s24:80,s23:78,s22:82,s26:75,contact:'+91 99001 33678',email:'store1002@retail-chain.com',address:'24 Vittal Mallya Rd, Bengaluru'},
+  {id:'ST004',name:'Select Citywalk',city:'Delhi',region:'North India',format:'FOCO',type:'Standard',manager:'J. Patel',status:'Operating',s25:80,s24:80,s23:82,s22:79,s26:81,contact:'+91 98730 44521',email:'store1003@retail-chain.com',address:'A-3 District Centre, Saket, Delhi'},
+  {id:'ST005',name:'Nexus Mall',city:'Pune',region:'West India',format:'FOFO',type:'Standard',manager:'R. Das',status:'Operating',s25:78,s24:80,s23:75,s22:70,s26:79,contact:'+91 90210 55879',email:'store1004@retail-chain.com',address:'Viman Nagar, Pune'},
+  {id:'ST006',name:'Centra Mall',city:'Chandigarh',region:'North India',format:'COCO',type:'Compact',manager:'A. Sharma',status:'Operating',s25:67,s24:57,s23:60,s22:55,s26:68,contact:'+91 98140 66234',email:'store1005@retail-chain.com',address:'Zirakpur Rd, Chandigarh'},
+  {id:'ST007',name:'Elante Outpost',city:'Nagpur',region:'West India',format:'COFO',type:'Kiosk',manager:'N. Singh',status:'Operating',s25:84,s24:90,s23:88,s22:92,s26:85,contact:'+91 94220 77456',email:'store1006@retail-chain.com',address:'Wardha Rd, Nagpur'},
+  {id:'ST008',name:'Pacific Hub',city:'Dehradun',region:'North India',format:'FOFO',type:'Standard',manager:'P. Rao',status:'Operating',s25:93,s24:100,s23:95,s22:96,s26:94,contact:'+91 97590 88123',email:'store1007@retail-chain.com',address:'Rajpur Rd, Dehradun'},
+  {id:'ST009',name:'South City',city:'Kolkata',region:'East India',format:'FOCO',type:'Compact',manager:'R. Das',status:'Dehired',s25:47,s24:55,s23:50,s22:48,s26:50,contact:'+91 98300 99456',email:'store1008@retail-chain.com',address:'Prince Anwar Shah Rd, Kolkata'},
+  {id:'ST010',name:'Orbit Mall',city:'Jaipur',region:'North India',format:'FOFO',type:'Standard',manager:'J. Patel',status:'Dehired',s25:51,s24:58,s23:62,s22:65,s26:55,contact:'+91 94140 10567',email:'store1009@retail-chain.com',address:'Ajmer Rd, Jaipur'}
+],
+schedules:[
+  {id:'SCH001',type:'Checklist based Audit',region:'South India',auditor:'Rohit Sharma',role:'Senior Field Auditor',date:'13 Jun, 2026',time:'04:24 PM',status:'Assigned',prog:20,store:'MG Road – Retail',storeSub:'Delhi, North Region',notes:'Focus on fire safety.'},
+  {id:'SCH002',type:'Checklist based Audit',region:'North India',auditor:'Meera Patel',role:'Field Auditor',date:'10 Jun, 2026',time:'04:24 PM',status:'Completed',prog:100,store:'Select Citywalk – Retail',storeSub:'Delhi, North Region',notes:'Standard compliance review.'},
+  {id:'SCH003',type:'Checklist based Audit',region:'West India',auditor:'Sara Khan',role:'Field Auditor',date:'11 Jun, 2026',time:'09:24 PM',status:'Assigned',prog:35,store:'Nexus Mall – Retail',storeSub:'Pune, West Region',notes:'Check housekeeping and hygiene.'},
+  {id:'SCH004',type:'Checklist based Audit',region:'East India',auditor:'',role:'',date:'16 Jun, 2026',time:'04:24 PM',status:'Scheduled',prog:0,store:'South City – Retail',storeSub:'Kolkata, East Region',notes:'Awaiting auditor assignment.'},
+  {id:'SCH005',type:'Checklist based Audit',region:'West India',auditor:'Amit Singh',role:'Senior Field Auditor',date:'08 Jun, 2026',time:'04:24 PM',status:'Completed',prog:100,store:'Elante Outpost – Retail',storeSub:'Nagpur, West Region',notes:'Completed with no major findings.'},
+  {id:'SCH006',type:'Checklist based Audit',region:'North India',auditor:'Priya Das',role:'Field Auditor',date:'12 Jun, 2026',time:'04:24 PM',status:'Scheduled',prog:0,store:'Centra Mall – Retail',storeSub:'Chandigarh, North Region',notes:'Pending kickoff.'},
+  {id:'SCH007',type:'Checklist based Audit',region:'South India',auditor:'Rohit Sharma',role:'Senior Field Auditor',date:'11 Jun, 2026',time:'08:24 PM',status:'Assigned',prog:10,store:'Ub City – Retail',storeSub:'Bengaluru, South Region',notes:'Focus on inventory accuracy.'},
+  {id:'SCH008',type:'Checklist based Audit',region:'East India',auditor:'Meera Patel',role:'Field Auditor',date:'19 Jun, 2026',time:'04:24 PM',status:'Scheduled',prog:0,store:'South City – Retail',storeSub:'Kolkata, East Region',notes:'Standard scheduled visit.'},
+  {id:'SCH009',type:'Checklist based Audit',region:'North India',auditor:'',role:'',date:'22 Jun, 2026',time:'04:24 PM',status:'Scheduled',prog:0,store:'Orbit Mall – Retail',storeSub:'Jaipur, North Region',notes:'Awaiting auditor assignment.'},
+  {id:'SCH010',type:'Checklist based Audit',region:'South India',auditor:'Sara Khan',role:'Field Auditor',date:'05 Jun, 2026',time:'04:24 PM',status:'Completed',prog:100,store:'Ub City – Retail',storeSub:'Bengaluru, South Region',notes:'Completed successfully.'},
+  {id:'SCH011',type:'Checklist based Audit',region:'West India',auditor:'Amit Singh',role:'Senior Field Auditor',date:'25 Jun, 2026',time:'10:00 AM',status:'Scheduled',prog:0,store:'Nexus Mall – Retail',storeSub:'Pune, West Region',notes:'Pre-monsoon safety check.'},
+  {id:'SCH012',type:'Checklist based Audit',region:'East India',auditor:'Priya Das',role:'Field Auditor',date:'28 Jun, 2026',time:'11:00 AM',status:'Assigned',prog:5,store:'South City – Retail',storeSub:'Kolkata, East Region',notes:'Focus on billing compliance.'}
+],
+audits:[
+  {id:'AUD-1000',store:'Phoenix Mall',city:'Mumbai',region:'West India',sched:'23 Jun 2026, 06:04',status:'Completed',score:97,issues:'4/5',auditor:'J. Patel',ai:'J'},
+  {id:'AUD-1001',store:'DLF Avenue',city:'Delhi',region:'North India',sched:'07 Jun 2026, 11:04',status:'Completed',score:89,issues:'5/9',auditor:'A. Sharma',ai:'A'},
+  {id:'AUD-1002',store:'Ub City',city:'Bengaluru',region:'South India',sched:'17 Jun 2026, 05:04',status:'In Progress',score:null,issues:'3/8',auditor:'P. Rao',ai:'P'},
+  {id:'AUD-1003',store:'Select Citywalk',city:'Delhi',region:'North India',sched:'27 May 2026, 16:04',status:'In Progress',score:null,issues:'5/10',auditor:'P. Rao',ai:'P'},
+  {id:'AUD-1004',store:'Nexus Mall',city:'Pune',region:'West India',sched:'19 Jun 2026, 11:04',status:'In Progress',score:null,issues:'4/6',auditor:'P. Rao',ai:'P'},
+  {id:'AUD-1005',store:'Centra Mall',city:'Chandigarh',region:'North India',sched:'29 May 2026, 03:04',status:'Overdue',score:null,issues:'0/2',auditor:'J. Patel',ai:'J'},
+  {id:'AUD-1006',store:'Elante Outpost',city:'Nagpur',region:'West India',sched:'29 May 2026, 12:04',status:'Completed',score:70,issues:'0/3',auditor:'J. Patel',ai:'J'},
+  {id:'AUD-1007',store:'Pacific Hub',city:'Dehradun',region:'North India',sched:'08 Jun 2026, 19:04',status:'In Progress',score:null,issues:'3/5',auditor:'N. Singh',ai:'N'},
+  {id:'AUD-1008',store:'South City',city:'Kolkata',region:'East India',sched:'22 Jun 2026, 21:04',status:'Planned',score:null,issues:'1/2',auditor:'R. Das',ai:'R'},
+  {id:'AUD-1009',store:'Orbit Mall',city:'Jaipur',region:'North India',sched:'08 Jun 2026, 20:04',status:'In Progress',score:null,issues:'4/8',auditor:'P. Rao',ai:'P'}
+],
+issues:[
+  {id:'ISS001',aid:'AUD-1004',title:'Freezer temperature fluctuation',status:'In Progress',pri:'Critical',tags:['equipment','fridge'],proc:'Inventory Management',sp:'Storage & Stock Handling',store:'Mumbai #07',assignee:'Jitendra',created:'30 Jun 2026, 16:27',due:'01 Jun 2026',ov:true,dp:100,dc:'#e02424',desc:'Freezer showing -6 to -20°C swings. Check thermostat.',files:1,comments:1},
+  {id:'ISS002',aid:'AUD-1006',title:'Generator oil leakage detected',status:'Open',pri:'Critical',tags:['generator','maintenance'],proc:'HR & Admin and Operations',sp:'Housekeeping & Hygiene',store:'Mumbai #07',assignee:'Lisa',created:'01 Jun 2026, 16:27',due:'12 Jun 2026',ov:false,dp:70,dc:'#e02424',desc:'Small oil patch under generator. Needs immediate attention.',files:3,comments:2},
+  {id:'ISS003',aid:'AUD-1010',title:'Critical Gas line inspection overdue',status:'Open',pri:'Critical',tags:['safety','compliance'],proc:'EHS & Compliance',sp:'Permits, Licenses & Certifications Management',store:'Delhi #01',assignee:'Raj',created:'27 May 2026, 16:27',due:'05 Jun 2026',ov:true,dp:100,dc:'#e02424',desc:'Annual safety certification expired last week. Urgent scheduling required.',files:3,comments:2},
+  {id:'ISS004',aid:'AUD-1001',title:'Wet floor in prep area',status:'Open',pri:'High',tags:['safety','hygiene'],proc:'HR & Admin and Operations',sp:'Housekeeping & Hygiene',store:'Delhi #05',assignee:'Raj',created:'02 Jun 2026, 16:27',due:'12 Jun 2026',ov:false,dp:50,dc:'#f59e0b',desc:'Clear leakage near sink causing slippery floor.',files:2,comments:3},
+  {id:'ISS005',aid:'AUD-1005',title:'AC unit not cooling in customer area',status:'Open',pri:'High',tags:['hvac','maintenance'],proc:'HR & Admin and Operations',sp:'Housekeeping & Hygiene',store:'Bangalore #03',assignee:'Raj',created:'10 Jun 2026, 16:27',due:'14 Jun 2026',ov:false,dp:30,dc:'#00338D',desc:'Fan belt worn and needs replacement.',files:2,comments:0},
+  {id:'ISS006',aid:'AUD-1011',title:'Broken freezer seal – Section B',status:'In Progress',pri:'Critical',tags:['maintenance','energy'],proc:'Inventory Management',sp:'Storage & Stock Handling',store:'Mumbai #01',assignee:'Jitendra',created:'06 Jun 2026, 16:27',due:'10 Jun 2026',ov:true,dp:100,dc:'#e02424',desc:'The rubber gasket is torn, causing energy losses.',files:0,comments:0},
+  {id:'ISS007',aid:'AUD-1012',title:'Fire extinguisher inspection pending',status:'Open',pri:'Medium',tags:['compliance','safety'],proc:'EHS & Compliance',sp:'Permits, Licenses & Certifications Management',store:'Bangalore #03',assignee:'Lisa',created:'08 Jun 2026, 16:27',due:'31 Jun 2026',ov:false,dp:15,dc:'#00338D',desc:'Monthly inspection overdue for two extinguishers.',files:1,comments:1},
+  {id:'ISS008',aid:'AUD-1003',title:'Broken soap dispenser in washroom',status:'Resolved',pri:'Low',tags:['maintenance','hygiene'],proc:'HR & Admin and Operations',sp:'Housekeeping & Hygiene',store:'Delhi #05',assignee:'Zed',created:'04 Jun 2026, 16:27',due:'08 Jun 2026',ov:false,dp:100,dc:'#0e9f6e',desc:'Soap dispenser near kitchen washroom not working.',files:0,comments:3},
+  {id:'ISS009',aid:'AUD-1008',title:'Delay in deposit of cash collected',status:'Open',pri:'High',tags:['cash','finance','compliance'],proc:'Cashiering',sp:'Cash sales & Recon',store:'South City',assignee:'Raj',created:'26 Jul 2026, 11:40',due:'29 Jul 2026',ov:true,dp:20,dc:'#e02424',desc:'Cash collected from sales not deposited within the mandated timeline. Immediate reconciliation and process correction required.',files:1,comments:0},
+  {id:'ISS010',aid:'AUD-1004',title:'Excess cash discount provided to customer',status:'In Progress',pri:'Medium',tags:['cash','discount','billing'],proc:'Cashiering',sp:'POS controls',store:'Nexus Mall',assignee:'Lisa',created:'24 Jul 2026, 15:05',due:'02 Aug 2026',ov:false,dp:40,dc:'#00338D',desc:'Discount extended beyond approved store manager limit on customer bills. Reviewing billing approvals and staff training.',files:2,comments:1},
+  {id:'ISS011',aid:'AUD-1002',title:'Ineligible SKUs returned by customers',status:'Open',pri:'Low',tags:['inventory','returns','sku'],proc:'Cashiering',sp:'Credit Notes Issuance',store:'Ub City',assignee:'Jitendra',created:'22 Jul 2026, 09:30',due:'05 Aug 2026',ov:false,dp:10,dc:'#0e9f6e',desc:'Return of SKUs not eligible under the return policy accepted at store. Reinforce return-policy checks at counter.',files:0,comments:1}
+],
+questions:[
+  /* ── CASHIERING ── */
+  {id:'Q001',text:'Whether all cash physically available in the store (i.e. Till cash + Sales cash of previous day, if any + petty cash) match with the books? (Take a physical cash stock immediately on visiting the store including all tills & backroom & review it vis-a-vis cash as per books. Prepare a reconciliation statement & take sign off from Store Manager)',at:'Store Visit',proc:'Cashiering',sp:'Cash sales & Recon',w:5,tags:['cash','reconciliation','store-visit'],crit:true,on:true},
+  {id:'Q002',text:'Whether Cash sales from Daily Sales Report agree with cash deposited and submitted to collection agency?',at:'Structured dataDA',proc:'Cashiering',sp:'Cash sales & Recon',w:4,tags:['cash','CMS','structured'],crit:true,on:true},
+  {id:'Q003',text:'Whether the Store team identifies collection agency\'s agent by Photo Identity Card?',at:'Store Visit',proc:'Cashiering',sp:'Cash handover to collection agency',w:3,tags:['CMS','identity','store-visit'],crit:false,on:true},
+  {id:'Q004',text:'Whether the photo & specimen signature of the collection agency agent matches with the list available in stores?',at:'Store Visit',proc:'Cashiering',sp:'Cash handover to collection agency',w:3,tags:['CMS','signature','store-visit'],crit:false,on:false},
+  {id:'Q005',text:'Whether the collection agency has affixed their SEAL as well as signature on the Pay In Slip?',at:'Structured dataDA',proc:'Cashiering',sp:'Cash handover to collection agency',w:3,tags:['CMS','documentation','structured'],crit:false,on:true},
+  {id:'Q006',text:'Whether fake note detectors are available at the store and being used?',at:'Store Visit',proc:'Cashiering',sp:'Cash handover to collection agency',w:3,tags:['fake-note','device','store-visit'],crit:false,on:true},
+  {id:'Q007',text:'Whether the store is not having any fake/soiled notes? (If observation is "no", please provide the amount with denominations of fake notes available in the Observations Column)',at:'Store Visit',proc:'Cashiering',sp:'Cash handover to collection agency',w:3,tags:['fake-note','store-visit'],crit:false,on:true},
+  {id:'Q008',text:'Whether the credit card sales from daily sales report agree with the batch settlement report for EDC payments?',at:'Structured dataDA',proc:'Cashiering',sp:'Debit/ Credit card sales',w:4,tags:['card','EDC','structured'],crit:false,on:false},
+  {id:'Q009',text:'Whether charge slips of the previous days are stored in BLACK/BROWN envelopes along with batch closure report?',at:'Store Visit',proc:'Cashiering',sp:'Debit/ Credit card sales',w:3,tags:['documentation','store-visit'],crit:false,on:true},
+  {id:'Q010',text:'Whether the UPI sales from daily sales report agree with the bank summary?',at:'Structured dataDA',proc:'Cashiering',sp:'UPI Payments',w:3,tags:['UPI','structured'],crit:false,on:true},
+  {id:'Q011',text:'Whether no manual credit note is issued? All credit should be issued via POS. (If manual credit note is issued, is the same updated in the system immediately or same day and system credit note number is written on the manual credit note). Whether written communication either on mail or otherwise is available regarding issuance of manual credit note from HO or cluster?',at:'Unstructured data',proc:'Cashiering',sp:'Credit Notes Issuance',w:3,tags:['credit-note','unstructured'],crit:false,on:false},
+  {id:'Q012',text:'Whether any instance noted for "Sales returns processed more than original billed quantity or Sales returns processed more than original billed amount"?',at:'Structured dataDA',proc:'Cashiering',sp:'Credit Notes Issuance',w:4,tags:['sales-return','structured'],crit:false,on:true},
+  {id:'Q013',text:'Whether Sales returns processed for ineligible items or Sales returns processed after specified days like as per policy after 14 days no sales return is allowed?',at:'Structured dataDA',proc:'Cashiering',sp:'Credit Notes Issuance',w:4,tags:['sales-return','policy','structured'],crit:false,on:true},
+  {id:'Q014',text:'Whether the security prepares a receipt for goods to be taken inside the store?',at:'Store Visit',proc:'Cashiering',sp:'Credit Notes Issuance',w:2,tags:['security','store-visit'],crit:false,on:true},
+  {id:'Q015',text:'Whether the number and count of SKUs as per the gate pass match with the entries in the Credit Note Register with Customer Service Desk?',at:'Unstructured data',proc:'Cashiering',sp:'Credit Notes Issuance',w:3,tags:['SKU','gate-pass','unstructured'],crit:false,on:false},
+  {id:'Q068',text:'Whether returns are accepted for eligible SKUs only',at:'Structured dataDA',proc:'Cashiering',sp:'Credit Notes Issuance',w:3,tags:['sales-return','SKU','structured'],crit:false,on:true},
+  {id:'Q016',text:'Check the time gap between scheme creation & scheme start date, schemes running beyond end dates. Verify at store in POS if active schemes and promotions are available.',at:'Unstructured data',proc:'Cashiering',sp:'Schemes and Promotions',w:3,tags:['schemes','promotions','unstructured'],crit:false,on:true},
+  {id:'Q017',text:'Whether selling price available on POS match with active MRP maintained in the system?',at:'Structured dataDA',proc:'Cashiering',sp:'Schemes and Promotions',w:4,tags:['POS','MRP','structured'],crit:false,on:true},
+  {id:'Q018',text:'Does POS allows to mark any tickets marked as void post printing to the ticket?',at:'Store Visit',proc:'Cashiering',sp:'POS controls',w:2,tags:['POS','void','store-visit'],crit:false,on:false},
+  {id:'Q019',text:'Does POS allows to provide discount in addition to the approved store manager discount limit?',at:'Store Visit',proc:'Cashiering',sp:'POS controls',w:3,tags:['POS','discount','store-visit'],crit:false,on:true},
+  {id:'Q020',text:'Whether any store manager discounts are provided in addition to the approved store manager limit?',at:'Structured dataDA',proc:'Cashiering',sp:'POS controls',w:3,tags:['discount','manager','structured'],crit:false,on:true},
+  /* ── HR & ADMIN AND OPERATIONS ── */
+  {id:'Q021',text:'Are new staff onboarded as per the approved joining process (documentation, background verification)?',at:'Store Visit',proc:'HR & Admin and Operations',sp:'Staff Onboarding',w:3,tags:['HR','onboarding','store-visit'],crit:false,on:true},
+  {id:'Q022',text:'Are employee personnel files complete and available at the store or central system?',at:'Store Visit',proc:'HR & Admin and Operations',sp:'Staff Onboarding',w:2,tags:['HR','personnel','store-visit'],crit:false,on:false},
+  {id:'Q023',text:'Whether all staff have valid ID cards or authenticated login credentials issued?',at:'Structured data / DA',proc:'HR & Admin and Operations',sp:'Staff Onboarding',w:3,tags:['HR','ID','structured'],crit:false,on:true},
+  {id:'Q024',text:'Are staff trained on store SOPs, safety norms, and product knowledge as per policy?',at:'Store Visit',proc:'HR & Admin and Operations',sp:'Staff Training & Monitoring',w:3,tags:['training','SOP','store-visit'],crit:false,on:true},
+  {id:'Q025',text:'Is there evidence of periodic refresher training conducted?',at:'Store Visit',proc:'HR & Admin and Operations',sp:'Staff Training & Monitoring',w:2,tags:['training','refresher','store-visit'],crit:false,on:false},
+  {id:'Q026',text:'Whether training records are updated and maintained for all staff?',at:'Structured data / DA',proc:'HR & Admin and Operations',sp:'Staff Training & Monitoring',w:2,tags:['training','records','structured'],crit:false,on:true},
+  {id:'Q027',text:'Is staff attendance recorded through the approved biometric device?',at:'Store Visit',proc:'HR & Admin and Operations',sp:'Attendance Monitoring',w:3,tags:['attendance','biometric','store-visit'],crit:false,on:true},
+  {id:'Q028',text:'Is attendance matches with staff entry and exit register?',at:'Unstructured data',proc:'HR & Admin and Operations',sp:'Attendance Monitoring',w:3,tags:['attendance','register','unstructured'],crit:false,on:false},
+  {id:'Q029',text:'Are deviations (late marks, absenteeism) monitored and escalated as per policy?',at:'Store Visit',proc:'HR & Admin and Operations',sp:'Attendance Monitoring',w:2,tags:['attendance','deviation','store-visit'],crit:false,on:true},
+  {id:'Q030',text:'Whether shift rosters are prepared, approved, and adhered to?',at:'Structured data / DA',proc:'HR & Admin and Operations',sp:'Attendance Monitoring',w:2,tags:['roster','shift','structured'],crit:false,on:true},
+  {id:'Q031',text:'Are staff in proper uniform and wearing identification badges?',at:'Store Visit',proc:'HR & Admin and Operations',sp:'Staff Etiquettes',w:3,tags:['uniform','badge','store-visit'],crit:false,on:true},
+  {id:'Q032',text:'Are staff following customer-handling standards and communication norms?',at:'Store Visit',proc:'HR & Admin and Operations',sp:'Staff Etiquettes',w:3,tags:['customer-service','standards','store-visit'],crit:false,on:false},
+  {id:'Q033',text:'Whether staff conduct aligns with expected behavioural guidelines (no mobile usage on shopfloor)?',at:'Unstructured data',proc:'HR & Admin and Operations',sp:'Staff Etiquettes',w:2,tags:['conduct','mobile','unstructured'],crit:false,on:true},
+  {id:'Q034',text:'Are all fixed assets in the store tagged with barcode/FA tags as per company norms?',at:'Unstructured data',proc:'HR & Admin and Operations',sp:'Fixed Assets Tagging',w:3,tags:['fixed-assets','barcode','unstructured'],crit:false,on:true},
+  {id:'Q035',text:'Is the asset register updated and reconciled with physical assets?',at:'Store Visit',proc:'HR & Admin and Operations',sp:'Fixed Assets Tagging',w:3,tags:['fixed-assets','register','store-visit'],crit:false,on:false},
+  {id:'Q036',text:'Whether there are any untagged, damaged, or missing assets requiring escalation?',at:'Unstructured data',proc:'HR & Admin and Operations',sp:'Fixed Assets Tagging',w:3,tags:['fixed-assets','untagged','unstructured'],crit:false,on:true},
+  {id:'Q037',text:'Is the store floor, shelves, backroom, and trial rooms clean and well-maintained?',at:'Store Visit',proc:'HR & Admin and Operations',sp:'Housekeeping & Hygiene',w:3,tags:['housekeeping','hygiene','store-visit'],crit:false,on:true},
+  {id:'Q038',text:'Are washrooms clean, functional, and checked as per the defined cleaning schedule?',at:'Store Visit',proc:'HR & Admin and Operations',sp:'Housekeeping & Hygiene',w:3,tags:['washroom','hygiene','store-visit'],crit:false,on:true},
+  {id:'Q039',text:'Whether pest-control services and deep-cleaning activities are documented and up to date?',at:'Structured data / DA',proc:'HR & Admin and Operations',sp:'Housekeeping & Hygiene',w:2,tags:['pest-control','hygiene','structured'],crit:false,on:false},
+  /* ── INVENTORY MANAGEMENT ── */
+  {id:'Q040',text:'Does GRN quantity match with the PO quantity?',at:'Structured dataDA',proc:'Inventory Management',sp:'Goods Receiving & Inward Processing',w:4,tags:['GRN','PO','structured'],crit:false,on:true},
+  {id:'Q041',text:'Does GRN quantity match with inward register maintained by SLP?',at:'Structured dataDA',proc:'Inventory Management',sp:'Goods Receiving & Inward Processing',w:3,tags:['GRN','SLP','structured'],crit:false,on:true},
+  {id:'Q042',text:'Does the store verify quantities received against the PO/dispatch note before acknowledging receipt?',at:'Unstructured data',proc:'Inventory Management',sp:'Goods Receiving & Inward Processing',w:3,tags:['GRN','dispatch','unstructured'],crit:false,on:false},
+  {id:'Q043',text:'Are discrepancies (short/excess/damaged) recorded and reported on the same day of receipt?',at:'Store Visit',proc:'Inventory Management',sp:'Goods Receiving & Inward Processing',w:3,tags:['discrepancy','GRN','store-visit'],crit:false,on:true},
+  {id:'Q044',text:'Whether all inward receipts are duly recorded in the system on the same day?',at:'Structured dataDA',proc:'Inventory Management',sp:'GRN & Inward Controls',w:4,tags:['GRN','inward','structured'],crit:false,on:true},
+  {id:'Q045',text:'Are stocks stored as per planogram/bin locations with no mixing of SKUs?',at:'Store Visit',proc:'Inventory Management',sp:'Storage & Stock Handling',w:3,tags:['planogram','storage','store-visit'],crit:false,on:true},
+  {id:'Q046',text:'Are high-value or shrink-prone SKUs stored under enhanced visibility or restricted access?',at:'Store Visit',proc:'Inventory Management',sp:'Storage & Stock Handling',w:4,tags:['high-value','shrink','store-visit'],crit:false,on:false},
+  {id:'Q047',text:'Whether slow-moving or non-moving items are periodically identified and escalated?',at:'Unstructured data',proc:'Inventory Management',sp:'Storage & Stock Handling',w:3,tags:['slow-moving','escalation','unstructured'],crit:false,on:true},
+  {id:'Q048',text:'Are daily cycle counts performed and variances documented for review?',at:'Store Visit',proc:'Inventory Management',sp:'Stock Accuracy',w:4,tags:['cycle-count','variance','store-visit'],crit:false,on:true},
+  {id:'Q049',text:'Does the store reconcile physical vs system stock for high-variance SKUs as per defined timelines?',at:'Store Visit',proc:'Inventory Management',sp:'Stock Accuracy',w:4,tags:['reconciliation','SKU','store-visit'],crit:false,on:true},
+  {id:'Q050',text:'Whether stock adjustments (damage, expiry, write-offs) are supported with proper approval?',at:'Unstructured data',proc:'Inventory Management',sp:'Stock Accuracy',w:3,tags:['adjustment','approval','unstructured'],crit:false,on:false},
+  {id:'Q051',text:'Are nearing-expiry products segregated and actioned as per policy?',at:'Store Visit',proc:'Inventory Management',sp:'Expiry & Damage Management',w:3,tags:['expiry','segregation','store-visit'],crit:false,on:true},
+  {id:'Q052',text:'Are damaged goods recorded immediately and moved to designated quarantine area?',at:'Store Visit',proc:'Inventory Management',sp:'Expiry & Damage Management',w:3,tags:['damage','quarantine','store-visit'],crit:false,on:true},
+  {id:'Q053',text:'Whether all expired/damaged disposals are supported by approval documentation?',at:'Unstructured data',proc:'Inventory Management',sp:'Expiry & Damage Management',w:3,tags:['disposal','approval','unstructured'],crit:false,on:false},
+  {id:'Q054',text:'Are stock transfers initiated only against approved transfer requests?',at:'Store Visit',proc:'Inventory Management',sp:'Inter-Store Transfers',w:3,tags:['transfer','approval','store-visit'],crit:false,on:true},
+  {id:'Q055',text:'Are dispatch and receipt of transferred stocks recorded on the same day in the system?',at:'Store Visit',proc:'Inventory Management',sp:'Inter-Store Transfers',w:3,tags:['transfer','dispatch','store-visit'],crit:false,on:true},
+  {id:'Q056',text:'Whether all pending transfers (inward/outward) have valid justification?',at:'Structured dataDA',proc:'Inventory Management',sp:'Inter-Store Transfers',w:3,tags:['transfer','pending','structured'],crit:false,on:false},
+  {id:'Q057',text:'Does the store monitor abnormal stock losses or repeated variances for specific SKUs?',at:'Unstructured data',proc:'Inventory Management',sp:'Shrinkage Controls',w:4,tags:['shrinkage','variance','unstructured'],crit:false,on:true},
+  {id:'Q058',text:'Are CCTV-mandated areas (back-store, receiving bay) functioning during audit checks?',at:'Store Visit',proc:'Inventory Management',sp:'Shrinkage Controls',w:4,tags:['CCTV','shrinkage','store-visit'],crit:false,on:true},
+  {id:'Q059',text:'Whether shrinkage is within defined tolerance levels for the period under review?',at:'Unstructured data',proc:'Inventory Management',sp:'Shrinkage Controls',w:3,tags:['shrinkage','tolerance','unstructured'],crit:false,on:false},
+  {id:'Q060',text:'Is shelf replenishment done as per the defined frequency and documented schedule?',at:'Store Visit',proc:'Inventory Management',sp:'Replenishment',w:2,tags:['replenishment','shelf','store-visit'],crit:false,on:true},
+  {id:'Q061',text:'Are out-of-stock SKUs reviewed and escalated daily?',at:'Unstructured data',proc:'Inventory Management',sp:'Replenishment',w:3,tags:['out-of-stock','escalation','unstructured'],crit:false,on:true},
+  {id:'Q062',text:'Whether auto-replenishment parameters (min-max levels) are updated as per policy?',at:'Structured dataDA',proc:'Inventory Management',sp:'Replenishment',w:3,tags:['replenishment','parameters','structured'],crit:false,on:false},
+  {id:'Q063',text:'Are scrap sales approved as per defined matrix?',at:'Structured dataDA',proc:'Inventory Management',sp:'Scrap Sales',w:3,tags:['scrap','approval','structured'],crit:false,on:true},
+  {id:'Q064',text:'Scrap sales invoices matches with details mentioned in the outward register?',at:'Unstructured data',proc:'Inventory Management',sp:'Scrap Sales',w:3,tags:['scrap','invoice','unstructured'],crit:false,on:true},
+  /* ── EHS & COMPLIANCE ── */
+  {id:'Q065',text:'Are all statutory licenses/permits (e.g., Shops & Establishment, Trade License, Fire NOC) valid and displayed as required?',at:'Store Visit',proc:'EHS & Compliance',sp:'Permits, Licenses & Certifications Management',w:5,tags:['license','statutory','store-visit'],crit:true,on:true},
+  {id:'Q066',text:'Is a register or tracker maintained with license numbers, issue/expiry dates, and renewal status?',at:'Unstructured data',proc:'EHS & Compliance',sp:'Permits, Licenses & Certifications Management',w:3,tags:['license','register','unstructured'],crit:false,on:true},
+  {id:'Q067',text:'Whether any licenses are expired or due for renewal within the next 30 days and escalations are documented?',at:'Unstructured data',proc:'EHS & Compliance',sp:'Permits, Licenses & Certifications Management',w:4,tags:['license','expiry','unstructured'],crit:false,on:false}
+],
+emails:[
+  {id:'E001',from:'qa@brand.com',date:'11 Jun, 14:25',subj:'Audit report for Store Delhi #01',prev:'Please find attached the October audit summary...',labels:['Audit','Operations'],star:true,att:true,folder:'Inbox'},
+  {id:'E002',from:'warehouse@brand.com',date:'11 Jun, 13:29',subj:'Stock shortage alert – coffee beans',prev:'Stock for coffee beans below reorder level at Delhi warehouse.',labels:['Operations'],star:false,att:false,folder:'Inbox'},
+  {id:'E003',from:'ops.head@brand.com',date:'11 Jun, 11:25',subj:'Weekly cleaning compliance check',prev:'Please confirm if the cleaning checklist was completed for all zones.',labels:['Operations'],star:false,att:false,folder:'Inbox'},
+  {id:'E004',from:'customer.relations@brand.com',date:'11 Jun, 08:25',subj:'Positive feedback – Delhi Store',prev:'Customer appreciated cleanliness and quick service.',labels:['Customer'],star:true,att:false,folder:'Inbox'},
+  {id:'E005',from:'jane.doe@gmail.com',date:'10 Jun, 16:25',subj:'Customer complaint – incorrect billing',prev:'I was charged twice for my order yesterday...',labels:['Customer','Billing'],star:false,att:false,folder:'Inbox'},
+  {id:'E006',from:'qa@brand.com',date:'10 Jun, 16:25',subj:'Audit findings – Store Mumbai #07',prev:'Attached summary of minor compliance issues found during audit.',labels:['Audit'],star:true,att:true,folder:'Inbox'},
+  {id:'E007',from:'legal@brand.com',date:'09 Jun, 16:25',subj:'FW: Legal notice for signage placement',prev:'Sharing notice regarding outdoor signage restrictions...',labels:['Legal'],star:false,att:true,folder:'Inbox'},
+  {id:'E008',from:'it.support@brand.com',date:'05 Jun, 16:25',subj:'System update scheduled',prev:'Scheduled downtime for POS maintenance.',labels:['Operations'],star:false,att:false,folder:'Inbox'}
+],
+processes:['Cashiering','HR & Admin and Operations','Inventory Management','EHS & Compliance'],
+responseTypes:['Store Visit','Unstructured data analysis','Structured data analysis']
+};
+
+// ═══════════════════ STATE ═══════════════════
+const S={pg:'dashboard',schPage:1,stPage:1,stFilter:'',iST:'',iView:'table',aqProc:'All Overview',emFolder:'Inbox',emLabel:'',scFilter:'all',obsTab:'top'};
+
+const TITLES={dashboard:'Dashboard & Analytics',scores:'Store Audit Scores',issues:'Action Taken Tracking',questions:'Audit Questions',scheduling:'Audit Scheduling',status:'Audit Status',email:'Email Communications',stores:'Store Management'};
+
+// ═══════════════════ NAV ═══════════════════
+document.querySelectorAll('.nav-item').forEach(el=>{
+  el.addEventListener('click',()=>{
+    const pg=el.dataset.page;
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('page-'+pg).classList.add('active');
+    document.getElementById('topbar-title').textContent=TITLES[pg];
+    S.pg=pg;
+    ({dashboard:rDash,scores:rScores,issues:rIssues,questions:rQ,scheduling:rSch,status:rStatus,email:rEM,stores:rST})[pg]?.();
+  });
+});
+
+// ═══════════════════ HELPERS ═══════════════════
+function donutSliceOpts(cutout,onSlice){
+  return {
+    responsive:true,
+    maintainAspectRatio:false,
+    cutout,
+    interaction:{mode:'point',intersect:true},
+    onHover:(evt,els)=>{if(evt.native&&evt.native.target) evt.native.target.style.cursor=els.length?'pointer':'default';},
+    onClick:(evt,els)=>{if(els.length) onSlice(els[0].index);},
+    plugins:{
+      legend:{display:false},
+      tooltip:{intersect:true,titleFont:{size:13},bodyFont:{size:13},padding:10,displayColors:true}
+    }
+  };
+}
+const avCols=['aa','ab','ac','ad','ae','af'];
+function avC(n){return avCols[Math.abs([...n].reduce((a,c)=>a+c.charCodeAt(0),0))%avCols.length];}
+function wColor(w){return w>=5?'#e02424':w>=4?'#f59e0b':'#0e9f6e';}
+function sColor(v){return v>=80?'#0e9f6e':v>=60?'#f59e0b':'#e02424';}
+function sBadge(s){return s==='In Progress'?'bb':s==='Planned'?'bgr':s==='Overdue'?'br':s==='Completed'?'bg':'bgr';}
+function pbClass(v){return v>=80?'pg':v>=60?'po':'pr';}
+function qTypeLabel(at){
+  const a=(at||'').toLowerCase();
+  if(a.includes('unstructured')) return 'Unstructured data analysis';
+  if(a.includes('structured')) return 'Structured data analysis';
+  if(a.includes('store visit')) return 'Store Visit';
+  return at;
+}
+
+// ═══════════════════ DASHBOARD ═══════════════════
+function rDash(){
+  const recentEmails=DB.emails.slice(0,5);
+  document.getElementById('d-recent-email').innerHTML=recentEmails.length?recentEmails.map(e=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:14px;">${e.star?'⭐':'✉️'}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.subj}</div>
+        <div style="font-size:11px;color:var(--text3);">${e.from} &bull; ${e.date}</div>
+      </div>
+      <span class="badge bgr" style="flex-shrink:0;">${e.folder}</span>
+    </div>`).join(''):`<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">No communications yet</div>`;
+  const allAudits = DB.schedules;
+  const ongoingCount = allAudits.filter(s => s.status === 'Assigned' || s.status === 'In Progress').length;
+  const completedCount = allAudits.filter(s => s.status === 'Completed').length;
+  document.getElementById('d-planned').textContent = ongoingCount + completedCount;
+  document.getElementById('d-ongoing').textContent = ongoingCount;
+  document.getElementById('d-completed').textContent = completedCount;
+
+  // charts (guarded: if Chart.js failed to load from the CDN — e.g. offline —
+  // the rest of the dashboard below should still render instead of the whole boot sequence dying)
+  if(typeof Chart==='undefined'){
+    console.error('Chart.js failed to load; skipping charts on the dashboard.');
+  } else {
+  // trend
+  const tC=document.getElementById('trendChart').getContext('2d');
+  if(window._tc) window._tc.destroy();
+  window._tc=new Chart(tC,{type:'line',data:{labels:['Oct','Nov','Dec','Jan','Feb','Mar'],datasets:[
+    {label:'Current',data:[82,84,85,87,88,89],borderColor:'#00338D',backgroundColor:'rgba(0,51,141,.08)',borderWidth:2.5,tension:.4,pointRadius:3,fill:true},
+    {label:'Benchmark',data:[90,90,90,90,90,90],borderColor:'#9ca3af',borderDash:[5,5],borderWidth:1.5,pointRadius:0,fill:false}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}},scales:{y:{min:75,max:95,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
+  // risk
+  const rD=[{l:'High',v:18,c:'#e02424'},{l:'Medium',v:52,c:'#f59e0b'},{l:'Low',v:30,c:'#0e9f6e'}];
+  const rC=document.getElementById('riskChart').getContext('2d');
+  if(window._rc) window._rc.destroy();
+  window._rc=new Chart(rC,{type:'doughnut',data:{labels:rD.map(d=>d.l),datasets:[{data:rD.map(d=>d.v),backgroundColor:rD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}]},options:donutSliceOpts('62%',idx=>openRiskDrill(rD[idx].l))});
+  document.getElementById('riskLeg').innerHTML=rD.map(d=>`<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px;cursor:pointer;" onclick="openRiskDrill('${d.l}')"><span style="width:9px;height:9px;border-radius:2px;background:${d.c};display:inline-block;"></span>${d.l}: <b>${d.v}%</b></div>`).join('');
+  // store bars
+  const sD=[{l:'Mumbai #1',v:92},{l:'Delhi D1',v:89},{l:'Blr B3',v:88},{l:'Pune P2',v:79},{l:'Jaipur J1',v:72},{l:'Kolkata K4',v:68},{l:'Chennai C2',v:65}];
+  const sC=document.getElementById('storeChart').getContext('2d');
+  if(window._sc) window._sc.destroy();
+  window._sc=new Chart(sC,{type:'bar',data:{labels:sD.map(d=>d.l),datasets:[{data:sD.map(d=>d.v),backgroundColor:sD.map(d=>d.v>=77?'#0e9f6e':'#f59e0b'),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:50,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
+  // region
+  const rgD=[{l:'North',v:28,c:'#00338D'},{l:'South',v:24,c:'#0e9f6e'},{l:'West',v:26,c:'#f59e0b'},{l:'East',v:22,c:'#e02424'}];
+  const rgC=document.getElementById('regChart').getContext('2d');
+  if(window._rgc) window._rgc.destroy();
+  window._rgc=new Chart(rgC,{type:'doughnut',data:{labels:rgD.map(d=>d.l),datasets:[{data:rgD.map(d=>d.v),backgroundColor:rgD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}]},options:donutSliceOpts('58%',idx=>openRegionDrill(rgD[idx].l))});
+  document.getElementById('regLeg').innerHTML=`<div style="font-size:17px;font-weight:700;margin-bottom:3px;">74.5%</div><div style="font-size:10px;color:var(--text3);margin-bottom:8px;">Avg Score</div>`+rgD.map(d=>`<div style="display:flex;align-items:center;gap:5px;margin-bottom:4px;cursor:pointer;" onclick="openRegionDrill('${d.l}')"><span style="width:9px;height:9px;border-radius:2px;background:${d.c};display:inline-block;"></span><span style="font-size:11.5px;">${d.l}: <b>${d.v}%</b></span></div>`).join('');
+  // format
+  const fD=[{l:'COCO',v:92,c:'#00338D'},{l:'COFO',v:84,c:'#06b6d4'},{l:'FOCO',v:76,c:'#f59e0b'},{l:'FOFO',v:68,c:'#8b5cf6'}];
+  const fC=document.getElementById('fmtChart').getContext('2d');
+  if(window._fc) window._fc.destroy();
+  window._fc=new Chart(fC,{type:'bar',data:{labels:fD.map(d=>d.l),datasets:[{data:fD.map(d=>d.v),backgroundColor:fD.map(d=>d.c),borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:50,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
+  document.getElementById('fmtSum').innerHTML=fD.map(d=>`
+    <div style="padding-bottom:4px;margin-bottom:4px;border-bottom:1px solid #e5e7eb;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+        <span style="color:#6b7280;">${d.l} Average</span><b style="color:${d.c};">${d.v}%</b>
+      </div>
+      <div class="prog-bg"><div class="prog-fill" style="width:${d.v}%;background:${d.c};height:5px;"></div></div>
+    </div>`).join('');
+  // dist
+  const dD=[{l:'>90',v:20,c:'#0e9f6e'},{l:'90-75',v:40,c:'#84cc16'},{l:'75-60',v:25,c:'#f59e0b'},{l:'60-40',v:10,c:'#f97316'},{l:'<40',v:5,c:'#e02424'}];
+  const dC=document.getElementById('distChart').getContext('2d');
+  if(window._dc) window._dc.destroy();
+  window._dc=new Chart(dC,{type:'doughnut',data:{labels:dD.map(d=>d.l),datasets:[{data:dD.map(d=>d.v),backgroundColor:dD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}]},options:donutSliceOpts('58%',idx=>openDistDrill(dD[idx].l))});
+  document.getElementById('distLeg').innerHTML=dD.map(d=>`<div style="display:flex;align-items:center;gap:5px;margin-bottom:4px;cursor:pointer;" onclick="openDistDrill('${d.l}')"><span style="width:9px;height:9px;border-radius:2px;background:${d.c};display:inline-block;"></span><span style="font-size:11.5px;">${d.l}: <b>${d.v}</b></span></div>`).join('');
+  }
+  // scorecards
+  const t5=[{n:'Phoenix Mall, Mumbai',v:'98%'},{n:'DLF Avenue, Delhi',v:'96%'},{n:'Ub City, Bangalore',v:'94%'},{n:'Select Citywalk, Delhi',v:'93%'},{n:'Nexus Mall, Pune',v:'91%'}];
+  const b5=[{n:'Centra Mall, Chandigarh',v:'42%'},{n:'Elante Outpost, Nagpur',v:'48%'},{n:'Pacific Hub, Dehradun',v:'52%'},{n:'South City, Kolkata',v:'55%'},{n:'Orbit Mall, Jaipur',v:'58%'}];
+  const scoreRow=(s,c)=>{const v=parseInt(s.v);return `<div class="sc-row"><span>${s.n}</span><div style="display:flex;align-items:center;gap:5px;min-width:70px;"><div class="prog-bg" style="flex:1;height:5px;"><div class="prog-fill ${pbClass(v)}" style="width:${v}%;"></div></div><span style="color:${c};font-weight:700;font-size:11.5px;">${s.v}</span></div></div>`;};
+  document.getElementById('topS').innerHTML=t5.map(s=>scoreRow(s,'#0e9f6e')).join('');
+  document.getElementById('botS').innerHTML=b5.map(s=>scoreRow(s,'#e02424')).join('');
+  const topObs=['GSTIN certificate not displayed at store','Manual bills issued from store not regularized','Defined Merchandise layout not followed across the store','Delay in deposit of cash collected through sales','Fake note detector not available in stores'];
+  const repObs=['Freezer temperature fluctuation','Generator oil leakage detected','Critical Gas line inspection overdue','Wet floor in prep area','AC unit not cooling in customer area'];
+  rObs(topObs, repObs);
+
+  // recent issues
+  const prC=p=>p==='Critical'?'br':p==='High'?'bo':p==='Medium'?'by':'bgr';
+  const stC=s=>s==='In Progress'?'bb':s==='Resolved'?'bg':'bgr';
+  const recentIds=['ISS010','ISS011','ISS009'];
+  const recentIssues=recentIds.map(id=>DB.issues.find(i=>i.id===id)).filter(Boolean);
+  document.getElementById('d-recent-issues').innerHTML=recentIssues.length?recentIssues.map((i,idx)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;${idx<recentIssues.length-1?'border-bottom:1px solid var(--border);':''}cursor:pointer;" onclick="document.querySelector('.nav-item[data-page=issues]').click()">
+      <div class="av ${avC(i.assignee)}" style="width:24px;height:24px;font-size:10px;flex-shrink:0;">${i.assignee[0]}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${i.title}</div>
+        <div style="font-size:11px;color:var(--text3);">${i.store} &bull; ${i.created}</div>
+      </div>
+      <div style="display:flex;gap:5px;flex-shrink:0;"><span class="badge ${prC(i.pri)}">${i.pri}</span>
+      <span class="badge ${stC(i.status)}">${i.status}</span></div>
+    </div>`).join(''):`<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">No issues yet</div>`;
+}
+
+function openRiskDrill(level){
+  const prC=p=>p==='Critical'?'br':p==='High'?'bo':p==='Medium'?'by':'bgr';
+  const stC=s=>s==='In Progress'?'bb':s==='Resolved'?'bg':s==='On Hold'?'by':s==='Closed'?'bgr':'br';
+  const priForLevel={High:['Critical','High'],Medium:['Medium'],Low:['Low']}[level]||[];
+  const data=DB.issues.filter(i=>priForLevel.includes(i.pri));
+  document.getElementById('drill-title').textContent=`${level} Risk Observations (${data.length})`;
+  document.getElementById('drill-list').innerHTML=data.length?data.map(i=>`
+    <div style="padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:5px;">${i.title}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+        <span class="badge ${stC(i.status)}">${i.status}</span>
+        <span class="badge ${prC(i.pri)}">${i.pri}</span>
+        <span style="font-size:11px;color:var(--text3);">${i.store}</span>
+      </div>
+    </div>`).join(''):`<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">No observations in this category</div>`;
+  document.getElementById('drill-drawer').classList.add('open');
+}
+function openRegionDrill(regionAbbr){
+  const region=regionAbbr+' India';
+  const data=DB.audits.filter(a=>a.region===region);
+  document.getElementById('drill-title').textContent=`${region} Audits (${data.length})`;
+  document.getElementById('drill-list').innerHTML=data.length?data.map(a=>`
+    <div style="padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:5px;">${a.store}, ${a.city}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+        <span class="badge ${sBadge(a.status)}">${a.status}</span>
+        <span style="font-size:11px;color:var(--text3);">${a.sched}</span>
+      </div>
+    </div>`).join(''):`<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">No audits in this region</div>`;
+  document.getElementById('drill-drawer').classList.add('open');
+}
+function openDistDrill(bucket){
+  const inBucket=v=>{
+    if(bucket==='>90') return v>90;
+    if(bucket==='90-75') return v<=90&&v>=75;
+    if(bucket==='75-60') return v<75&&v>=60;
+    if(bucket==='60-40') return v<60&&v>=40;
+    return v<40;
+  };
+  const data=DB.stores.filter(s=>inBucket(s.s25));
+  document.getElementById('drill-title').textContent=`Stores Scoring ${bucket}% (${data.length})`;
+  document.getElementById('drill-list').innerHTML=data.length?data.map(s=>`
+    <div style="padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:5px;">${s.name}, ${s.city}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+        <span class="badge ${s.status==='Operating'?'bg':'bgr'}">${s.status}</span>
+        <span style="font-size:11px;color:${sColor(s.s25)};font-weight:700;">${s.s25}%</span>
+      </div>
+    </div>`).join(''):`<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">No stores in this range</div>`;
+  document.getElementById('drill-drawer').classList.add('open');
+}
+function closeDrill(){document.getElementById('drill-drawer').classList.remove('open');}
+
+// ═══════════════════ SCORES ═══════════════════
+function rScores(){
+  const q=(document.getElementById('sc-q').value||'').toLowerCase();
+  const yr1El = document.getElementById('yr1');
+  const yr2El = document.getElementById('yr2');
+  if (yr1El.options.length === 0) {
+    const yearOpts = ['2022', '2023', '2024', '2025', '2026'];
+    yr1El.innerHTML = yearOpts.map(y => `<option ${y === '2025' ? 'selected' : ''}>${y}</option>`).join('');
+    yr2El.innerHTML = yearOpts.map(y => `<option ${y === '2026' ? 'selected' : ''}>${y}</option>`).join('');
+  }
+  const startYear = parseInt(yr1El.value);
+  const endYear = parseInt(yr2El.value);
+ 
+  const years = [];
+  if (startYear <= endYear) {
+    for (let y = startYear; y <= endYear; y++) years.push(String(y));
+  }
+  const table = document.getElementById('scores-table');
+  table.style.setProperty('--score-cols', years.length);
+
+  let headerHTML = `<div class="score-bar-row" style="background:#fafafa;border-bottom:1px solid var(--border);"><span style="font-size:11.5px;font-weight:600;color:var(--text3);">Store Details</span><span style="font-size:11.5px;font-weight:600;color:var(--text3);">Status</span>`;
+  years.forEach(year => {
+    headerHTML += `<span style="font-size:11.5px;font-weight:600;color:var(--text3);">📅 Audit Score ${year} ⇅</span>`;
+  });
+  headerHTML += `<span style="font-size:11.5px;font-weight:600;color:var(--text3);">Actions</span></div>`;
+
+  let data=DB.stores.filter(s=>{
+    if(q&&!s.name.toLowerCase().includes(q)&&!s.city.toLowerCase().includes(q)) return false;
+    if(S.scFilter==='open'&&s.status!=='Operating') return false;
+    if(S.scFilter==='closed'&&s.status!=='Dehired') return false;
+    return true;
+  });
+  let bodyHTML = data.map(s=>`
+    <div class="score-bar-row" style="cursor:pointer;" onclick="showStoreDetail('${s.id}')">
+      <div style="display:flex;align-items:center;gap:8px;"><img src="store-logo.jpg" style="width:26px;height:26px;border-radius:6px;"><div><div style="font-weight:600;font-size:12.5px;">${s.name}</div><div style="font-size:11px;color:var(--text3);">${s.city}</div></div></div>
+      <span class="badge ${s.status==='Operating'?'bg':'bgr'}">${s.status}</span>
+      ${years.map(year => `<div><div style="margin-bottom:4px;"><span class="sn" style="color:${sColor(s['s'+year.slice(-2)])};">${s['s'+year.slice(-2)]}</span></div><div style="display:flex;align-items:center;gap:6px;"><div class="prog-bg" style="width:150px;"><div class="prog-fill ${pbClass(s['s'+year.slice(-2)])}" style="width:${s['s'+year.slice(-2)]}%;height:6px;"></div></div>${delta(s['s'+year.slice(-2)], s['s'+String(parseInt(year)-1).slice(-2)])}</div></div>`).join('')}
+      <button class="icon-btn" style="width:26px;height:26px;font-size:11px;">👁</button>
+    </div>
+    `).join('');
+  table.innerHTML = headerHTML + `<div id="sc-body">${bodyHTML}</div>`;
+  document.getElementById('sc-cnt').textContent=`${data.length} stores`;
+}
+function scFilter(f,el){S.scFilter=f;document.querySelectorAll('#page-scores .qtab').forEach(t=>t.classList.remove('active'));el.classList.add('active');rScores();}
+const delta=(curr,prev)=>{
+  if(prev===undefined)return'';
+  const d=curr-prev;
+  if(d>0)return`<span class="db-up">+${d}</span>`;
+  if(d<0)return`<span class="db-dn">${d}</span>`;
+  return`<span class="db-fl">0</span>`;};
+function showStoreDetail(id){
+  const s=DB.stores.find(st=>st.id===id);
+  if(!s) return;
+  document.getElementById('sd-title').textContent = `${s.name}, ${s.city}`;
+  document.getElementById('sd-id').textContent = s.id;
+  document.getElementById('sd-region').textContent = s.region;
+  document.getElementById('sd-format').textContent = s.format;
+  document.getElementById('sd-type').textContent = s.type||'—';
+  document.getElementById('sd-manager').textContent = s.manager;
+  openM('m-store-detail');
+
+  if(typeof Chart==='undefined'){
+    console.error('Chart.js failed to load; skipping store trend chart.');
+  } else {
+  const sdc = document.getElementById('sd-chart').getContext('2d');
+  if(window._sdc) window._sdc.destroy();
+  window._sdc = new Chart(sdc, {
+    type: 'line',
+    data: {
+      labels: ['2022', '2023', '2024', '2025', '2026'],
+      datasets: [{
+        label: 'Score',
+        data: [s.s22, s.s23, s.s24, s.s25, s.s26],
+        borderColor: 'var(--accent)', backgroundColor: 'rgba(0,51,141,.1)',
+        borderWidth: 2, tension: 0.1, fill: true
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }}, scales: { y: { min: 0, max: 100, ticks:{font:{size:10}}}, x:{ticks:{font:{size:10}}} } }
+  });
+  }
+
+  const recentAudits = DB.audits.filter(a => a.store === s.name).slice(0, 3);
+  const auditsEl = document.getElementById('sd-audits');
+  if (recentAudits.length > 0) {
+    auditsEl.innerHTML = `
+      <div style="background:#fafafa;padding:8px 10px;display:grid;grid-template-columns:1fr 1fr 1fr 100px;font-size:11px;font-weight:600;color:var(--text3);border-bottom:1px solid var(--border);">
+        <span>Audit ID</span><span>Date</span><span>Score</span><span>Action</span>
+      </div>` +
+      recentAudits.map(a => `
+      <div style="padding:9px 10px;display:grid;grid-template-columns:1fr 1fr 1fr 100px;font-size:12px;align-items:center;border-bottom:1px solid var(--border);">
+        <span style="font-weight:600;color:var(--accent);">${a.id}</span><span>${a.sched.split(',')[0]}</span><span style="font-weight:600;color:${sColor(a.score || 0)}">${a.score || 'N/A'}</span><button class="btn btn-outline btn-sm" onclick="closeM('m-store-detail');showAuditDetail('${a.id}')">View Report</button>
+      </div>`).join('');
+  } else {
+    auditsEl.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">No recent audits found for this store.</div>`;
+  }
+}
+
+// ═══════════════════ AUDIT REPORT ═══════════════════
+function _seedRand(seed){let h=0;for(const c of seed)h=(h*31+c.charCodeAt(0))>>>0;return ()=>{h=(h*1103515245+12345)>>>0;return (h>>>8)/0xFFFFFF;};}
+const COMMENT_POOL=[
+  ['Can this be resolved by end of day?','Yes, our team will fix it by tomorrow morning.'],
+  ['Please share updated photo once corrected.','Sure, will upload once done.'],
+  ['This needs to be escalated to store manager.','Noted, informing the manager now.'],
+  ['Kindly ensure this does not repeat next visit.','Understood, adding to our daily checklist.']
+];
+// Pool of realistic, process-tagged store-audit observations used to fill out an audit's
+// "Observations" section alongside any real linked issues from DB.issues.
+const OBS_POOL=[
+  {title:'GSTIN certificate not displayed at store',desc:'Mandatory GST registration certificate was not displayed at the primary customer-facing area as required by statute.',proc:'EHS & Compliance',pri:'Medium'},
+  {title:'Manual bills issued from store not regularized',desc:'Manual bills raised during POS downtime were not entered into the system or reconciled within the mandated timeline.',proc:'Cashiering',pri:'High'},
+  {title:'Defined merchandise layout not followed',desc:'Shelf and rack arrangement did not match the approved planogram for the category.',proc:'Inventory Management',pri:'Low'},
+  {title:'Delay in deposit of cash collected through sales',desc:'Cash collected from sales was not deposited with the collection agency within the mandated timeline.',proc:'Cashiering',pri:'High'},
+  {title:'Fake note detector not available at billing counter',desc:'The store did not have a functioning fake note detector at the billing counter.',proc:'Cashiering',pri:'Medium'},
+  {title:'Fire safety certification pending renewal',desc:'Annual fire safety certification has lapsed and renewal has not yet been initiated.',proc:'EHS & Compliance',pri:'Critical'},
+  {title:'Excess discount granted beyond approval limit',desc:'Store manager discount applied on select bills exceeded the approved authorization limit.',proc:'Cashiering',pri:'Medium'},
+  {title:'Ineligible SKU accepted under returns',desc:'A return was processed for an SKU outside the eligible return policy window.',proc:'Cashiering',pri:'Low'},
+  {title:'Housekeeping schedule not adhered to',desc:'Cleaning checklist for washrooms and shopfloor was not completed as per the defined frequency.',proc:'HR & Admin and Operations',pri:'Low'},
+  {title:'CCTV coverage gap in receiving bay',desc:'Camera covering the goods receiving bay was found non-functional during the visit.',proc:'Inventory Management',pri:'High'},
+  {title:'Stock variance unresolved beyond timeline',desc:'A high-value SKU variance flagged in the last cycle count remains unreconciled.',proc:'Inventory Management',pri:'Medium'},
+  {title:'Expired stock not segregated',desc:'Near-expiry items were found co-mingled with regular saleable stock on the shelf.',proc:'Inventory Management',pri:'High'},
+  {title:'Staff ID cards not issued to new hires',desc:'Recently onboarded staff members did not have valid ID cards issued.',proc:'HR & Admin and Operations',pri:'Low'},
+  {title:'Attendance register mismatch',desc:'Biometric attendance logs did not match the manual entry-exit register for the audit period.',proc:'HR & Admin and Operations',pri:'Medium'},
+  {title:'Fixed assets untagged in backroom',desc:'Several backroom fixed assets did not carry the required barcode/FA tag.',proc:'HR & Admin and Operations',pri:'Low'},
+  {title:'Scrap sale not matched with outward register',desc:'Scrap sale invoice values did not reconcile with the entries in the outward register.',proc:'Inventory Management',pri:'Medium'},
+];
+function showAuditDetail(id){
+  const a=DB.audits.find(x=>x.id===id);
+  if(!a) return;
+  const rnd=_seedRand(id);
+  document.getElementById('ad-title').textContent=`${a.id} · ${a.store}`;
+  document.getElementById('ad-store').textContent=`${a.store}, ${a.city}`;
+  document.getElementById('ad-sched').textContent=a.sched;
+  document.getElementById('ad-status').innerHTML=`<span class="badge ${sBadge(a.status)}">${a.status}</span>`;
+  document.getElementById('ad-auditor').textContent=a.auditor||'Unassigned';
+  document.getElementById('ad-issues').textContent=(a.issues||'').split('/')[0];
+  document.getElementById('ad-score').innerHTML=a.score!=null?`<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:2px solid ${sColor(a.score)};font-size:11px;font-weight:700;color:${sColor(a.score)};">${a.score}%</span>`:`<span style="color:var(--text3);">Pending</span>`;
+ 
+  // audit questions answered: deterministic sample of active bank questions with simulated Yes/No answers
+  const activeQ=DB.questions.filter(q=>q.on);
+  const qCount=Math.min(6,activeQ.length);
+  const answered=[...activeQ].sort(()=>rnd()-0.5).slice(0,qCount).map(q=>({
+    text:q.text,sp:q.sp,ans:rnd()>(q.crit?0.35:0.15)?'Yes':'No'
+  }));
+  document.getElementById('ad-obs-list').innerHTML=answered.length?answered.map(q=>`
+    <div style="display:grid;grid-template-columns:14px 1fr 150px 60px;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);">
+      <span style="width:9px;height:9px;border-radius:50%;background:${q.ans==='Yes'?'#0e9f6e':'#e02424'};flex-shrink:0;"></span>
+      <span style="font-size:12.5px;color:var(--text2);">${q.text}</span>
+      <span class="chip" style="justify-self:start;">${q.sp}</span>
+      <span class="badge ${q.ans==='Yes'?'bg':'br'}" style="justify-self:end;">${q.ans}</span>
+    </div>`).join('') + `<div style="padding:9px 12px; font-size:12px; color: var(--text3);">(Showing a sample of questions)</div>`:`<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">No questions answered yet.</div>`;
+
+  // observations: any real linked issues from DB.issues, topped up with process-relevant
+  // sampled observations (deterministic per audit id) so every audit shows 4-5 entries
+  const prC=p=>p==='Critical'?'br':p==='High'?'bo':p==='Medium'?'by':'bgr';
+  const stC=s=>s==='In Progress'?'bb':s==='Resolved'?'bg':s==='On Hold'?'by':s==='Closed'?'bgr':'br';
+  const linkedIssues=DB.issues.filter(i=>i.aid===a.id).map(i=>({title:i.title,desc:i.desc,pri:i.pri,status:i.status}));
+  const targetCount=4+Math.floor(rnd()*2); // 4 or 5, deterministic per audit
+  const statusOptions=['Open','In Progress','Resolved'];
+  const poolShuffled=[...OBS_POOL].sort(()=>rnd()-0.5);
+  const sampled=[];
+  for(const o of poolShuffled){
+    if(linkedIssues.length+sampled.length>=targetCount) break;
+    if(linkedIssues.some(li=>li.title===o.title)) continue;
+    sampled.push({title:o.title,desc:o.desc,pri:o.pri,status:statusOptions[Math.floor(rnd()*statusOptions.length)]});
+  }
+  const findings=[...linkedIssues,...sampled];
+  document.getElementById('ad-findings-list').innerHTML=findings.length?findings.map((i,idx)=>`
+    <div style="padding:10px 12px;${idx<findings.length-1?'border-bottom:1px solid var(--border);':''}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:4px;">
+        <span style="font-size:12.5px;font-weight:600;color:var(--text);flex:1;min-width:0;text-align:left;padding-right:8px;">${i.title}</span>
+        <div style="display:flex;gap:5px;flex-shrink:0;justify-content:flex-end;">
+          <span class="badge ${prC(i.pri)}" style="white-space:nowrap;">${i.pri}</span>
+          <span class="badge ${stC(i.status)}" style="white-space:nowrap;">${i.status}</span>
+        </div>
+      </div>
+      <div style="font-size:11.5px;color:var(--text3);line-height:1.4;">${i.desc}</div>
+    </div>`).join(''):`<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">No observations recorded for this audit.</div>`;
+
+  // comment thread
+  const cSet=COMMENT_POOL[Math.floor(rnd()*COMMENT_POOL.length)];
+  document.getElementById('ad-comments').innerHTML=`
+    <div style="align-self:flex-end;max-width:75%;background:var(--accent);color:#fff;padding:8px 12px;border-radius:12px 12px 2px 12px;font-size:12.5px;">${cSet[0]}<div style="font-size:10px;opacity:.75;margin-top:3px;">${a.auditor||'Auditor'}</div></div>
+    <div style="align-self:flex-start;max-width:75%;background:#f3f4f6;color:var(--text2);padding:8px 12px;border-radius:12px 12px 12px 2px;font-size:12.5px;">${cSet[1]}<div style="font-size:10px;color:var(--text3);margin-top:3px;">Store Manager</div></div>
+  `;
+  openM('m-audit-detail');
+}
+
+let _siCurrentId=null;
+function showStoreInsight(id){
+  const s=DB.stores.find(st=>st.id===id);
+  if(!s) return;
+  _siCurrentId=id;
+  document.getElementById('si-name').textContent=s.name;
+  document.getElementById('si-id').textContent='SI-'+(1000+parseInt(s.id.replace('ST',''),10)-1);
+  document.getElementById('si-manager').textContent=s.manager;
+  document.getElementById('si-type').textContent=s.type||'—';
+  document.getElementById('si-location').textContent=s.city;
+  document.getElementById('si-contact').textContent=s.contact||'—';
+  document.getElementById('si-email').textContent=s.email||'—';
+  document.getElementById('si-address').textContent=s.address||'—';
+  document.getElementById('si-full-history').onclick=()=>{
+    closeM('m-store-insight');
+    document.querySelector('.nav-item[data-page="scores"]').click();
+    setTimeout(()=>showStoreDetail(id),60);
+  };
+  siTab('info');
+  openM('m-store-insight');
+}
+function siTab(t){
+  const infoTab=document.getElementById('si-tab-info'),perfTab=document.getElementById('si-tab-perf');
+  const infoPanel=document.getElementById('si-info-panel'),perfPanel=document.getElementById('si-perf-panel');
+  infoTab.classList.toggle('active',t==='info');
+  perfTab.classList.toggle('active',t==='perf');
+  infoPanel.style.display=t==='info'?'block':'none';
+  perfPanel.style.display=t==='perf'?'block':'none';
+  if(t==='perf'&&_siCurrentId){
+    const s=DB.stores.find(st=>st.id===_siCurrentId);
+    if(typeof Chart==='undefined'){
+      console.error('Chart.js failed to load; skipping store performance chart.');
+    } else {
+    const ctx=document.getElementById('si-chart').getContext('2d');
+    if(window._sic) window._sic.destroy();
+    window._sic=new Chart(ctx,{type:'line',data:{labels:['2022','2023','2024','2025','2026'],datasets:[{label:'Score',data:[s.s22,s.s23,s.s24,s.s25,s.s26],borderColor:'#00338D',backgroundColor:'rgba(0,51,141,.1)',borderWidth:2,tension:.1,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
+    }
+  }
+}
+
+// ═══════════════════ ISSUES ═══════════════════
+function setIssueView(v){
+  S.iView=v;
+  document.getElementById('iv-table').classList.toggle('btn-primary',v==='table');
+  document.getElementById('iv-table').classList.toggle('btn-outline',v!=='table');
+  document.getElementById('iv-board').classList.toggle('btn-primary',v==='board');
+  document.getElementById('iv-board').classList.toggle('btn-outline',v!=='board');
+  document.getElementById('i-table-view').style.display=v==='table'?'block':'none';
+  document.getElementById('i-board-view').style.display=v==='board'?'block':'none';
+  document.getElementById('i-status-tabs').style.display=v==='table'?'flex':'none';
+  rIssues();
+}
+function clearIssueFilters(){
+  document.getElementById('i-q').value='';
+  document.getElementById('i-sf').value='';
+  document.getElementById('i-pf').value='';
+  document.getElementById('i-stf').value='';
+  document.getElementById('i-af').value='';
+  rIssues();
+}
+function rIssues(){
+  const q=(document.getElementById('i-q').value||'').toLowerCase();
+  const sf=document.getElementById('i-sf').value;
+  const pf=document.getElementById('i-pf').value;
+  const stf=document.getElementById('i-stf').value;
+  const af=document.getElementById('i-af').value;
+  let data=DB.issues.filter(i=>{
+    if(q&&!i.title.toLowerCase().includes(q)&&!i.desc.toLowerCase().includes(q)&&!i.tags.join(' ').toLowerCase().includes(q)) return false;
+    if(sf&&i.status!==sf) return false;
+    if(pf&&i.pri!==pf) return false;
+    if(stf&&i.store!==stf) return false;
+    if(af&&i.assignee!==af) return false;
+    return true;
+  });
+
+  document.getElementById('i-total').textContent=DB.issues.length;
+  document.getElementById('i-open').textContent=DB.issues.filter(i=>!i.ov&&i.status!=='Resolved'&&i.status!=='Closed').length;
+  document.getElementById('i-ov').textContent=DB.issues.filter(i=>i.ov).length;
+  document.getElementById('i-done').textContent=DB.issues.filter(i=>i.status==='Resolved').length;
+
+  const sf2=document.getElementById('i-stf');
+  const storeOpts=[...new Set(DB.issues.map(i=>i.store))];
+  if(sf2.children.length-1!==storeOpts.length){
+    sf2.innerHTML='<option value="">Store</option>'+storeOpts.map(s=>`<option>${s}</option>`).join('');
+    sf2.value=stf;
+  }
+  const af2=document.getElementById('i-af');
+  const assigneeOpts=[...new Set(DB.issues.map(i=>i.assignee))];
+  if(af2.children.length-1!==assigneeOpts.length){
+    af2.innerHTML='<option value="">Assignee</option>'+assigneeOpts.map(a=>`<option>${a}</option>`).join('');
+    af2.value=af;
+  }
+
+  if(S.iView==='board'){
+    renderIssueBoard(data);
+    document.getElementById('i-cnt').textContent=`${data.length} items`;
+    return;
+  }
+
+  const tdata=data.filter(i=>!S.iST||i.status===S.iST);
+  const prC=p=>p==='Critical'?'br':p==='High'?'bo':p==='Medium'?'by':'bgr';
+  const stC=s=>s==='In Progress'?'bb':s==='Resolved'?'bg':s==='On Hold'?'by':s==='Closed'?'bgr':'br';
+  const stBorder=s=>s==='In Progress'?'#00338D':s==='Resolved'?'#0e9f6e':s==='On Hold'?'#f59e0b':s==='Closed'?'#6b7280':'#e02424';
+  document.getElementById('i-list').innerHTML=tdata.length?tdata.map(i=>`
+    <div style="background:#fff;border:1px solid var(--border);border-left:4px solid ${stBorder(i.status)};border-radius:10px;padding:13px 14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <a style="color:var(--accent);font-weight:600;text-decoration:none;font-size:11.5px;">${i.aid}</a>
+        <div style="display:flex;align-items:center;gap:6px;">
+          ${i.ov?`<span style="background:#fde8e8;color:#9b1c1c;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;">Overdue</span>`:''}
+          <button class="icon-btn" style="width:22px;height:22px;font-size:10px;" onclick="editIssue('${i.id}')">✏️</button>
+          <button class="icon-btn" style="width:22px;height:22px;font-size:10px;color:var(--red);" onclick="delIssue('${i.id}')">🗑</button>
+        </div>
+      </div>
+      <div style="font-size:13.5px;font-weight:600;color:var(--text);margin-bottom:7px;">${i.title}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+        <span class="badge ${stC(i.status)}">${i.status}</span>
+        <span class="badge ${prC(i.pri)}">${i.pri}</span>
+        ${i.proc?`<span class="chip">Process: ${i.proc}</span>`:''}
+        ${i.sp?`<span class="chip">Sub-process: ${i.sp}</span>`:''}
+      </div>
+      <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px;line-height:1.4;">${i.desc}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:9px;border-top:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="av ${avC(i.assignee)}" style="width:22px;height:22px;font-size:9.5px;">${i.assignee[0]}</div>
+          <span style="font-size:11.5px;color:var(--text2);">${i.assignee}</span>
+        </div>
+        <span style="font-size:11px;color:var(--text3);">${i.store}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+        <span style="font-size:10.5px;color:var(--text3);">Created ${i.created}</span>
+        <span style="font-size:11px;color:${i.ov?'var(--red)':'var(--text3)'};font-weight:600;">Due ${i.due}</span>
+      </div>
+      ${(i.files||i.comments)?`<div style="display:flex;gap:10px;margin-top:6px;">${i.files?`<span style="font-size:11px;color:var(--text3);">📎 ${i.files}</span>`:''}${i.comments?`<span style="font-size:11px;color:var(--text3);">💬 ${i.comments}</span>`:''}</div>`:''}
+    </div>`).join(''):`<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text3);">✅ No issues match your filters</div>`;
+  document.getElementById('i-cnt').textContent=`${tdata.length} items`;
+}
+function renderIssueBoard(data){
+  const cols=['Open','In Progress','On Hold','Resolved','Closed'];
+  const colColor={Open:'#e02424','In Progress':'#00338D','On Hold':'#f59e0b',Resolved:'#0e9f6e',Closed:'#6b7280'};
+  const prC=p=>p==='Critical'?'br':p==='High'?'bo':p==='Medium'?'by':'bgr';
+  document.getElementById('i-board').innerHTML=cols.map(col=>{
+    const items=data.filter(i=>i.status===col);
+    return `
+    <div style="flex:0 0 250px;background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <span style="font-size:12px;font-weight:700;color:var(--text2);">${col}</span>
+        <span style="background:#fff;border:1px solid var(--border);border-radius:20px;padding:1px 8px;font-size:11px;color:var(--text3);">${items.length}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+      ${items.length?items.map(i=>`
+        <div style="background:#fff;border:1px solid var(--border);border-left:3px solid ${colColor[col]};border-radius:8px;padding:9px 10px;">
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:5px;">${i.title}</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">
+            <span class="badge ${prC(i.pri)}">${i.pri}</span>
+            ${i.ov?`<span class="badge br">Overdue</span>`:''}
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:5px;"><div class="av ${avC(i.assignee)}" style="width:20px;height:20px;font-size:9px;">${i.assignee[0]}</div><span style="font-size:11px;color:var(--text3);">${i.store}</span></div>
+            <span style="font-size:10.5px;color:${i.ov?'var(--red)':'var(--text3)'};">${i.due}</span>
+          </div>
+        </div>`).join(''):`<div style="text-align:center;padding:14px 0;color:var(--text3);font-size:11px;">No issues</div>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+function iST(s,el){S.iST=s;const tabs=document.querySelectorAll('#i-status-tabs .qtab');tabs.forEach(t=>t.classList.remove('active'));el.classList.add('active');rIssues();}
+
+// ═══════════════════ AUDIT QUESTIONS ═══════════════════
+function rQ(){
+  const pCounts={};DB.questions.forEach(q=>{pCounts[q.proc]=(pCounts[q.proc]||0)+1;});
+  document.getElementById('aq-proc-list').innerHTML=
+    `<div class="aq-pi ${S.aqProc==='All Overview'?'active':''}" onclick="setAQP('All Overview',this)"><span>All Overview</span><span class="aq-pc">${DB.questions.length}</span></div>`+
+    DB.processes.map(p=>`<div class="aq-pi ${S.aqProc===p?'active':''}" onclick="setAQP('${p}',this)"><span>${p}</span><span class="aq-pc">${pCounts[p]||0}</span></div>`).join('');
+  const q=(document.getElementById('aq-q').value||'').toLowerCase();
+  const typeFilter = document.getElementById('aq-tf').value.trim();
+  let data=DB.questions.filter(item=>{
+    if(S.aqProc!=='All Overview'&&item.proc!==S.aqProc) return false;
+    if(q && !(item.text.toLowerCase().includes(q) || item.tags.some(t => t.toLowerCase().includes(q)))) return false;
+    if(typeFilter && item.at !== typeFilter) return false;
+    return true;
+  });
+  document.getElementById('aq-list').innerHTML=data.length?data.map(item=>`
+    <div class="aq-gr" style="flex-direction:column;">
+      <div style="display:flex;">
+        ${item.crit?'<div style="width:3px;background:#e02424;flex-shrink:0;border-radius:2px 0 0 2px;"></div>':'<div style="width:3px;"></div>'}
+        <div class="aq-grc">
+          <div>
+            <div style="font-size:12.5px;color:var(--text);line-height:1.4;margin-bottom:3px;">${item.text}</div>
+            <div style="font-size:10.5px;color:var(--text3);margin-bottom:3px;font-weight:500;"><span style="color:var(--text2);font-weight:600;">Type:</span> ${qTypeLabel(item.at)}</div>
+            <div style="display:flex;gap:3px;flex-wrap:wrap;">${item.tags.map(t=>`<span class="chip">${t}</span>`).join('')}</div>
+          </div>
+          <span class="badge bb" style="font-size:10px;white-space:normal;text-align:center;line-height:1.3;display:inline-block;padding:4px 8px;">${item.proc}</span>
+          <span style="font-size:12px;color:var(--text3);">${item.sp}</span>
+          <div><div class="wdot" style="background:${wColor(item.w)};">${item.w}</div></div>
+          <div class="toggle ${item.on?'on':''}" onclick="toggleQ('${item.id}')"></div>
+          <div style="display:flex;gap:4px;">
+            <button class="icon-btn" style="width:25px;height:25px;font-size:11px;" onclick="editQ('${item.id}')">✏️</button>
+            <button class="icon-btn" style="width:25px;height:25px;font-size:11px;color:var(--red);" onclick="delQ('${item.id}')">🗑</button>
+          </div>
+        </div>
+      </div>
+      ${item.id==='Q068'?`<div style="display:flex;justify-content:flex-end;padding:0 10px 8px;"><button class="btn btn-primary" style="font-size:10px;padding:4px 8px;border-radius:5px;white-space:nowrap;" onclick="event.stopPropagation();openPBIDashboard();">📊 Power BI Dashboard</button></div>`:''}
+    </div>`).join(''):`<div style="text-align:center;padding:40px;color:var(--text3);">📋 No questions found</div>`;
+  document.getElementById('aq-cnt').textContent=`${data.length} questions`;
+  const ps=document.getElementById('nq-pr');
+  if(ps) ps.innerHTML=DB.processes.map(p=>`<option value="${p}">${p}</option>`).join('') + `<option value="--new--">+ Add New Process</option>`;
+  const aqtf = document.getElementById('aq-tf');
+  const currentTypeFilter = aqtf.value;
+  const types = [...new Set(DB.questions.map(q => q.at))];
+  aqtf.innerHTML = `<option value="">Type</option>` + types.map(t => `<option value="${t}" ${t === currentTypeFilter ? 'selected' : ''}>${t}</option>`).join('');
+  const atEl=document.getElementById('nq-at');
+  if(atEl) atEl.innerHTML=DB.responseTypes.map(rt=>`<option value="${rt}">${rt}</option>`).join('') + `<option value="--new--">+ Add New Type</option>`;
+
+}
+function setAQP(p){S.aqProc=p;rQ();}
+function setObsTab(t){S.obsTab=t;rObs();}
+function rObs(topObs, repObs){
+  topObs = topObs || ['GSTIN certificate not displayed at store','Manual bills issued from store not regularized','Defined Merchandise layout not followed across the store','Delay in deposit of cash collected through sales','Fake note detector not available in stores'];
+  repObs = repObs || ['Freezer temperature fluctuation','Generator oil leakage detected','Critical Gas line inspection overdue','Wet floor in prep area','AC unit not cooling in customer area'];
+  const topObsHTML=topObs.map(o=>`<div class="obs-item"><div class="obs-dot"></div><div>${o}</div></div>`).join('');
+  const repObsHTML=repObs.map(o=>`<div class="obs-item"><div class="obs-dot" style="background:var(--red);"></div><div>${o}</div></div>`).join('');
+  document.getElementById('repObs').innerHTML = `
+    <div style="display:flex;gap:5px;margin-bottom:8px;">
+      <button class="qtab ${S.obsTab==='top'?'active':''}" onclick="setObsTab('top')">Top 5 Observations</button>
+      <button class="qtab ${S.obsTab==='repeat'?'active':''}" onclick="setObsTab('repeat')">Top 5 Repeat</button>
+    </div>
+    <div id="obs-top" class="page ${S.obsTab==='top'?'active':''}">
+      ${topObsHTML}
+    </div>
+    <div id="obs-repeat" class="page ${S.obsTab==='repeat'?'active':''}">
+      ${repObsHTML}
+    </div>
+  `;
+}
+function toggleQ(id){const q=DB.questions.find(q=>q.id===id);if(q){q.on=!q.on;rQ();}}
+function delQ(id){if(!confirm('Delete question?'))return;DB.questions=DB.questions.filter(q=>q.id!==id);rQ();rDash();toast('Deleted');}
+
+// ═══════════════════ SCHEDULING ═══════════════════
+function rSch(){
+  const q=(document.getElementById('s-q').value||'').toLowerCase();
+  const rf=document.getElementById('s-rf').value;
+  const sf=document.getElementById('s-sf').value;
+  let data=DB.schedules.filter(s=>{
+    if(q&&!s.type.toLowerCase().includes(q)&&!s.region.toLowerCase().includes(q)) return false;
+    if(rf&&s.region!==rf) return false;
+    if(sf&&s.status!==sf) return false;
+    return true;
+  });
+  const PP=8,tot=data.length,pages=Math.ceil(tot/PP)||1;
+  if(S.schPage>pages) S.schPage=1;
+  data=data.slice((S.schPage-1)*PP,S.schPage*PP);
+  const stBadge=s=>s==='Assigned'?'bo':s==='Completed'?'bg':s==='Scheduled'?'bb':'bgr';
+  const pColor=s=>s==='Completed'?'#0e9f6e':s==='Assigned'?'#00338D':'#e5e7eb';
+  document.getElementById('s-body').innerHTML=data.map(s=>`
+    <tr style="cursor:pointer;" onclick="openSchDetail('${s.id}')">
+      <td><div style="display:flex;align-items:center;gap:8px;"><div style="width:27px;height:27px;background:#e8eefa;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;">🕐</div><div><div style="font-weight:600;font-size:12.5px;">${s.type}</div><div style="font-size:11px;color:var(--text3);">${s.region}</div></div></div></td>
+      <td><div style="font-weight:500;font-size:12.5px;">${s.date}</div><div style="font-size:11px;color:var(--text3);">${s.time}</div></td>
+      <td>${s.auditor?`<div style="display:flex;align-items:center;gap:6px;"><div class="av ${avC(s.auditor)}">${s.auditor[0]}</div><span style="font-size:12.5px;">${s.auditor}</span></div>`:`<span class="badge bgr">Unassigned</span>`}</td>
+      <td><span class="badge ${stBadge(s.status)}">${s.status}</span><div class="prog-bg" style="margin-top:5px;max-width:100px;"><div class="prog-fill" style="width:${s.prog}%;background:${pColor(s.status)};height:5px;"></div></div></td>
+      <td><div style="display:flex;gap:3px;" onclick="event.stopPropagation();"><button class="icon-btn" style="width:25px;height:25px;font-size:11px;" onclick="openSchDetail('${s.id}')">👁</button><button class="icon-btn" style="width:25px;height:25px;font-size:11px;" onclick="editSch('${s.id}')">✏️</button><button class="icon-btn" style="width:25px;height:25px;font-size:11px;color:var(--red);" onclick="delSch('${s.id}')">🗑</button></div></td>
+    </tr>`).join('');
+  const all=DB.schedules;
+  document.getElementById('s-total').textContent=all.length;
+  document.getElementById('s-sched').textContent=all.filter(s=>s.status==='Scheduled'&&s.auditor).length;
+  document.getElementById('s-assign').textContent=all.filter(s=>s.status==='Assigned').length;
+  document.getElementById('s-comp').textContent=all.filter(s=>s.status==='Completed').length;
+  document.getElementById('s-pend').textContent=all.filter(s=>s.status==='Scheduled'&&!s.auditor).length;
+  document.getElementById('s-cnt').textContent=`Total ${tot} audits`;
+  const pg=document.getElementById('s-pages');pg.innerHTML='';
+  for(let i=1;i<=pages;i++){const b=document.createElement('button');b.className='pgbtn'+(i===S.schPage?' active':'');b.textContent=i;b.onclick=()=>{S.schPage=i;rSch();};pg.appendChild(b);}
+  const ss=document.getElementById('ms-store');
+  if(ss&&ss.children.length<=1) DB.stores.forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=`${s.name} – ${s.city}`;ss.appendChild(o);});
+}
+function delSch(id){if(!confirm('Remove audit?'))return;DB.schedules=DB.schedules.filter(s=>s.id!==id);rSch();rDash();toast('Removed');}
+
+let S_schDetailId=null;
+function openSchDetail(id){
+  const s=DB.schedules.find(x=>x.id===id);
+  if(!s) return;
+  S_schDetailId=id;
+  const stBadge=st=>st==='Assigned'?'bo':st==='Completed'?'bg':st==='Scheduled'?'bb':'bgr';
+  const pColor=st=>st==='Completed'?'#0e9f6e':st==='Assigned'?'#00338D':'#e5e7eb';
+  document.getElementById('sd2-id').textContent=s.id;
+  document.getElementById('sd2-status').className='badge '+stBadge(s.status);
+  document.getElementById('sd2-status').textContent=s.status;
+  document.getElementById('sd2-title').textContent=`${s.type} – ${s.region}`;
+  document.getElementById('sd2-store').textContent=s.store||'Unassigned Store';
+  document.getElementById('sd2-storesub').textContent=s.storeSub||s.region;
+  document.getElementById('sd2-date').textContent=s.date;
+  document.getElementById('sd2-time').textContent=s.time;
+  document.getElementById('sd2-progfill').style.width=(s.prog||0)+'%';
+  document.getElementById('sd2-progfill').style.background=pColor(s.status);
+  document.getElementById('sd2-notes').value=s.notes||'';
+  document.getElementById('sd2-personnel').innerHTML=s.auditor?
+    `<div style="display:flex;align-items:center;gap:8px;"><div class="av ${avC(s.auditor)}" style="width:34px;height:34px;font-size:13px;">${s.auditor[0]}</div><div><div style="font-size:12.5px;font-weight:600;color:var(--text);">${s.auditor}</div><div style="font-size:11px;color:var(--text3);">${s.role||'Field Auditor'}</div></div></div>`
+    :`<span class="badge bgr">Unassigned</span>`;
+  document.getElementById('sch-drawer').classList.add('open');
+}
+function closeSchDetail(){document.getElementById('sch-drawer').classList.remove('open');S_schDetailId=null;}
+function saveSchDetailNotes(){
+  if(!S_schDetailId) return;
+  const s=DB.schedules.find(x=>x.id===S_schDetailId);
+  if(!s) return;
+  s.notes=document.getElementById('sd2-notes').value;
+  toast('Audit updated');
+  closeSchDetail();
+  rSch();
+  rDash();
+}
+function delSchFromDrawer(){
+  if(!S_schDetailId) return;
+  if(!confirm('Remove audit?')) return;
+  DB.schedules=DB.schedules.filter(s=>s.id!==S_schDetailId);
+  closeSchDetail();
+  rSch();
+  rDash();
+  toast('Removed');
+}
+
+// ═══════════════════ AUDIT STATUS ═══════════════════
+function clearStatusFilters(){
+  document.getElementById('as-q').value='';
+  document.getElementById('as-sf').value='';
+  document.getElementById('as-rf').value='';
+  document.getElementById('as-af').value='';
+  document.getElementById('as-sd').value='';
+  document.getElementById('as-ed').value='';
+  rStatus();
+}
+function rStatus(){
+  const q=(document.getElementById('as-q').value||'').toLowerCase();
+  const sf=document.getElementById('as-sf').value;
+  const rf=document.getElementById('as-rf').value;
+  const af=document.getElementById('as-af').value;
+  const sd=document.getElementById('as-sd').value;
+  const ed=document.getElementById('as-ed').value;
+  const sdDate=sd?new Date(sd+'T00:00:00'):null;
+  const edDate=ed?new Date(ed+'T23:59:59'):null;
+  let data=DB.audits.filter(a=>{
+    if(q&&!a.id.toLowerCase().includes(q)&&!a.store.toLowerCase().includes(q)&&!a.auditor.toLowerCase().includes(q)) return false;
+    if(sf&&a.status!==sf) return false;
+    if(rf&&a.region!==rf) return false;
+    if(af&&a.auditor!==af) return false;
+    if(sdDate||edDate){
+      const schedDate=new Date(a.sched);
+      if(!isNaN(schedDate.getTime())){
+        if(sdDate&&schedDate<sdDate) return false;
+        if(edDate&&schedDate>edDate) return false;
+      }
+    }
+    return true;
+  });
+  data.forEach(a=>{
+    if(a.status==='Completed'){
+      const issCount=parseInt((a.issues||'0/0').split('/')[0])||0;
+      a.score=Math.max(40,98-issCount*4);
+    }
+  });
+  const statusOrder={Completed:0,'In Progress':1,Planned:2,Overdue:3};
+  data.sort((a,b)=>{
+    if(a.score!=null&&b.score!=null) return b.score-a.score;
+    if(a.score!=null) return -1;
+    if(b.score!=null) return 1;
+    return (statusOrder[a.status]??4)-(statusOrder[b.status]??4);
+  });
+  document.getElementById('as-body').innerHTML=data.map(a=>`
+    <tr style="cursor:pointer;" onclick="showAuditDetail('${a.id}')">
+      <td onclick="event.stopPropagation()"><input type="checkbox"></td>
+      <td><a style="color:var(--accent);font-weight:600;text-decoration:none;">${a.id}</a></td>
+      <td><div style="font-weight:500;">${a.store}</div><div style="font-size:11px;color:var(--text3);">${a.city}</div></td>
+      <td><span style="font-size:11px;color:var(--text3);">🕐</span> ${a.sched}</td>
+      <td><span class="badge ${sBadge(a.status)}">${a.status}</span></td>
+      <td>${a.score!=null?`<div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;border:2px solid ${sColor(a.score)};font-size:10.5px;font-weight:700;color:${sColor(a.score)};">${a.score}%</span><span style="font-size:11px;color:var(--text3);">${a.score}/100</span></div>`:'<span style="color:var(--text3);">—</span>'}</td>
+      <td style="font-weight:500;">${a.status==='Completed'?(a.issues||'').split('/')[0]:'—'}</td>
+      <td><div style="display:flex;align-items:center;gap:5px;"><div class="av ${avC(a.auditor)}">${a.ai}</div><span style="font-size:12px;">${a.auditor}</span></div></td>
+      <td onclick="event.stopPropagation()"><div style="display:flex;gap:3px;"><button class="icon-btn" style="width:25px;height:25px;font-size:11px;" onclick="showAuditDetail('${a.id}')">👁</button><button class="icon-btn" style="width:25px;height:25px;font-size:11px;">✏️</button><button class="icon-btn" style="width:25px;height:25px;font-size:11px;">⋯</button></div></td>
+    </tr>`).join('')||`<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text3);">No audits match your filters</td></tr>`;
+  document.getElementById('as-cnt').textContent=`${data.length} items`;
+  const afSel=document.getElementById('as-af');
+  const auditorOpts=[...new Set(DB.audits.map(a=>a.auditor).filter(Boolean))];
+  if(afSel.children.length-1!==auditorOpts.length){
+    afSel.innerHTML='<option value="">Auditor</option>'+auditorOpts.map(n=>`<option>${n}</option>`).join('');
+    afSel.value=af;
+  }
+}
+
+// ═══════════════════ EMAIL ═══════════════════
+const LCOL={'Audit':'#00338D','Billing':'#c27803','Customer':'#0e9f6e','Legal':'#e02424','Operations':'#6b7280'};
+const LBG={'Audit':'#e8eefa','Billing':'#fdf6b2','Customer':'#def7ec','Legal':'#fde8e8','Operations':'#f3f4f6'};
+function rEM(){
+  const folders=[{n:'Inbox',i:'📥'},{n:'Starred',i:'⭐'},{n:'Sent',i:'➤'},{n:'Drafts',i:'📄'},{n:'Archive',i:'📦'},{n:'Trash',i:'🗑'}];
+  const fCount=f=>f==='Starred'?DB.emails.filter(e=>e.star).length:DB.emails.filter(e=>e.folder===f).length;
+  document.getElementById('em-folders').innerHTML=folders.map(f=>{const c=fCount(f.n);return `<div class="em-fld ${S.emFolder===f.n?'active':''}" onclick="setEMF('${f.n}')"><div class="em-fi"><span>${f.i}</span><span>${f.n}</span></div>${c?`<span class="em-fc">${c}</span>`:''}</div>`;}).join('');
+  document.getElementById('em-labels').innerHTML=Object.entries(LCOL).map(([l,c])=>`<span style="display:inline-flex;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;margin:2px;cursor:pointer;background:${LBG[l]};color:${c};${S.emLabel===l?'outline:2px solid '+c+';':''}" onclick="setEML('${l}')">${l}</span>`).join('');
+  const q=(document.getElementById('em-q').value||'').toLowerCase();
+  const lf=document.getElementById('em-lf').value||S.emLabel;
+  let data=DB.emails.filter(e=>{
+    if(S.emFolder==='Starred'){ if(!e.star) return false; }
+    else if(e.folder!==S.emFolder) return false;
+    if(q&&!e.subj.toLowerCase().includes(q)&&!e.from.toLowerCase().includes(q)) return false;
+    if(lf&&!e.labels.includes(lf)) return false;
+    return true;
+  });
+  document.getElementById('em-list').innerHTML=data.length?data.map(e=>`
+    <div class="em-row">
+      <input type="checkbox" style="flex-shrink:0;margin-top:3px;">
+      <span class="em-star ${e.star?'starred':''}" onclick="toggleStar('${e.id}')">★</span>
+      <div style="min-width:175px;">
+        <div class="em-from">${e.from}</div>
+        <div class="em-date">${e.date}</div>
+      </div>
+      <div style="flex:1;">
+        <div class="em-subj">${e.subj}</div>
+        <div class="em-prev">${e.prev}</div>
+        <div class="em-tags">
+          ${e.labels.map(l=>`<span style="background:${LBG[l]};color:${LCOL[l]};padding:2px 7px;border-radius:20px;font-size:10.5px;font-weight:600;">${l}</span>`).join('')}
+          ${e.att?`<span style="font-size:11px;color:var(--text3);">📎 1 attachment</span>`:''}
+        </div>
+      </div>
+    </div>`).join(''):`<div style="text-align:center;padding:40px;color:var(--text3);">📭 No emails</div>`;
+  document.getElementById('em-cnt').textContent=`${data.length} thread${data.length!==1?'s':''}`;
+}
+function setEMF(f){S.emFolder=f;S.emLabel='';document.getElementById('em-lf').value='';rEM();}
+function setEML(l){S.emLabel=(S.emLabel===l)?'':l;document.getElementById('em-lf').value='';rEM();}
+function toggleStar(id){const e=DB.emails.find(e=>e.id===id);if(e){e.star=!e.star;rEM();}}
+
+// ═══════════════════ STORES ═══════════════════
+function rST(){
+  const q=(document.getElementById('st-q').value||'').toLowerCase();
+  let data=DB.stores.filter(s=>{
+    if(q&&!s.name.toLowerCase().includes(q)&&!s.city.toLowerCase().includes(q)) return false;
+    if(S.stFilter&&s.status!==S.stFilter) return false;
+    return true;
+  });
+  const PP=7,tot=data.length,pages=Math.ceil(tot/PP)||1;
+  if(S.stPage>pages) S.stPage=1;
+  const pdata=data.slice((S.stPage-1)*PP,S.stPage*PP);
+  const stBadge=s=>s==='Operating'?'bg':'bgr';
+  document.getElementById('st-body').innerHTML=pdata.map(s=>`
+    <tr style="cursor:pointer;" onclick="showStoreInsight('${s.id}')">
+      <td><div style="display:flex;align-items:center;gap:8px;"><div style="width:26px;height:26px;background:#e8eefa;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;">🏪</div><div><div style="font-weight:600;">${s.name}${s.type?` <span class="chip">${s.type}</span>`:''}</div><div style="font-size:11px;color:var(--text3);">${s.city}</div></div></div></td>
+      <td><span class="badge ${stBadge(s.status)}">${s.status}</span></td>
+      <td><div style="font-size:15px;font-weight:700;margin-bottom:3px;color:${sColor(s.s25)};">${s.s25}%</div><div class="prog-bg" style="width:130px;"><div class="prog-fill ${pbClass(s.s25)}" style="width:${s.s25}%;height:6px;"></div></div></td>
+      <td><div style="display:flex;align-items:center;gap:6px;"><div class="av ${avC(s.manager)}">${s.manager[0]}</div><span style="font-size:12.5px;">${s.manager}</span></div></td>
+      <td onclick="event.stopPropagation();"><div style="display:flex;gap:3px;"><button class="icon-btn" style="width:25px;height:25px;font-size:11px;" onclick="showStoreInsight('${s.id}')">👁</button><button class="icon-btn" style="width:25px;height:25px;font-size:11px;" onclick="editST('${s.id}')">✏️</button><button class="icon-btn" style="width:25px;height:25px;font-size:11px;color:var(--red);" onclick="delST('${s.id}')">🗑</button></div></td>
+    </tr>`).join('');
+  const all=DB.stores;
+  document.getElementById('st-tot').textContent=all.length;
+  document.getElementById('st-op').textContent=all.filter(s=>s.status==='Operating').length;
+  document.getElementById('st-cr').textContent=all.filter(s=>s.s25<60).length;
+  document.getElementById('st-av').textContent=Math.round(all.reduce((a,s)=>a+s.s25,0)/all.length)+'%';
+  document.getElementById('st-cnt').textContent=`${tot} stores`;
+  const pg=document.getElementById('st-pages');pg.innerHTML='';
+  for(let i=1;i<=pages;i++){const b=document.createElement('button');b.className='pgbtn'+(i===S.stPage?' active':'');b.textContent=i;b.onclick=()=>{S.stPage=i;rST();};pg.appendChild(b);}
+}
+function stF(f,el){S.stFilter=f;S.stPage=1;document.querySelectorAll('#page-stores .qtab').forEach(t=>t.classList.remove('active'));el.classList.add('active');rST();}
+function delST(id){if(!confirm('Delete store?'))return;DB.stores=DB.stores.filter(s=>s.id!==id);rST();rDash();toast('Store deleted');}
+let S_stEditId=null;
+function editST(id){
+  const s=DB.stores.find(x=>x.id===id);
+  if(!s) return;
+  S_stEditId=id;
+  document.getElementById('ns-n').value=s.name;
+  document.getElementById('ns-c').value=s.city;
+  document.getElementById('ns-f').value=s.format;
+  document.getElementById('ns-type').value=s.type||'Standard';
+  document.getElementById('ns-m').value=s.manager;
+  document.getElementById('ns-r').value=s.region;
+  document.getElementById('ns-status').value=s.status||'Operating';
+  document.getElementById('st-modal-title').textContent='Edit Store';
+  document.getElementById('st-modal-btn').textContent='Save Changes';
+  openM('m-store');
+}
+
+// ═══════════════════ MODALS ═══════════════════
+function openM(id){document.getElementById(id).classList.add('open');}
+function closeM(id){document.getElementById(id).classList.remove('open');}
+
+// ═══════════════════ POWER BI DASHBOARD (recreation) ═══════════════════
+function openPBIDashboard(){
+  openM('m-pbi');
+  if(typeof Chart==='undefined'){ console.error('Chart.js failed to load; skipping Power BI charts.'); return; }
+  const donutCtx=document.getElementById('pbi-donut').getContext('2d');
+  if(window._pbiDonut) window._pbiDonut.destroy();
+  window._pbiDonut=new Chart(donutCtx,{type:'doughnut',data:{labels:['Eligible Return','Ineligible SKU','Late Return'],datasets:[{data:[252,138,3],backgroundColor:['#2f4b9e','#0e9f8e','#cbd5e1'],borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{font:{size:9},boxWidth:8,padding:8}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.parsed}K`}}}}});
+  const barCtx=document.getElementById('pbi-bar').getContext('2d');
+  if(window._pbiBar) window._pbiBar.destroy();
+  window._pbiBar=new Chart(barCtx,{type:'bar',data:{labels:['Eligible Return','Ineligible SKU','Late Return','Total'],datasets:[{data:[46.01,18.20,2.38,66.59],backgroundColor:['#0e9f8e','#0e9f8e','#0e9f8e','#1b3a6b'],borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.y}M`}}},scales:{y:{ticks:{font:{size:9},callback:v=>v+'M'}},x:{ticks:{font:{size:9}}}}}});
+  const hbarCtx=document.getElementById('pbi-hbar').getContext('2d');
+  if(window._pbiHbar) window._pbiHbar.destroy();
+  window._pbiHbar=new Chart(hbarCtx,{type:'bar',data:{labels:['Fresh','Grocery Non Food','BDF','Staples','Grocery Food','Apparels','General Merchandise','Others','CDIT'],datasets:[{data:[65148,53837,17202,3247,1203,153,103,38,1],backgroundColor:'#1b3a6b',borderRadius:2}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:8}}},y:{ticks:{font:{size:9}}}}}});
+}
+document.querySelectorAll('.modal-ov').forEach(m=>{m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});});
+
+function handleNewProcess(selectElement) {
+  if (selectElement.value === '--new--') {
+    openM('m-process');
+    // Reset selection to the first process
+    selectElement.selectedIndex = 0;
+  }
+}
+
+function handleNewRespType(selectElement) {
+  if (selectElement.value === '--new--') {
+    openM('m-response-type');
+    // Reset selection to the first type
+    selectElement.selectedIndex = 0;
+  }
+}
+
+let S_schEditId=null;
+function populateScheduleStoreOptions(){
+  const ss=document.getElementById('ms-store');
+  if(ss && ss.children.length<=1) DB.stores.forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=`${s.name} – ${s.city}`;ss.appendChild(o);});
+}
+function openAddSchedule(){
+  S_schEditId=null;
+  populateScheduleStoreOptions();
+  document.getElementById('ms-title').value='';
+  document.getElementById('ms-store').value='';
+  document.getElementById('ms-dt').value='';
+  document.getElementById('ms-aud').value='';
+  document.getElementById('ms-status').value='Scheduled';
+  document.getElementById('ms-notes').value='';
+  document.getElementById('sch-modal-title').textContent='Schedule New Audit';
+  document.getElementById('sch-modal-btn').textContent='Schedule';
+  openM('m-schedule');
+}
+function editSch(id){
+  const s=DB.schedules.find(x=>x.id===id);
+  if(!s) return;
+  closeSchDetail();
+  S_schEditId=id;
+  populateScheduleStoreOptions();
+  document.getElementById('ms-title').value=s.type;
+  // best-effort match of stored store text to a store option
+  const ss=document.getElementById('ms-store');
+  const match=DB.stores.find(st=>s.store&&s.store.startsWith(st.name));
+  ss.value=match?match.id:'';
+  // reconstruct datetime-local value from display date/time strings
+  const parsed=new Date(`${s.date} ${s.time}`);
+  if(!isNaN(parsed)) document.getElementById('ms-dt').value=fmtLocalDT(parsed);
+  document.getElementById('ms-aud').value=s.auditor||'';
+  document.getElementById('ms-status').value=s.status;
+  document.getElementById('ms-notes').value=s.notes||'';
+  document.getElementById('sch-modal-title').textContent='Edit Audit';
+  document.getElementById('sch-modal-btn').textContent='Save Changes';
+  openM('m-schedule');
+}
+function saveSch(){
+  const aud=document.getElementById('ms-aud').value;
+  const title=document.getElementById('ms-title').value.trim();
+  const store=document.getElementById('ms-store').value;
+  const dt=document.getElementById('ms-dt').value;
+  if(!title || !store || !dt){alert('Please fill in all mandatory fields (Audit Title, Store, and Date)');return;}
+  const d=new Date(dt);
+  const dateStr=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const timeStr=d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  const storeData = DB.stores.find(s => s.id === store);
+  const status = document.getElementById('ms-status').value;
+
+  if(S_schEditId){
+    const s=DB.schedules.find(x=>x.id===S_schEditId);
+    if(s){
+      s.type=title;s.region=storeData?.region||s.region;s.auditor=aud;s.date=dateStr;s.time=timeStr;
+      s.status=status;s.prog=status==='Completed'?100:s.prog;
+      s.store=storeData?`${storeData.name} – Retail`:s.store;s.storeSub=storeData?`${storeData.city}, ${storeData.region}`:s.storeSub;
+      s.notes=document.getElementById('ms-notes').value;
+    }
+    S_schEditId=null;
+    closeM('m-schedule');rSch();rDash();toast('Audit updated ✓');
+    return;
+  }
+
+  DB.schedules.push({id:'SCH'+String(DB.schedules.length+1).padStart(3,'0'),type:title,region:storeData?.region || 'N/A',auditor:aud,role:aud?'Field Auditor':'',date:dateStr,time:timeStr,status:status,prog:status==='Completed'?100:0,store:storeData?`${storeData.name} – Retail`:'Unassigned Store',storeSub:storeData?`${storeData.city}, ${storeData.region}`:'',notes:document.getElementById('ms-notes').value});
+  closeM('m-schedule');
+  rSch();
+  rDash();
+  toast('Audit scheduled ✓');
+}
+
+let _niFiles=[];
+function niAddFiles(input){
+  Array.from(input.files||[]).forEach(f=>_niFiles.push(f.name));
+  input.value='';
+  niRenderFiles();
+}
+function niRemoveFile(i){ _niFiles.splice(i,1); niRenderFiles(); }
+function niRenderFiles(){
+  document.getElementById('ni-file-list').innerHTML=_niFiles.map((n,i)=>`<div style="display:inline-flex;align-items:center;gap:6px;background:#f3f4f6;border-radius:6px;padding:4px 8px;font-size:11.5px;margin:2px 4px 2px 0;">📎 ${n} <span style="cursor:pointer;color:var(--text3);" onclick="niRemoveFile(${i})">✕</span></div>`).join('');
+}
+function fmtLocalDT(d){
+  const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+let S_issueEditId=null;
+function openIssueModal(){
+  S_issueEditId=null;
+  document.getElementById('ni-t').value='';
+  document.getElementById('ni-d').value='';
+  document.getElementById('ni-st').value='Open';
+  document.getElementById('ni-p').value='Critical';
+  document.getElementById('ni-a').value='Jitendra';
+  document.getElementById('ni-aid').value='';
+  document.getElementById('ni-tg').value='';
+  document.getElementById('ni-comment').value='';
+  _niFiles=[];
+  niRenderFiles();
+  const now=new Date();
+  document.getElementById('ni-created').value=fmtLocalDT(now);
+  const due=new Date(now.getTime()+48*3600*1000);
+  document.getElementById('ni-due').value=fmtLocalDT(due);
+  const sel=document.getElementById('ni-s');
+  const opts=[...new Set([...DB.issues.map(i=>i.store),...DB.stores.map(s=>s.name)])];
+  sel.innerHTML='<option value="">Select store</option>'+opts.map(s=>`<option>${s}</option>`).join('');
+  document.getElementById('iss-modal-title').textContent='New Issue';
+  document.getElementById('iss-modal-btn').textContent='Save';
+  openM('m-issue');
+}
+function editIssue(id){
+  const i=DB.issues.find(x=>x.id===id);
+  if(!i) return;
+  const sel=document.getElementById('ni-s');
+  const opts=[...new Set([...DB.issues.map(x=>x.store),...DB.stores.map(s=>s.name)])];
+  sel.innerHTML='<option value="">Select store</option>'+opts.map(s=>`<option>${s}</option>`).join('');
+  document.getElementById('ni-t').value=i.title;
+  document.getElementById('ni-d').value=i.desc||'';
+  document.getElementById('ni-st').value=i.status;
+  document.getElementById('ni-p').value=i.pri;
+  document.getElementById('ni-a').value=i.assignee;
+  document.getElementById('ni-aid').value=i.aid==='AUD-NEW'?'':i.aid;
+  document.getElementById('ni-tg').value=(i.tags||[]).join(', ');
+  document.getElementById('ni-comment').value='';
+  _niFiles=[];
+  niRenderFiles();
+  document.getElementById('ni-created').value=fmtLocalDT(new Date());
+  document.getElementById('ni-due').value=fmtLocalDT(new Date());
+  document.getElementById('ni-s').value=i.store;
+  S_issueEditId=id;
+  document.getElementById('iss-modal-title').textContent='Edit Issue';
+  document.getElementById('iss-modal-btn').textContent='Save Changes';
+  openM('m-issue');
+}
+function delIssue(id){
+  if(!confirm('Delete this issue?'))return;
+  DB.issues=DB.issues.filter(i=>i.id!==id);
+  rIssues();rDash();toast('Issue deleted');
+}
+function saveIssue(){
+  const title=document.getElementById('ni-t').value.trim();
+  if(!title){alert('Please enter a title');return;}
+  const store=document.getElementById('ni-s').value;
+  if(!store){alert('Please select a store');return;}
+  const createdVal=document.getElementById('ni-created').value;
+  const dueVal=document.getElementById('ni-due').value;
+  const pri=document.getElementById('ni-p').value;
+  const status=document.getElementById('ni-st').value;
+  const dueDate=dueVal?new Date(dueVal):null;
+  const now=new Date();
+  const overdue=dueDate?dueDate<now&&status!=='Resolved'&&status!=='Closed':false;
+  const priColor={Critical:'#e02424',High:'#f59e0b',Medium:'#00338D',Low:'#0e9f6e'};
+  const fmtDisp=d=>d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+', '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  const aidInput=document.getElementById('ni-aid').value.trim();
+  const tags=document.getElementById('ni-tg').value.split(',').map(t=>t.trim()).filter(Boolean);
+
+  if(S_issueEditId){
+    const i=DB.issues.find(x=>x.id===S_issueEditId);
+    if(i){
+      i.title=title;i.status=status;i.pri=pri;i.tags=tags;i.store=store;
+      i.assignee=document.getElementById('ni-a').value;
+      if(createdVal) i.created=fmtDisp(new Date(createdVal));
+      if(dueVal) i.due=fmtDisp(new Date(dueVal)).split(',')[0];
+      i.ov=overdue;i.dp=overdue?100:i.dp;i.dc=overdue?'#e02424':(priColor[pri]||'#00338D');
+      i.desc=document.getElementById('ni-d').value;
+      if(aidInput) i.aid=aidInput;
+    }
+    S_issueEditId=null;
+    closeM('m-issue');
+    document.getElementById('i-stf').innerHTML='<option value="">Store</option>';
+    document.getElementById('i-af').innerHTML='<option value="">Assignee</option>';
+    rIssues();rDash();toast('Issue updated ✓');
+    return;
+  }
+
+  DB.issues.push({
+    id:'ISS'+String(DB.issues.length+1).padStart(3,'0'),aid:aidInput||'AUD-NEW',title,
+    status,pri,
+    tags,
+    store,
+    assignee:document.getElementById('ni-a').value,
+    created:createdVal?fmtDisp(new Date(createdVal)):fmtDisp(now),
+    due:dueVal?fmtDisp(new Date(dueVal)).split(',')[0]:'—',
+    ov:overdue,dp:overdue?100:10,dc:overdue?'#e02424':(priColor[pri]||'#00338D'),
+    desc:document.getElementById('ni-d').value,files:_niFiles.length,
+    comments:document.getElementById('ni-comment').value.trim()?1:0
+  });
+  closeM('m-issue');
+  document.getElementById('i-stf').innerHTML='<option value="">Store</option>';
+  document.getElementById('i-af').innerHTML='<option value="">Assignee</option>';
+  rIssues();
+  rDash();
+  toast('Issue created ✓');
+}
+
+let S_qEditId=null;
+function openAddQuestion(){
+  S_qEditId=null;
+  document.getElementById('nq-t').value='';
+  document.getElementById('nq-sp').value='';
+  document.getElementById('nq-w').value=3;
+  document.getElementById('nq-g').value='';
+  document.getElementById('nq-tg').value='';
+  document.getElementById('nq-cr-toggle').classList.remove('on');
+  if(document.getElementById('nq-pr').options.length) document.getElementById('nq-pr').selectedIndex=0;
+  if(document.getElementById('nq-at').options.length) document.getElementById('nq-at').selectedIndex=0;
+  document.getElementById('q-modal-title').textContent='New Audit Question';
+  document.getElementById('q-modal-btn').textContent='Add Question';
+  openM('m-question');
+}
+function editQ(id){
+  const item=DB.questions.find(x=>x.id===id);
+  if(!item) return;
+  S_qEditId=id;
+  document.getElementById('nq-pr').value=item.proc;
+  document.getElementById('nq-sp').value=item.sp||'';
+  document.getElementById('nq-t').value=item.text;
+  document.getElementById('nq-at').value=item.at;
+  document.getElementById('nq-w').value=item.w;
+  document.getElementById('nq-cr-toggle').classList.toggle('on',!!item.crit);
+  document.getElementById('nq-g').value=item.g||'';
+  document.getElementById('nq-tg').value=(item.tags||[]).join(', ');
+  document.getElementById('q-modal-title').textContent='Edit Audit Question';
+  document.getElementById('q-modal-btn').textContent='Save Changes';
+  openM('m-question');
+}
+function saveQ(){
+  const text=document.getElementById('nq-t').value.trim();
+  const proc=document.getElementById('nq-pr').value;
+  if(!text || !proc){alert('Please fill in mandatory fields (Process and Question)');return;}
+  if(S_qEditId){
+    const item=DB.questions.find(x=>x.id===S_qEditId);
+    if(item){
+      item.text=text;item.proc=proc;
+      item.at=document.getElementById('nq-at').value;
+      item.sp=document.getElementById('nq-sp').value;
+      item.w=parseInt(document.getElementById('nq-w').value)||3;
+      item.g=document.getElementById('nq-g').value;
+      item.tags=document.getElementById('nq-tg').value.split(',').map(t=>t.trim()).filter(Boolean);
+      item.crit=document.getElementById('nq-cr-toggle').classList.contains('on');
+    }
+    S_qEditId=null;
+    closeM('m-question');rQ();rDash();toast('Question updated ✓');
+    return;
+  }
+  DB.questions.push({
+    id:'Q'+String(DB.questions.length+1).padStart(3,'0'),text,
+    at:document.getElementById('nq-at').value,
+    proc:proc,
+    sp:document.getElementById('nq-sp').value,
+    w:parseInt(document.getElementById('nq-w').value)||3,
+    g:document.getElementById('nq-g').value,
+    tags:document.getElementById('nq-tg').value.split(',').map(t=>t.trim()).filter(Boolean),
+    crit:document.getElementById('nq-cr-toggle').classList.contains('on'),on:true,
+  });
+  closeM('m-question');rQ();rDash();toast('Question added ✓');
+}
+
+function saveProc(){
+  const n=document.getElementById('np-n').value.trim();
+  if(!n||DB.processes.includes(n)){alert('Invalid or duplicate name');return;}
+  DB.processes.push(n);closeM('m-process');rQ();toast('Process added ✓');
+}
+
+function saveRespType(){
+  const n=document.getElementById('nrt-n').value.trim();
+  if(!n||DB.responseTypes.includes(n)){alert('Invalid or duplicate name');return;}
+  DB.responseTypes.push(n);closeM('m-response-type');rQ();toast('Question type added ✓');
+  DB.responseTypes.push(n);closeM('m-response-type');rQ();toast('Response type added ✓');
+}
+
+function openAddStore(){
+  S_stEditId=null;
+  document.getElementById('ns-n').value='';
+  document.getElementById('ns-c').value='';
+  document.getElementById('ns-f').value='COCO';
+  document.getElementById('ns-type').value='Standard';
+  document.getElementById('ns-m').value='';
+  document.getElementById('ns-r').value='North India';
+  document.getElementById('ns-status').value='Operating';
+  document.getElementById('st-modal-title').textContent='Add New Store';
+  document.getElementById('st-modal-btn').textContent='Add Store';
+  openM('m-store');
+}
+function saveST(){
+  const n=document.getElementById('ns-n').value.trim();
+  const c=document.getElementById('ns-c').value.trim();
+  if(!n||!c){alert('Fill in name and city');return;}
+  if(S_stEditId){
+    const s=DB.stores.find(x=>x.id===S_stEditId);
+    if(s){
+      s.name=n;s.city=c;s.format=document.getElementById('ns-f').value;s.type=document.getElementById('ns-type').value;
+      s.manager=document.getElementById('ns-m').value||'Unassigned';s.region=document.getElementById('ns-r').value;
+      s.status=document.getElementById('ns-status').value;
+    }
+    S_stEditId=null;
+    closeM('m-store');rST();rDash();toast('Store updated ✓');
+    return;
+  }
+  DB.stores.push({id:'ST'+String(DB.stores.length+1).padStart(3,'0'),name:n,city:c,region:document.getElementById('ns-r').value,format:document.getElementById('ns-f').value,type:document.getElementById('ns-type').value,manager:document.getElementById('ns-m').value||'Unassigned',status:document.getElementById('ns-status').value,s25:0,s24:0});
+  closeM('m-store');rST();rDash();toast('Store added ✓');
+}
+
+let _cpLabels=[];
+let _cpFiles=[];
+function cpOpen(){
+  document.getElementById('cp-to').value='';
+  document.getElementById('cp-cc').value='';
+  document.getElementById('cp-bcc').value='';
+  document.getElementById('cp-subject').value='';
+  document.getElementById('cp-message').value='';
+  document.getElementById('cp-template').value='';
+  document.getElementById('cp-sig').checked=true;
+  _cpLabels=[];
+  _cpFiles=[];
+  cpRenderLabels();
+  cpRenderFiles();
+  openM('m-compose');
+}
+function cpRenderLabels(){
+  document.getElementById('cp-labels').innerHTML=Object.entries(LCOL).map(([l,c])=>{
+    const on=_cpLabels.includes(l);
+    return `<span style="display:inline-flex;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;margin:2px;cursor:pointer;background:${on?c:LBG[l]};color:${on?'#fff':c};" onclick="cpToggleLabel('${l}')">${l}</span>`;
+  }).join('');
+}
+function cpToggleLabel(l){
+  _cpLabels=_cpLabels.includes(l)?_cpLabels.filter(x=>x!==l):[..._cpLabels,l];
+  cpRenderLabels();
+}
+function cpAddFiles(input){
+  Array.from(input.files||[]).forEach(f=>_cpFiles.push(f.name));
+  input.value='';
+  cpRenderFiles();
+}
+function cpRemoveFile(i){ _cpFiles.splice(i,1); cpRenderFiles(); }
+function cpRenderFiles(){
+  document.getElementById('cp-file-list').innerHTML=_cpFiles.map((n,i)=>`<div style="display:inline-flex;align-items:center;gap:6px;background:#f3f4f6;border-radius:6px;padding:4px 8px;font-size:11.5px;margin:2px 4px 2px 0;">📎 ${n} <span style="cursor:pointer;color:var(--text3);" onclick="cpRemoveFile(${i})">✕</span></div>`).join('');
+}
+function cpApplyTemplate(){
+  const t=document.getElementById('cp-template').value;
+  const templates={
+    audit:{subj:'Audit Summary Report',body:'Hi,\n\nPlease find the audit summary details below.\n\nRegards,\nQA Team'},
+    issue:{subj:'Follow-up on Reported Issue',body:'Hi,\n\nFollowing up on the issue reported. Please share an update at your earliest convenience.\n\nRegards,\nQA Team'},
+    reminder:{subj:'Compliance Reminder',body:'Hi,\n\nThis is a reminder to complete the pending compliance checklist.\n\nRegards,\nQA Team'}
+  };
+  if(templates[t]){
+    document.getElementById('cp-subject').value=templates[t].subj;
+    document.getElementById('cp-message').value=templates[t].body;
+  }
+}
+function cpSubmit(action){
+  const to=document.getElementById('cp-to').value.trim();
+  const subj=document.getElementById('cp-subject').value.trim();
+  if(action!=='draft'&&(!to||!subj)){toast('Please fill in To and Subject');return;}
+  const folder=action==='draft'?'Drafts':'Sent';
+  const msg=document.getElementById('cp-message').value;
+  DB.emails.unshift({
+    id:'E'+String(DB.emails.length+1).padStart(3,'0'),
+    from: to||'(no recipient)',
+    date:'Just now',
+    subj: subj||'(No subject)',
+    prev: msg.substring(0,80),
+    labels:[..._cpLabels],
+    star:false,
+    att:_cpFiles.length>0,
+    folder
+  });
+  closeM('m-compose');
+  S.emFolder=folder; S.emLabel=''; document.getElementById('em-lf').value='';
+  rEM();
+  const msgs={send:'Email sent ✓',schedule:'Email scheduled ✓',draft:'Draft saved ✓'};
+  toast(msgs[action]);
+}
+
+// ═══════════════════ EXPORT ═══════════════════
+function exportCSV(t){
+  let rows=[],fn='';
+  if(t==='scores'){rows=[['Store','City','Status','Score 2025','Score 2024','Delta'],...DB.stores.map(s=>[s.name,s.city,s.status,s.s25,s.s24,s.s25-s.s24])];fn='store-audit-scores.csv';}
+  if(t==='stores'){rows=[['ID','Store','City','Region','Format','Manager','Status','Score 2025'],...DB.stores.map(s=>[s.id,s.name,s.city,s.region,s.format,s.manager,s.status,s.s25])];fn='stores.csv';}
+  if(t==='issues'){rows=[['ID','Audit ID','Title','Priority','Status','Store','Assignee','Due','Overdue'],...DB.issues.map(i=>[i.id,i.aid,i.title,i.pri,i.status,i.store,i.assignee,i.due,i.ov?'Yes':'No'])];fn='issues.csv';}
+  if(!rows.length)return;
+  const csv=rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download=fn;a.click();
+  toast('CSV exported ✓');
+}
+
+// ═══════════════════ TOAST ═══════════════════
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
+
+// ═══════════════════ BOOT ═══════════════════
+[rSch,rDash,rIssues,rST].forEach(fn=>{try{fn();}catch(e){console.error('Boot render failed:',fn.name,e);}});
+document.querySelector('.nav-item[data-page="dashboard"]').click();
+</script>
+</body>
+</html>
