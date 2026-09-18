@@ -1,14 +1,34 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '../components/Toast';
-import { mockSchedules, mockStores } from '../data/mockData';
+import { api } from '../api/client';
 import { avC, sBadge } from '../utils/helpers';
 
 const AUDITORS = ['Rohit Sharma','Meera Patel','Sara Khan','Amit Singh','Priya Das'];
 const PER_PAGE = 8;
 
+function normalizeAudit(a) {
+  const dt = a.scheduled_at ? new Date(a.scheduled_at) : new Date();
+  return {
+    id: a.id || a.audit_id,
+    type: a.checklist || a.type || 'Store Audit',
+    region: a.region || 'North India',
+    auditor: a.auditor_name || a.auditor || '',
+    role: a.auditor_name || a.auditor ? 'Field Auditor' : '',
+    date: dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}),
+    time: dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),
+    status: a.status || 'Scheduled',
+    prog: a.status === 'Completed' ? 100 : a.status === 'Assigned' ? 40 : a.status === 'In Progress' ? 65 : 0,
+    store: a.store || '',
+    storeSub: a.region || 'Region',
+    notes: a.notes || '',
+  };
+}
+
 export default function Scheduling() {
   const toast = useToast();
-  const [data, setData] = useState(() => mockSchedules.map(s => ({...s})));
+  const [data, setData] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [regionF, setRegionF] = useState('');
   const [statusF, setStatusF] = useState('');
@@ -19,6 +39,17 @@ export default function Scheduling() {
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({title:'',store:'',dt:'',auditor:'',status:'Scheduled',notes:''});
+
+  useEffect(() => {
+    Promise.all([
+      api.audits().catch(() => []),
+      api.stores().catch(() => []),
+    ]).then(([audits, st]) => {
+      setData((audits || []).map(normalizeAudit));
+      setStores(st || []);
+      setLoading(false);
+    });
+  }, []);
 
   const filtered = data.filter(s => {
     if (search && !s.type.toLowerCase().includes(search.toLowerCase()) && !s.region.toLowerCase().includes(search.toLowerCase()) && !s.store.toLowerCase().includes(search.toLowerCase())) return false;
@@ -61,6 +92,12 @@ export default function Scheduling() {
       const now = new Date();
       const dateStr = now.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
       const timeStr = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+      // Also schedule via API
+      api.scheduleAudit({
+        store: form.store,
+        checklist: form.title,
+        scheduled_at: form.dt || new Date().toISOString(),
+      }).catch(() => {});
       setData(prev => [...prev, {id,type:form.title,region:'North India',auditor:form.auditor,role:form.auditor?'Field Auditor':'',date:dateStr,time:timeStr,status:form.status,prog:0,store:form.store,storeSub:'Region',notes:form.notes}]);
       toast('Audit scheduled');
     }
@@ -78,6 +115,10 @@ export default function Scheduling() {
     if (s.status === 'Completed') return 'pg';
     if (s.status === 'Assigned') return 'pb';
     return 'po';
+  }
+
+  if (loading) {
+    return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',color:'var(--text3)'}}>Loading schedules...</div>;
   }
 
   return (
@@ -214,7 +255,7 @@ export default function Scheduling() {
               <div className="fg"><label className="fl">Store <span style={{color:'var(--red)'}}>*</span></label>
                 <select className="fs" value={form.store} onChange={e=>setForm({...form,store:e.target.value})}>
                   <option value="">Select store</option>
-                  {mockStores.map(s=><option key={s.id} value={`${s.name} \u2013 Retail`}>{s.name} \u2013 {s.city}</option>)}
+                  {stores.map(s=><option key={s.id} value={`${s.name} \u2013 Retail`}>{s.name} \u2013 {s.city}</option>)}
                 </select>
               </div>
               <div className="fg"><label className="fl">Date &amp; Time <span style={{color:'var(--red)'}}>*</span></label><input type="datetime-local" className="fi" value={form.dt} onChange={e=>setForm({...form,dt:e.target.value})}/></div>

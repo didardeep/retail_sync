@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Line } from 'react-chartjs-2'
 import { useToast } from '../components/Toast'
-import { mockStores } from '../data/mockData'
+import { api } from '../api/client'
 import { avC, sColor, pbClass, exportCSV } from '../utils/helpers'
 
 const PP = 7
 
 export default function Stores() {
   const toast = useToast()
-  const [stores, setStores] = useState(() => mockStores.map(s => ({ ...s })))
+  const [stores, setStores] = useState([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
@@ -22,11 +23,32 @@ export default function Stores() {
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ name: '', city: '', format: 'COCO', type: 'Standard', manager: '', region: 'North India', status: 'Operating' })
 
+  useEffect(() => {
+    api.stores().then(s => {
+      const normalized = (s || []).map(st => ({
+        ...st,
+        format: st.format || st.store_format || '',
+        type: st.type || st.store_type || '',
+        manager: st.manager || '',
+        s22: st.meta?.s22 ?? st.s22 ?? 0,
+        s23: st.meta?.s23 ?? st.s23 ?? 0,
+        s24: st.meta?.s24 ?? st.s24 ?? 0,
+        s25: st.meta?.s25 ?? st.s25 ?? 0,
+        s26: st.meta?.s26 ?? st.s26 ?? 0,
+      }))
+      setStores(normalized)
+      setLoading(false)
+    }).catch(() => {
+      setStores([])
+      setLoading(false)
+    })
+  }, [])
+
   /* ── derived ── */
   const filtered = stores.filter(s => {
     if (search) {
       const q = search.toLowerCase()
-      if (!s.name.toLowerCase().includes(q) && !s.city.toLowerCase().includes(q)) return false
+      if (!(s.name||'').toLowerCase().includes(q) && !(s.city||'').toLowerCase().includes(q)) return false
     }
     if (statusFilter && s.status !== statusFilter) return false
     return true
@@ -72,6 +94,7 @@ export default function Stores() {
     if (!form.name.trim() || !form.city.trim()) { alert('Fill in name and city'); return }
     if (editId) {
       setStores(prev => prev.map(s => s.id === editId ? { ...s, name: form.name.trim(), city: form.city.trim(), format: form.format, type: form.type, manager: form.manager || 'Unassigned', region: form.region, status: form.status } : s))
+      api.updateStore(editId, { name: form.name.trim(), city: form.city.trim(), format: form.format, type: form.type, region: form.region, status: form.status }).catch(() => {})
       toast('Store updated')
     } else {
       const newId = 'ST' + String(stores.length + 1).padStart(3, '0')
@@ -120,10 +143,13 @@ export default function Stores() {
     }
   }
 
+  if (loading) {
+    return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',color:'var(--text3)'}}>Loading stores...</div>
+  }
+
   /* ── render ── */
   return (
     <>
-      {/* Header */}
       <div className="page-hdr">
         <div>
           <h2>Store Management</h2>
@@ -135,27 +161,13 @@ export default function Stores() {
         </div>
       </div>
 
-      {/* KPIs */}
       <div className="kpi-row c4">
-        <div className="kpi">
-          <div className="kpi-ico" style={{ background: '#e8eefa' }}>&#x1F3EA;</div>
-          <div><div className="kpi-lbl">Total Stores</div><div className="kpi-val">{totalStores}</div></div>
-        </div>
-        <div className="kpi">
-          <div className="kpi-ico" style={{ background: '#ecfdf5' }}>&uarr;</div>
-          <div><div className="kpi-lbl">Operational</div><div className="kpi-val">{operational}</div></div>
-        </div>
-        <div className="kpi">
-          <div className="kpi-ico" style={{ background: '#fde8e8' }}>&#x26A0;</div>
-          <div><div className="kpi-lbl">Critical Audit</div><div className="kpi-val">{criticalAudit}</div></div>
-        </div>
-        <div className="kpi">
-          <div className="kpi-ico" style={{ background: '#f3f4f6' }}>&#x25CC;</div>
-          <div><div className="kpi-lbl">Avg. Audit Score</div><div className="kpi-val">{avgScore}%</div></div>
-        </div>
+        <div className="kpi"><div className="kpi-ico" style={{ background: '#e8eefa' }}>&#x1F3EA;</div><div><div className="kpi-lbl">Total Stores</div><div className="kpi-val">{totalStores}</div></div></div>
+        <div className="kpi"><div className="kpi-ico" style={{ background: '#ecfdf5' }}>&uarr;</div><div><div className="kpi-lbl">Operational</div><div className="kpi-val">{operational}</div></div></div>
+        <div className="kpi"><div className="kpi-ico" style={{ background: '#fde8e8' }}>&#x26A0;</div><div><div className="kpi-lbl">Critical Audit</div><div className="kpi-val">{criticalAudit}</div></div></div>
+        <div className="kpi"><div className="kpi-ico" style={{ background: '#f3f4f6' }}>&#x25CC;</div><div><div className="kpi-lbl">Avg. Audit Score</div><div className="kpi-val">{avgScore}%</div></div></div>
       </div>
 
-      {/* Filter bar */}
       <div className="filter-bar" style={{ justifyContent: 'space-between' }}>
         <div className="srch" style={{ maxWidth: 360 }}>
           <span className="srch-ic">&#x1F50D;</span>
@@ -169,18 +181,9 @@ export default function Stores() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="tbl-card">
         <table>
-          <thead>
-            <tr>
-              <th>Store Details</th>
-              <th>Status</th>
-              <th>Audit Score</th>
-              <th>Manager</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Store Details</th><th>Status</th><th>Audit Score</th><th>Manager</th><th>Actions</th></tr></thead>
           <tbody>
             {pageData.map(s => (
               <tr key={s.id} style={{ cursor: 'pointer' }} onClick={() => openInsight(s.id)}>
@@ -188,10 +191,7 @@ export default function Stores() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ width: 26, height: 26, background: '#e8eefa', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>&#x1F3EA;</div>
                     <div>
-                      <div style={{ fontWeight: 600 }}>
-                        {s.name}
-                        {s.type && <span className="chip">{s.type}</span>}
-                      </div>
+                      <div style={{ fontWeight: 600 }}>{s.name}{s.type && <span className="chip">{s.type}</span>}</div>
                       <div style={{ fontSize: 11, color: 'var(--text3)' }}>{s.city}</div>
                     </div>
                   </div>
@@ -199,13 +199,11 @@ export default function Stores() {
                 <td><span className={`badge ${s.status === 'Operating' ? 'bg' : 'bgr'}`}>{s.status}</span></td>
                 <td>
                   <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 3, color: sColor(s.s26 ?? 0) }}>{s.s26 ?? 0}%</div>
-                  <div className="prog-bg" style={{ width: 130 }}>
-                    <div className={`prog-fill ${pbClass(s.s26 ?? 0)}`} style={{ width: `${s.s26 ?? 0}%`, height: 6 }} />
-                  </div>
+                  <div className="prog-bg" style={{ width: 130 }}><div className={`prog-fill ${pbClass(s.s26 ?? 0)}`} style={{ width: `${s.s26 ?? 0}%`, height: 6 }} /></div>
                 </td>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div className={`av ${avC(s.manager)}`}>{(s.manager || 'U')[0]}</div>
+                    <div className={`av ${avC(s.manager||'U')}`}>{(s.manager || 'U')[0]}</div>
                     <span style={{ fontSize: 12.5 }}>{s.manager}</span>
                   </div>
                 </td>
@@ -222,7 +220,6 @@ export default function Stores() {
         </table>
       </div>
 
-      {/* Pagination */}
       <div className="pagination">
         <span style={{ marginRight: 8 }}>{filtered.length} stores</span>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -232,16 +229,13 @@ export default function Stores() {
         </div>
       </div>
 
-      {/* ── Store Insight Modal ── */}
       {insightOpen && insightStore && (
         <div className="modal-ov open" onClick={e => { if (e.target === e.currentTarget) setInsightOpen(false) }}>
           <div className="modal" style={{ width: 480, padding: 0, overflow: 'hidden' }}>
-            {/* header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text3)' }}>Store Insights</span>
               <button className="icon-btn" style={{ width: 26, height: 26, border: 'none', fontSize: 13 }} onClick={() => setInsightOpen(false)}>&times;</button>
             </div>
-            {/* store icon + name + id */}
             <div style={{ padding: '22px 20px 16px', textAlign: 'center', borderBottom: '1px solid var(--border)' }}>
               <div style={{ width: 52, height: 52, background: 'var(--accent-soft)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, margin: '0 auto 12px', color: 'var(--accent)' }}>&#x1F3EC;</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{insightStore.name}</div>
@@ -249,12 +243,10 @@ export default function Stores() {
                 {'SI-' + (1000 + parseInt(insightStore.id.replace('ST', ''), 10) - 1)}
               </div>
             </div>
-            {/* tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
               <div className={`si-tab${siTab === 'info' ? ' active' : ''}`} onClick={() => setSiTab('info')}>General Info</div>
               <div className={`si-tab${siTab === 'perf' ? ' active' : ''}`} onClick={() => setSiTab('perf')}>Performance</div>
             </div>
-            {/* panel */}
             <div style={{ padding: '16px 20px 6px' }}>
               {siTab === 'info' && (
                 <div>
@@ -267,12 +259,9 @@ export default function Stores() {
                 </div>
               )}
               {siTab === 'perf' && (
-                <div className="ch-wrap" style={{ height: 170 }}>
-                  <Line data={perfChartData(insightStore)} options={chartOpts} />
-                </div>
+                <div className="ch-wrap" style={{ height: 170 }}><Line data={perfChartData(insightStore)} options={chartOpts} /></div>
               )}
             </div>
-            {/* actions */}
             <div className="modal-actions" style={{ padding: '4px 20px 20px', marginTop: 8 }}>
               <button className="btn btn-outline btn-sm" onClick={() => setInsightOpen(false)}>Close</button>
               <button className="btn btn-primary btn-sm" onClick={() => setInsightOpen(false)}>Full History</button>
@@ -281,47 +270,17 @@ export default function Stores() {
         </div>
       )}
 
-      {/* ── Add / Edit Store Modal ── */}
       {formOpen && (
         <div className="modal-ov open" onClick={e => { if (e.target === e.currentTarget) setFormOpen(false) }}>
           <div className="modal">
             <div className="modal-title">{editId ? 'Edit Store' : 'Add New Store'}</div>
-            <div className="fg">
-              <label className="fl">Store Name</label>
-              <input className="fi" placeholder="e.g. Phoenix Mall" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div className="fg">
-              <label className="fl">City</label>
-              <input className="fi" placeholder="e.g. Mumbai" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} />
-            </div>
-            <div className="fg">
-              <label className="fl">Format</label>
-              <select className="fs" value={form.format} onChange={e => setForm(f => ({ ...f, format: e.target.value }))}>
-                <option>COCO</option><option>COFO</option><option>FOCO</option><option>FOFO</option>
-              </select>
-            </div>
-            <div className="fg">
-              <label className="fl">Type of Store</label>
-              <select className="fs" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-                <option>Flagship</option><option>Standard</option><option>Compact</option><option>Kiosk</option>
-              </select>
-            </div>
-            <div className="fg">
-              <label className="fl">Manager</label>
-              <input className="fi" placeholder="Manager name" value={form.manager} onChange={e => setForm(f => ({ ...f, manager: e.target.value }))} />
-            </div>
-            <div className="fg">
-              <label className="fl">Region</label>
-              <select className="fs" value={form.region} onChange={e => setForm(f => ({ ...f, region: e.target.value }))}>
-                <option>North India</option><option>South India</option><option>East India</option><option>West India</option>
-              </select>
-            </div>
-            <div className="fg">
-              <label className="fl">Status</label>
-              <select className="fs" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                <option>Operating</option><option>Dehired</option>
-              </select>
-            </div>
+            <div className="fg"><label className="fl">Store Name</label><input className="fi" placeholder="e.g. Phoenix Mall" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
+            <div className="fg"><label className="fl">City</label><input className="fi" placeholder="e.g. Mumbai" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} /></div>
+            <div className="fg"><label className="fl">Format</label><select className="fs" value={form.format} onChange={e => setForm(f => ({ ...f, format: e.target.value }))}><option>COCO</option><option>COFO</option><option>FOCO</option><option>FOFO</option></select></div>
+            <div className="fg"><label className="fl">Type of Store</label><select className="fs" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}><option>Flagship</option><option>Standard</option><option>Compact</option><option>Kiosk</option></select></div>
+            <div className="fg"><label className="fl">Manager</label><input className="fi" placeholder="Manager name" value={form.manager} onChange={e => setForm(f => ({ ...f, manager: e.target.value }))} /></div>
+            <div className="fg"><label className="fl">Region</label><select className="fs" value={form.region} onChange={e => setForm(f => ({ ...f, region: e.target.value }))}><option>North India</option><option>South India</option><option>East India</option><option>West India</option></select></div>
+            <div className="fg"><label className="fl">Status</label><select className="fs" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}><option>Operating</option><option>Dehired</option></select></div>
             <div className="modal-actions">
               <button className="btn btn-outline" onClick={() => setFormOpen(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={saveStore}>{editId ? 'Save Changes' : 'Add Store'}</button>

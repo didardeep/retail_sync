@@ -7,6 +7,8 @@ Role rules in one place:
   STORE_MANAGER  — issues assigned to their store, action + evidence capture
 """
 import datetime as dt
+import os
+from pathlib import Path
 
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import func
@@ -15,8 +17,9 @@ from .auth import login_required, make_token, roles_required, verify_password
 from .db import SessionLocal
 from .models import (
     ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
-    Audit, AuditResponse, AuditorAvailability, Checklist, ChecklistItem,
-    Issue, Question, Store, User,
+    Audit, AuditResponse, AuditorAvailability, CashReconciliation,
+    CashDepositPickup, Checklist, ChecklistItem, DataImport,
+    ExpiredInventory, Issue, Observation, Question, Store, StoreScore, User,
 )
 from .services import (
     compute_audit_score, next_audit_id, raise_issue_from_response,
@@ -449,6 +452,139 @@ def update_issue(iid):
 
 
 # --------------------------------------------------------------------------
+# Observations
+# --------------------------------------------------------------------------
+@bp.get("/observations")
+@login_required
+def list_observations():
+    q = db().query(Observation)
+    if request.args.get("store_id"):
+        q = q.filter(Observation.store_id == request.args["store_id"])
+    if request.args.get("audit_id"):
+        q = q.filter(Observation.audit_id == request.args["audit_id"])
+    if request.args.get("risk"):
+        q = q.filter(Observation.risk == request.args["risk"])
+    if request.args.get("status"):
+        q = q.filter(Observation.status == request.args["status"])
+    return jsonify([o.to_dict() for o in q.order_by(Observation.sr_no).all()])
+
+
+@bp.post("/observations")
+@roles_required(ROLE_AUDIT_MANAGER, ROLE_AUDITOR)
+def create_observation():
+    d = request.get_json(force=True)
+    last_sr = db().query(func.max(Observation.sr_no)).filter(
+        Observation.audit_id == d.get("audit_id")).scalar() or 0
+    o = Observation(
+        audit_id=d.get("audit_id"), store_id=d.get("store_id"),
+        sr_no=d.get("sr_no", last_sr + 1),
+        observation=d["observation"], risk=d.get("risk", "Medium"),
+        action_plan=d.get("action_plan"),
+        person_responsible=d.get("person_responsible"),
+        target=d.get("target"), status=d.get("status", "Open"),
+    )
+    db().add(o)
+    db().commit()
+    return jsonify(o.to_dict()), 201
+
+
+@bp.put("/observations/<oid>")
+@login_required
+def update_observation(oid):
+    o = db().get(Observation, oid)
+    if not o:
+        return jsonify({"error": "not found"}), 404
+    d = request.get_json(force=True)
+    for field in ("observation", "risk", "action_plan", "person_responsible",
+                  "target", "status"):
+        if field in d:
+            setattr(o, field, d[field])
+    db().commit()
+    return jsonify(o.to_dict())
+
+
+# --------------------------------------------------------------------------
+# Data Imports & Structured Data
+# --------------------------------------------------------------------------
+@bp.get("/data-imports")
+@roles_required(ROLE_AUDIT_MANAGER)
+def list_data_imports():
+    rows = db().query(DataImport).order_by(DataImport.imported_at.desc()).all()
+    return jsonify([{
+        "id": di.id, "file_name": di.file_name,
+        "data_section": di.data_section,
+        "column_headers": di.column_headers,
+        "imported_at": di.imported_at.isoformat() if di.imported_at else None,
+    } for di in rows])
+
+
+@bp.get("/cash-reconciliations")
+@login_required
+def list_cash_reconciliations():
+    q = db().query(CashReconciliation)
+    if request.args.get("store_id"):
+        q = q.filter(CashReconciliation.store_id == request.args["store_id"])
+    return jsonify([{
+        "id": cr.id, "store_id": cr.store_id,
+        "cash_at_tills": cr.cash_at_tills,
+        "cash_in_safe": cr.cash_in_safe,
+        "cash_other_locations": cr.cash_other_locations,
+        "physical_cash_total": cr.physical_cash_total,
+        "cash_sales_as_per_report": cr.cash_sales_as_per_report,
+        "float_or_imprest_amount": cr.float_or_imprest_amount,
+        "difference": cr.difference,
+        "remarks": cr.remarks,
+    } for cr in q.all()])
+
+
+@bp.get("/cash-deposit-pickups")
+@login_required
+def list_cash_deposit_pickups():
+    q = db().query(CashDepositPickup)
+    if request.args.get("store_id"):
+        q = q.filter(CashDepositPickup.store_id == request.args["store_id"])
+    return jsonify([{
+        "id": cd.id, "store_id": cd.store_id,
+        "sales_date": cd.sales_date.isoformat() if cd.sales_date else None,
+        "cash_sales": cd.cash_sales,
+        "cash_deposited": cd.cash_deposited,
+        "difference": cd.difference,
+        "cms_pickup_date": cd.cms_pickup_date.isoformat() if cd.cms_pickup_date else None,
+        "handover_delay_days": cd.handover_delay_days,
+        "remarks": cd.remarks,
+    } for cd in q.order_by(CashDepositPickup.sales_date).all()])
+
+
+@bp.get("/expired-inventory")
+@login_required
+def list_expired_inventory():
+    q = db().query(ExpiredInventory)
+    if request.args.get("store_id"):
+        q = q.filter(ExpiredInventory.store_id == request.args["store_id"])
+    return jsonify([{
+        "id": ei.id, "store_id": ei.store_id,
+        "article_code": ei.article_code,
+        "article_description": ei.article_description,
+        "expiry_date": ei.expiry_date.isoformat() if ei.expiry_date else None,
+        "review_date": ei.review_date.isoformat() if ei.review_date else None,
+        "quantity": ei.quantity, "mrp": ei.mrp,
+    } for ei in q.order_by(ExpiredInventory.expiry_date).all()])
+
+
+@bp.get("/store-scores")
+@login_required
+def list_store_scores():
+    q = db().query(StoreScore)
+    if request.args.get("store_id"):
+        q = q.filter(StoreScore.store_id == request.args["store_id"])
+    return jsonify([{
+        "id": ss.id, "store_id": ss.store_id,
+        "store_code": ss.store_code, "status": ss.status,
+        "q1": ss.q1, "q2": ss.q2, "q3": ss.q3, "q4": ss.q4,
+    } for ss in q.all()])
+
+
+# --------------------------------------------------------------------------
 # Dashboard
 # --------------------------------------------------------------------------
 @bp.get("/dashboard")
@@ -492,3 +628,159 @@ def list_users():
     if request.args.get("role"):
         q = q.filter(User.role == request.args["role"])
     return jsonify([u.to_dict() for u in q.all()])
+
+
+# --------------------------------------------------------------------------
+# File Upload & Import
+# --------------------------------------------------------------------------
+UPLOAD_FOLDER = Path(__file__).parent.parent / "uploads"
+UPLOAD_FOLDER.mkdir(exist_ok=True)
+
+SECTION_MAP = {
+    "cash_reconciliation": "cash_reconciliation",
+    "cash_deposit_pickups": "cash_deposit_pickups",
+    "expired_inventory": "expired_inventory",
+    "store_scores": "store_scores",
+}
+
+
+@bp.post("/upload")
+@roles_required(ROLE_AUDIT_MANAGER)
+def upload_file():
+    """Upload an Excel file and import its data into the corresponding table."""
+    if "file" not in request.files:
+        return jsonify({"error": "no file provided"}), 400
+
+    f = request.files["file"]
+    section = request.form.get("section", "").strip()
+    if section not in SECTION_MAP:
+        return jsonify({"error": f"invalid section, must be one of: {list(SECTION_MAP.keys())}"}), 400
+
+    if not f.filename.endswith((".xlsx", ".xls")):
+        return jsonify({"error": "only Excel files (.xlsx) are accepted"}), 400
+
+    # Save file
+    filepath = UPLOAD_FOLDER / f.filename
+    f.save(str(filepath))
+
+    # Import into DB
+    try:
+        from openpyxl import load_workbook
+        wb = load_workbook(str(filepath), read_only=True, data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        wb.close()
+
+        if not rows:
+            return jsonify({"error": "empty file"}), 400
+
+        headers = [str(h).strip() if h else f"col_{i}" for i, h in enumerate(rows[0])]
+        data_rows = []
+        for row in rows[1:]:
+            d = {}
+            for i, val in enumerate(row):
+                if i < len(headers):
+                    d[headers[i]] = val
+            data_rows.append(d)
+
+        s = db()
+        di = DataImport(
+            file_name=f.filename,
+            data_section=section,
+            column_headers=headers,
+        )
+        s.add(di)
+        s.flush()
+
+        count = _import_rows(s, di, section, data_rows)
+        s.commit()
+
+        return jsonify({
+            "message": f"Imported {count} records from {f.filename}",
+            "import_id": di.id,
+            "records": count,
+        }), 201
+
+    except Exception as e:
+        db().rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+def _parse_date_val(val):
+    if val is None:
+        return None
+    if isinstance(val, dt.date):
+        return val
+    if isinstance(val, dt.datetime):
+        return val.date()
+    try:
+        return dt.date.fromisoformat(str(val).strip())
+    except (ValueError, TypeError):
+        return None
+
+
+def _float_val(val):
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _import_rows(session, di, section, data_rows):
+    count = 0
+    for idx, row in enumerate(data_rows, 1):
+        if section == "cash_reconciliation":
+            session.add(CashReconciliation(
+                import_id=di.id,
+                store_id=str(row.get("Store ID", "")).strip(),
+                source_row_number=idx,
+                cash_at_tills=_float_val(row.get("Cash at Tills")),
+                cash_in_safe=_float_val(row.get("Cash in Safe")),
+                cash_other_locations=_float_val(row.get("Cash Other Locations")),
+                physical_cash_total=_float_val(row.get("Physical Cash Total")),
+                cash_sales_as_per_report=_float_val(row.get("Cash Sales as per Report")),
+                float_or_imprest_amount=_float_val(row.get("Float or Imprest Amount")),
+                difference=_float_val(row.get("Difference")),
+                remarks=str(row.get("Remarks", "") or ""),
+            ))
+        elif section == "cash_deposit_pickups":
+            session.add(CashDepositPickup(
+                import_id=di.id,
+                store_id=str(row.get("Store ID", "")).strip(),
+                source_row_number=idx,
+                sales_date=_parse_date_val(row.get("Sales Date")),
+                cash_sales=_float_val(row.get("Cash Sales")),
+                cash_deposited=_float_val(row.get("Cash Deposited")),
+                difference=_float_val(row.get("Difference")),
+                cms_pickup_date=_parse_date_val(row.get("CMS Pickup Date")),
+                handover_delay_days=int(row.get("Handover Delay Days") or 0),
+                remarks=str(row.get("Remarks", "") or ""),
+            ))
+        elif section == "expired_inventory":
+            session.add(ExpiredInventory(
+                import_id=di.id,
+                store_id=str(row.get("Store ID", "")).strip(),
+                source_row_number=idx,
+                article_code=str(row.get("Article Code", "") or ""),
+                article_description=str(row.get("Article Description", "") or ""),
+                expiry_date=_parse_date_val(row.get("Expiry Date")),
+                review_date=_parse_date_val(row.get("Review Date")),
+                quantity=_float_val(row.get("Quantity")),
+                mrp=_float_val(row.get("MRP")),
+            ))
+        elif section == "store_scores":
+            session.add(StoreScore(
+                import_id=di.id,
+                store_id=str(row.get("Store ID", "")).strip(),
+                source_row_number=idx,
+                store_code=str(row.get("Store Code", "") or ""),
+                status=str(row.get("Status", "") or ""),
+                q1=_float_val(row.get("Q1")),
+                q2=_float_val(row.get("Q2")),
+                q3=_float_val(row.get("Q3")),
+                q4=_float_val(row.get("Q4")),
+            ))
+        count += 1
+    return count

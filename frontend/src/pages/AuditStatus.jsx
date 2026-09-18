@@ -1,6 +1,23 @@
-import { useState, useMemo } from 'react';
-import { mockAudits, mockQuestions, mockIssues, OBS_POOL, COMMENT_POOL } from '../data/mockData';
+import { useState, useMemo, useEffect } from 'react';
+import { api } from '../api/client';
 import { avC, sBadge, sColor, prC, stC, seedRand } from '../utils/helpers';
+
+const OBS_POOL = [
+  { title: 'GSTIN certificate not displayed at store', desc: 'Mandatory regulatory compliance issue.', pri: 'Critical' },
+  { title: 'Manual bills issued from store not regularized', desc: 'Financial discrepancy identified.', pri: 'High' },
+  { title: 'Defined Merchandise layout not followed across the store', desc: 'Visual merchandising standards not met.', pri: 'Medium' },
+  { title: 'Delay in deposit of cash collected through sales', desc: 'Cash management protocol violation.', pri: 'High' },
+  { title: 'Fake note detector not available in stores', desc: 'Security equipment missing.', pri: 'Critical' },
+  { title: 'Freezer temperature fluctuation', desc: 'Cold chain compliance issue detected.', pri: 'High' },
+  { title: 'Generator oil leakage detected', desc: 'EHS risk identified during inspection.', pri: 'Medium' },
+  { title: 'AC unit not cooling in customer area', desc: 'Customer experience impacted.', pri: 'Low' },
+];
+
+const COMMENT_POOL = [
+  ['Audit completed successfully. Key areas of improvement identified in cash handling and store hygiene.', 'Thank you for the audit. We will address the issues within the timeline.'],
+  ['Several compliance gaps found. Immediate action needed on critical items.', 'Acknowledged. Team has been briefed on corrective actions.'],
+  ['Store performing well overall. Minor observations noted.', 'Appreciate the feedback. Will work on the minor items.'],
+];
 
 export default function AuditStatus() {
   const [search, setSearch] = useState('');
@@ -11,10 +28,29 @@ export default function AuditStatus() {
   const [endDate, setEndDate] = useState('');
   const [detailAudit, setDetailAudit] = useState(null);
 
+  // API data
+  const [audits, setAudits] = useState([]);
+  const [issues, setIssues] = useState([]);
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      api.audits().catch(() => []),
+      api.issues().catch(() => []),
+      api.questions().catch(() => []),
+    ]).then(([a, i, q]) => {
+      setAudits(a || []);
+      setIssues(i || []);
+      setQuestions(q || []);
+      setLoading(false);
+    });
+  }, []);
+
   /* auditor dropdown values from data */
   const auditorOptions = useMemo(
-    () => [...new Set(mockAudits.map(a => a.auditor).filter(Boolean))],
-    []
+    () => [...new Set(audits.map(a => a.auditor).filter(Boolean))],
+    [audits]
   );
 
   /* ── filtering + scoring + sorting ── */
@@ -23,13 +59,13 @@ export default function AuditStatus() {
     const sdDate = startDate ? new Date(startDate + 'T00:00:00') : null;
     const edDate = endDate ? new Date(endDate + 'T23:59:59') : null;
 
-    let data = mockAudits.filter(a => {
-      if (q && !a.id.toLowerCase().includes(q) && !a.store.toLowerCase().includes(q) && !a.auditor.toLowerCase().includes(q)) return false;
+    let data = audits.filter(a => {
+      if (q && !(a.id||'').toLowerCase().includes(q) && !(a.store||'').toLowerCase().includes(q) && !(a.auditor||'').toLowerCase().includes(q)) return false;
       if (statusFilter && a.status !== statusFilter) return false;
       if (regionFilter && a.region !== regionFilter) return false;
       if (auditorFilter && a.auditor !== auditorFilter) return false;
       if (sdDate || edDate) {
-        const schedDate = new Date(a.sched);
+        const schedDate = new Date(a.scheduled_at || a.sched);
         if (!isNaN(schedDate.getTime())) {
           if (sdDate && schedDate < sdDate) return false;
           if (edDate && schedDate > edDate) return false;
@@ -38,17 +74,17 @@ export default function AuditStatus() {
       return true;
     });
 
-    /* compute score for completed audits */
+    /* compute score for completed audits if not already set */
     data = data.map(a => {
-      if (a.status === 'Completed') {
-        const issCount = parseInt((a.issues || '0/0').split('/')[0]) || 0;
-        return { ...a, score: Math.max(40, 98 - issCount * 4) };
+      if ((a.status === 'Completed' || a.status === 'Approved') && a.score == null) {
+        const relatedIssues = issues.filter(i => i.audit_id === a.id);
+        return { ...a, score: Math.max(40, 98 - relatedIssues.length * 4) };
       }
       return { ...a };
     });
 
     /* sort: scored first (desc), then by status order */
-    const statusOrder = { Completed: 0, 'In Progress': 1, Planned: 2, Overdue: 3 };
+    const statusOrder = { Completed: 0, Approved: 0, 'In Progress': 1, Ongoing: 1, Planned: 2, Overdue: 3 };
     data.sort((a, b) => {
       if (a.score != null && b.score != null) return b.score - a.score;
       if (a.score != null) return -1;
@@ -57,7 +93,7 @@ export default function AuditStatus() {
     });
 
     return data;
-  }, [search, statusFilter, regionFilter, auditorFilter, startDate, endDate]);
+  }, [search, statusFilter, regionFilter, auditorFilter, startDate, endDate, audits, issues]);
 
   /* ── clear all filters ── */
   function clearFilters() {
@@ -76,21 +112,21 @@ export default function AuditStatus() {
     const rnd = seedRand(a.id);
 
     /* questions answered */
-    const activeQ = mockQuestions.filter(q => q.on === true);
+    const activeQ = questions.filter(q => q.active !== false);
     const qCount = Math.min(6, activeQ.length);
     const shuffledQ = [...activeQ].sort(() => rnd() - 0.5);
     const answered = shuffledQ.slice(0, qCount).map(q => ({
       text: q.text,
-      sp: q.sp,
-      ans: rnd() > (q.crit ? 0.35 : 0.15) ? 'Yes' : 'No',
+      sp: q.sub_process || q.sp || q.process || '',
+      ans: rnd() > (q.is_critical ? 0.35 : 0.15) ? 'Yes' : 'No',
     }));
 
     /* observations: linked issues + pool samples */
-    const linkedIssues = mockIssues
-      .filter(i => i.aid === a.id)
-      .map(i => ({ title: i.title, desc: i.desc, pri: i.pri, status: i.status }));
+    const linkedIssues = issues
+      .filter(i => i.audit_id === a.id)
+      .map(i => ({ title: i.title, desc: i.description || '', pri: i.priority, status: i.status }));
 
-    const targetCount = 4 + Math.floor(rnd() * 2); // 4 or 5
+    const targetCount = 4 + Math.floor(rnd() * 2);
     const statusOptions = ['Open', 'In Progress', 'Resolved'];
     const poolShuffled = [...OBS_POOL].sort(() => rnd() - 0.5);
     const sampled = [];
@@ -110,7 +146,11 @@ export default function AuditStatus() {
     const cSet = COMMENT_POOL[Math.floor(rnd() * COMMENT_POOL.length)];
 
     return { answered, findings, cSet };
-  }, [detailAudit]);
+  }, [detailAudit, issues, questions]);
+
+  if (loading) {
+    return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',color:'var(--text3)'}}>Loading audit data...</div>;
+  }
 
   /* ── render ── */
   return (
@@ -165,7 +205,10 @@ export default function AuditStatus() {
             </tr>
           </thead>
           <tbody>
-            {filtered.length > 0 ? filtered.map(a => (
+            {filtered.length > 0 ? filtered.map(a => {
+              const issCount = issues.filter(i => i.audit_id === a.id).length;
+              const schedDisplay = a.scheduled_at ? new Date(a.scheduled_at).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'}) + ', ' + new Date(a.scheduled_at).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'}) : (a.sched || '—');
+              return (
               <tr key={a.id} style={{ cursor: 'pointer' }} onClick={() => setDetailAudit(a)}>
                 <td onClick={e => e.stopPropagation()}><input type="checkbox" /></td>
                 <td>
@@ -176,7 +219,7 @@ export default function AuditStatus() {
                   <div style={{ fontSize: 11, color: 'var(--text3)' }}>{a.city}</div>
                 </td>
                 <td>
-                  <span style={{ fontSize: 11, color: 'var(--text3)' }}>&#x1F550;</span> {a.sched}
+                  <span style={{ fontSize: 11, color: 'var(--text3)' }}>&#x1F550;</span> {schedDisplay}
                 </td>
                 <td><span className={`badge ${sBadge(a.status)}`}>{a.status}</span></td>
                 <td>
@@ -195,12 +238,12 @@ export default function AuditStatus() {
                   )}
                 </td>
                 <td style={{ fontWeight: 500 }}>
-                  {a.status === 'Completed' ? (a.issues || '').split('/')[0] : '\u2014'}
+                  {(a.status === 'Completed' || a.status === 'Approved') ? issCount : '\u2014'}
                 </td>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <div className={`av ${avC(a.auditor)}`}>{a.ai}</div>
-                    <span style={{ fontSize: 12 }}>{a.auditor}</span>
+                    <div className={`av ${avC(a.auditor || 'U')}`}>{(a.auditor||'U')[0]}</div>
+                    <span style={{ fontSize: 12 }}>{a.auditor || 'Unassigned'}</span>
                   </div>
                 </td>
                 <td onClick={e => e.stopPropagation()}>
@@ -211,7 +254,7 @@ export default function AuditStatus() {
                   </div>
                 </td>
               </tr>
-            )) : (
+            )}) : (
               <tr>
                 <td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--text3)' }}>No audits match your filters</td>
               </tr>
@@ -239,7 +282,7 @@ export default function AuditStatus() {
               </div>
               <div>
                 <div style={{ color: 'var(--text3)', marginBottom: 2 }}>Scheduled</div>
-                <b style={{ color: 'var(--text2)' }}>{detailAudit.sched}</b>
+                <b style={{ color: 'var(--text2)' }}>{detailAudit.scheduled_at?.substring(0,10) || detailAudit.sched}</b>
               </div>
               <div>
                 <div style={{ color: 'var(--text3)', marginBottom: 2 }}>Status</div>
@@ -251,7 +294,7 @@ export default function AuditStatus() {
               </div>
               <div>
                 <div style={{ color: 'var(--text3)', marginBottom: 2 }}>Issues Raised</div>
-                <b style={{ color: 'var(--text2)' }}>{(detailAudit.issues || '').split('/')[0]}</b>
+                <b style={{ color: 'var(--text2)' }}>{issues.filter(i => i.audit_id === detailAudit.id).length}</b>
               </div>
               <div>
                 <div style={{ color: 'var(--text3)', marginBottom: 2 }}>Score</div>

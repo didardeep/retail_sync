@@ -1,17 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Line } from 'react-chartjs-2'
-import { mockStores, mockAudits } from '../data/mockData'
+import { api } from '../api/client'
 import { sColor, pbClass, exportCSV } from '../utils/helpers'
 
 const YEARS = ['2022', '2023', '2024', '2025', '2026']
 const SCORE_KEY = { '2022': 's22', '2023': 's23', '2024': 's24', '2025': 's25', '2026': 's26' }
 
 function getScore(store, year) {
-  return store[SCORE_KEY[year]] ?? 0
+  return (store.meta || {})[SCORE_KEY[year]] ?? store[SCORE_KEY[year]] ?? 0
 }
 
 function deltaDisplay(curr, prev) {
-  if (prev === undefined) return ''
+  if (prev === undefined || prev === null) return ''
   const d = curr - prev
   if (d > 0) return <span className="db-up">+{d}</span>
   if (d < 0) return <span className="db-dn">{d}</span>
@@ -24,6 +24,20 @@ export default function StoreAuditScores() {
   const [yearEnd, setYearEnd] = useState('2026')
   const [statusFilter, setStatusFilter] = useState('all')
   const [detailStore, setDetailStore] = useState(null)
+  const [stores, setStores] = useState([])
+  const [audits, setAudits] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      api.stores().catch(() => []),
+      api.audits().catch(() => []),
+    ]).then(([s, a]) => {
+      setStores(s || [])
+      setAudits(a || [])
+      setLoading(false)
+    })
+  }, [])
 
   /* ── derived year range ── */
   const startIdx = YEARS.indexOf(yearStart)
@@ -35,10 +49,10 @@ export default function StoreAuditScores() {
   const scoreCols = selectedYears.length
 
   /* ── filtering ── */
-  const filtered = mockStores.filter(s => {
+  const filtered = stores.filter(s => {
     if (search) {
       const q = search.toLowerCase()
-      if (!s.name.toLowerCase().includes(q) && !s.city.toLowerCase().includes(q)) return false
+      if (!(s.name||'').toLowerCase().includes(q) && !(s.city||'').toLowerCase().includes(q)) return false
     }
     if (statusFilter === 'open' && s.status !== 'Operating') return false
     if (statusFilter === 'closed' && s.status !== 'Dehired') return false
@@ -65,7 +79,7 @@ export default function StoreAuditScores() {
       labels: ['2022', '2023', '2024', '2025', '2026'],
       datasets: [{
         label: 'Score',
-        data: [s.s22, s.s23, s.s24, s.s25, s.s26],
+        data: [getScore(s,'2022'), getScore(s,'2023'), getScore(s,'2024'), getScore(s,'2025'), getScore(s,'2026')],
         borderColor: '#00338D',
         backgroundColor: 'rgba(0,51,141,.1)',
         borderWidth: 2,
@@ -88,7 +102,11 @@ export default function StoreAuditScores() {
 
   /* ── recent audits for detail ── */
   function storeAudits(storeName) {
-    return mockAudits.filter(a => a.store === storeName)
+    return audits.filter(a => a.store === storeName)
+  }
+
+  if (loading) {
+    return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',color:'var(--text3)'}}>Loading store scores...</div>
   }
 
   /* ── render ── */
@@ -167,8 +185,8 @@ export default function StoreAuditScores() {
               {/* Score columns */}
               {selectedYears.map(y => {
                 const score = getScore(s, y)
-                const prevKey = 's' + String(parseInt(y) - 1).slice(-2)
-                const prevScore = s[prevKey]
+                const prevYear = String(parseInt(y) - 1)
+                const prevScore = getScore(s, prevYear)
                 return (
                   <div key={y}>
                     <div style={{ marginBottom: 4 }}>
@@ -261,9 +279,9 @@ export default function StoreAuditScores() {
                     {storeAudits(detailStore.name).map(a => (
                       <tr key={a.id}>
                         <td style={{ fontWeight: 600 }}>{a.id}</td>
-                        <td>{a.sched}</td>
+                        <td>{a.scheduled_at?.substring(0,10) || a.sched}</td>
                         <td>
-                          {a.score !== null ? (
+                          {a.score !== null && a.score !== undefined ? (
                             <span style={{ fontWeight: 700, color: sColor(a.score) }}>{a.score}%</span>
                           ) : (
                             <span style={{ color: 'var(--text3)' }}>&mdash;</span>

@@ -2,185 +2,1001 @@
  "stores": [
   {
    "id": "ST001",
+   "store_code": "RC-MUM-001",
    "name": "Phoenix Mall",
+   "state": "Maharashtra",
    "city": "Mumbai",
    "region": "West India",
+   "district": "Mumbai City",
+   "postal_address": "H3 Main St, Mumbai 400001",
    "format": "COCO",
    "type": "Flagship",
    "manager": "P. Rao",
+   "deputy_manager": "Vikas Mehra",
+   "operations_manager": "Suresh Kumar",
+   "store_category": "Flagship",
    "status": "Operating",
-   "s25": 92,
-   "s24": 94,
-   "s23": 90,
-   "s22": 88,
-   "s26": 93,
+   "s25": 92, "s24": 94, "s23": 90, "s22": 88, "s26": 93,
    "contact": "+91 90123 13208",
    "email": "store1000@retail-chain.com",
    "address": "H3 Main St, Mumbai"
   },
   {
    "id": "ST002",
+   "store_code": "RC-DEL-001",
    "name": "DLF Avenue",
+   "state": "Delhi",
    "city": "Delhi",
    "region": "North India",
+   "district": "South Delhi",
+   "postal_address": "Sector 24, DLF Phase 3, Delhi 110070",
    "format": "COFO",
    "type": "Flagship",
    "manager": "J. Patel",
+   "deputy_manager": "Anita Gupta",
+   "operations_manager": "Rajesh Verma",
+   "store_category": "Flagship",
    "status": "Operating",
-   "s25": 92,
-   "s24": 94,
-   "s23": 91,
-   "s22": 85,
-   "s26": 91,
+   "s25": 92, "s24": 94, "s23": 91, "s22": 85, "s26": 91,
    "contact": "+91 98110 22456",
    "email": "store1001@retail-chain.com",
    "address": "Sector 24, DLF Phase 3, Delhi"
   },
   {
    "id": "ST003",
+   "store_code": "RC-BLR-001",
    "name": "Ub City",
+   "state": "Karnataka",
    "city": "Bengaluru",
    "region": "South India",
+   "district": "Bengaluru Urban",
+   "postal_address": "24 Vittal Mallya Rd, Bengaluru 560001",
    "format": "COCO",
    "type": "Standard",
    "manager": "N. Singh",
+   "deputy_manager": "Kavita Rao",
+   "operations_manager": "Mohan Reddy",
+   "store_category": "Standard",
    "status": "Operating",
-   "s25": 74,
-   "s24": 80,
-   "s23": 78,
-   "s22": 82,
-   "s26": 75,
+   "s25": 74, "s24": 80, "s23": 78, "s22": 82, "s26": 75,
    "contact": "+91 99001 33678",
    "email": "store1002@retail-chain.com",
    "address": "24 Vittal Mallya Rd, Bengaluru"
   },
   {
    "id": "ST004",
+   "store_code": "RC-DEL-002",
    "name": "Select Citywalk",
+   "state": "Delhi",
    "city": "Delhi",
    "region": "North India",
+   "district": "South Delhi",
+   "postal_address": "A-3 District Centre, Saket, Delhi 110017",
    "format": "FOCO",
    "type": "Standard",
    "manager": "J. Patel",
+   "deputy_manager": "Ritu Sharma",
+   "operations_manager": "Vinod Kapoor",
+   "store_category": "Standard",
    "status": "Operating",
-   "s25": 80,
-   "s24": 80,
-   "s23": 82,
-   "s22": 79,
-   "s26": 81,
+   "s25": 80, "s24": 80, "s23": 82, "s22": 79, "s26": 81,
    "contact": "+91 98730 44521",
    "email": "store1003@retail-chain.com",
    "address": "A-3 District Centre, Saket, Delhi"
   },
   {
    "id": "ST005",
+   "store_code": "RC-PUN-001",
    "name": "Nexus Mall",
+   "state": "Maharashtra",
    "city": "Pune",
    "region": "West India",
+   "district": "Pune",
+   "postal_address": "Viman Nagar, Pune 411014",
    "format": "FOFO",
    "type": "Standard",
    "manager": "R. Das",
+   "deputy_manager": "Sneha Patil",
+   "operations_manager": "Arun Joshi",
+   "store_category": "Standard",
    "status": "Operating",
-   "s25": 78,
-   "s24": 80,
-   "s23": 75,
-   "s22": 70,
-   "s26": 79,
+   "s25": 78, "s24": 80, "s23": 75, "s22": 70, "s26": 79,
    "contact": "+91 90210 55879",
    "email": "store1004@retail-chain.com",
    "address": "Viman Nagar, Pune"
   },
   {
    "id": "ST006",
+   "store_code": "RC-CHD-001",
    "name": "Centra Mall",
+   "state": "Chandigarh",
    "city": "Chandigarh",
    "region": "North India",
+   "district": "Chandigarh",
+   "postal_address": "Zirakpur Rd, Chandigarh 160101",
    "format": "COCO",
    "type": "Compact",
    "manager": "A. Sharma",
+   "deputy_manager": "Deepak Gill",
+   "operations_manager": "Harpreet Kaur",
+   "store_category": "Compact",
    "status": "Operating",
-   "s25": 67,
-   "s24": 57,
-   "s23": 60,
-   "s22": 55,
-   "s26": 68,
+   "s25": 67, "s24": 57, "s23": 60, "s22": 55, "s26": 68,
    "contact": "+91 98140 66234",
    "email": "store1005@retail-chain.com",
    "address": "Zirakpur Rd, Chandigarh"
   },
   {
    "id": "ST007",
+   "store_code": "RC-NAG-001",
    "name": "Elante Outpost",
+   "state": "Maharashtra",
    "city": "Nagpur",
    "region": "West India",
+   "district": "Nagpur",
+   "postal_address": "Wardha Rd, Nagpur 440025",
    "format": "COFO",
    "type": "Kiosk",
    "manager": "N. Singh",
+   "deputy_manager": "Pramod Deshmukh",
+   "operations_manager": "Sunita Wagh",
+   "store_category": "Kiosk",
    "status": "Operating",
-   "s25": 84,
-   "s24": 90,
-   "s23": 88,
-   "s22": 92,
-   "s26": 85,
+   "s25": 84, "s24": 90, "s23": 88, "s22": 92, "s26": 85,
    "contact": "+91 94220 77456",
    "email": "store1006@retail-chain.com",
    "address": "Wardha Rd, Nagpur"
   },
   {
    "id": "ST008",
+   "store_code": "RC-DDN-001",
    "name": "Pacific Hub",
+   "state": "Uttarakhand",
    "city": "Dehradun",
    "region": "North India",
+   "district": "Dehradun",
+   "postal_address": "Rajpur Rd, Dehradun 248001",
    "format": "FOFO",
    "type": "Standard",
    "manager": "P. Rao",
+   "deputy_manager": "Neeraj Rawat",
+   "operations_manager": "Pooja Bisht",
+   "store_category": "Standard",
    "status": "Operating",
-   "s25": 93,
-   "s24": 100,
-   "s23": 95,
-   "s22": 96,
-   "s26": 94,
+   "s25": 93, "s24": 100, "s23": 95, "s22": 96, "s26": 94,
    "contact": "+91 97590 88123",
    "email": "store1007@retail-chain.com",
    "address": "Rajpur Rd, Dehradun"
   },
   {
    "id": "ST009",
+   "store_code": "RC-KOL-001",
    "name": "South City",
+   "state": "West Bengal",
    "city": "Kolkata",
    "region": "East India",
+   "district": "South 24 Parganas",
+   "postal_address": "Prince Anwar Shah Rd, Kolkata 700045",
    "format": "FOCO",
    "type": "Compact",
    "manager": "R. Das",
+   "deputy_manager": "Suman Ghosh",
+   "operations_manager": "Dipak Banerjee",
+   "store_category": "Compact",
    "status": "Dehired",
-   "s25": 47,
-   "s24": 55,
-   "s23": 50,
-   "s22": 48,
-   "s26": 50,
+   "s25": 47, "s24": 55, "s23": 50, "s22": 48, "s26": 50,
    "contact": "+91 98300 99456",
    "email": "store1008@retail-chain.com",
    "address": "Prince Anwar Shah Rd, Kolkata"
   },
   {
    "id": "ST010",
+   "store_code": "RC-JAI-001",
    "name": "Orbit Mall",
+   "state": "Rajasthan",
    "city": "Jaipur",
    "region": "North India",
+   "district": "Jaipur",
+   "postal_address": "Ajmer Rd, Jaipur 302019",
    "format": "FOFO",
    "type": "Standard",
    "manager": "J. Patel",
+   "deputy_manager": "Mahesh Agarwal",
+   "operations_manager": "Rekha Sharma",
+   "store_category": "Standard",
    "status": "Dehired",
-   "s25": 51,
-   "s24": 58,
-   "s23": 62,
-   "s22": 65,
-   "s26": 55,
+   "s25": 51, "s24": 58, "s23": 62, "s22": 65, "s26": 55,
    "contact": "+91 94140 10567",
    "email": "store1009@retail-chain.com",
    "address": "Ajmer Rd, Jaipur"
   }
  ],
+
+ "processes": ["Cashiering", "Inventory Management", "Schemes and Promotions", "EHS & Compliance"],
+
+ "questions": [
+  {
+   "id": "Q001",
+   "text": "Is the total cash collected at tills reconciled with the POS/Billing System for each shift?",
+   "proc": "Cashiering",
+   "sp": "Cash sales & Recon",
+   "at": "Store Visit",
+   "w": 5,
+   "crit": true,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "Y",
+   "da_ref": "Sheet 1",
+   "annex": "Annex A1",
+   "tags": ["cash", "reconciliation", "POS"]
+  },
+  {
+   "id": "Q002",
+   "text": "Is the physical cash at tills counted and matched with the system generated cash report at the end of each day?",
+   "proc": "Cashiering",
+   "sp": "Cash sales & Recon",
+   "at": "Structured data/DA",
+   "w": 5,
+   "crit": true,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "Y",
+   "da_ref": "Sheet 1",
+   "annex": "Annex A1",
+   "tags": ["cash", "daily-count"]
+  },
+  {
+   "id": "Q003",
+   "text": "Is the cash-in-safe amount verified and logged at the start and end of each business day?",
+   "proc": "Cashiering",
+   "sp": "Cash sales & Recon",
+   "at": "Store Visit",
+   "w": 4,
+   "crit": true,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "Y",
+   "da_ref": "Sheet 1",
+   "annex": "Annex A1",
+   "tags": ["cash", "safe"]
+  },
+  {
+   "id": "Q004",
+   "text": "Is the float/imprest amount maintained as per the authorized master allocation?",
+   "proc": "Cashiering",
+   "sp": "Cash sales & Recon",
+   "at": "Structured data/DA",
+   "w": 3,
+   "crit": false,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "Y",
+   "da_ref": "Sheet 1",
+   "annex": "Annex A2",
+   "tags": ["cash", "float", "imprest"]
+  },
+  {
+   "id": "Q005",
+   "text": "Are all cash deposits picked up by the CMS agency on the scheduled date?",
+   "proc": "Cashiering",
+   "sp": "Cash handover to collection agency",
+   "at": "Structured data/DA",
+   "w": 5,
+   "crit": true,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "Y",
+   "da_ref": "Sheet 2",
+   "annex": "Annex B1",
+   "tags": ["cash", "CMS", "deposit"]
+  },
+  {
+   "id": "Q006",
+   "text": "Is there a delay of more than 2 days in cash handover to the collection agency?",
+   "proc": "Cashiering",
+   "sp": "Cash handover to collection agency",
+   "at": "Structured data/DA",
+   "w": 4,
+   "crit": true,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "Y",
+   "da_ref": "Sheet 2",
+   "annex": "Annex B1",
+   "tags": ["cash", "CMS", "delay"]
+  },
+  {
+   "id": "Q007",
+   "text": "Is the cash deposited amount matching with the cash sales amount for each day?",
+   "proc": "Cashiering",
+   "sp": "Cash handover to collection agency",
+   "at": "Structured data/DA",
+   "w": 5,
+   "crit": true,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "Y",
+   "da_ref": "Sheet 2",
+   "annex": "Annex B2",
+   "tags": ["cash", "deposit", "matching"]
+  },
+  {
+   "id": "Q008",
+   "text": "Is CMS acknowledgement receipt maintained for each cash pickup?",
+   "proc": "Cashiering",
+   "sp": "Cash handover to collection agency",
+   "at": "Store Visit",
+   "w": 3,
+   "crit": false,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex B2",
+   "tags": ["cash", "CMS", "receipt"]
+  },
+  {
+   "id": "Q009",
+   "text": "Are debit/credit card settlements reconciled with the POS/billing system daily?",
+   "proc": "Cashiering",
+   "sp": "Debit/Credit card sales & Recon",
+   "at": "Structured data/DA",
+   "w": 4,
+   "crit": true,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "Y",
+   "da_ref": null,
+   "annex": "Annex C1",
+   "tags": ["card", "POS", "reconciliation"]
+  },
+  {
+   "id": "Q010",
+   "text": "Are chargebacks and disputed card transactions tracked and resolved within SLA?",
+   "proc": "Cashiering",
+   "sp": "Debit/Credit card sales & Recon",
+   "at": "Unstructured data",
+   "w": 3,
+   "crit": false,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex C1",
+   "tags": ["card", "chargeback"]
+  },
+  {
+   "id": "Q011",
+   "text": "Is the card terminal (EDC machine) functioning properly and PCI-DSS compliant?",
+   "proc": "Cashiering",
+   "sp": "Debit/Credit card sales & Recon",
+   "at": "Store Visit",
+   "w": 3,
+   "crit": false,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex C2",
+   "tags": ["card", "EDC", "PCI"]
+  },
+  {
+   "id": "Q012",
+   "text": "Are UPI payments verified and reconciled with the bank statement and POS reports?",
+   "proc": "Cashiering",
+   "sp": "UPI Payments",
+   "at": "Structured data/DA",
+   "w": 4,
+   "crit": true,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "Y",
+   "da_ref": null,
+   "annex": "Annex D1",
+   "tags": ["UPI", "reconciliation"]
+  },
+  {
+   "id": "Q013",
+   "text": "Are UPI QR codes displayed prominently at all billing counters?",
+   "proc": "Cashiering",
+   "sp": "UPI Payments",
+   "at": "Store Visit",
+   "w": 2,
+   "crit": false,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex D1",
+   "tags": ["UPI", "QR", "display"]
+  },
+  {
+   "id": "Q014",
+   "text": "Are failed UPI transactions refunded within the stipulated timeline?",
+   "proc": "Cashiering",
+   "sp": "UPI Payments",
+   "at": "Unstructured data",
+   "w": 3,
+   "crit": false,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex D2",
+   "tags": ["UPI", "refund"]
+  },
+  {
+   "id": "Q015",
+   "text": "Are credit notes issued only against valid return transactions with proper approval?",
+   "proc": "Cashiering",
+   "sp": "Credit Notes Issuance",
+   "at": "Store Visit",
+   "w": 5,
+   "crit": true,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex E1",
+   "tags": ["credit-note", "returns", "approval"]
+  },
+  {
+   "id": "Q016",
+   "text": "Is dual authorization implemented for credit notes above the threshold value?",
+   "proc": "Cashiering",
+   "sp": "Credit Notes Issuance",
+   "at": "Store Visit",
+   "w": 4,
+   "crit": true,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex E1",
+   "tags": ["credit-note", "dual-auth"]
+  },
+  {
+   "id": "Q017",
+   "text": "Is a credit note register maintained and reviewed by the store manager weekly?",
+   "proc": "Cashiering",
+   "sp": "Credit Notes Issuance",
+   "at": "Store Visit",
+   "w": 3,
+   "crit": false,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex E2",
+   "tags": ["credit-note", "register"]
+  },
+  {
+   "id": "Q018",
+   "text": "Are all running promotions/schemes authorized by the HO and documented?",
+   "proc": "Schemes and Promotions",
+   "sp": "Scheme Authorization",
+   "at": "Store Visit",
+   "w": 4,
+   "crit": true,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex F1",
+   "tags": ["schemes", "promotion", "HO-approval"]
+  },
+  {
+   "id": "Q019",
+   "text": "Are scheme discounts applied correctly at the billing counter as per HO circular?",
+   "proc": "Schemes and Promotions",
+   "sp": "Scheme Authorization",
+   "at": "Store Visit",
+   "w": 4,
+   "crit": true,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex F1",
+   "tags": ["schemes", "discount", "billing"]
+  },
+  {
+   "id": "Q020",
+   "text": "Are expired/discontinued schemes removed from the system and POS promptly?",
+   "proc": "Schemes and Promotions",
+   "sp": "Scheme Authorization",
+   "at": "Store Visit",
+   "w": 3,
+   "crit": false,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex F2",
+   "tags": ["schemes", "expired"]
+  },
+  {
+   "id": "Q021",
+   "text": "Are free/sample items issued under promotions tracked and reconciled against scheme allocation?",
+   "proc": "Schemes and Promotions",
+   "sp": "Scheme Execution",
+   "at": "Unstructured data",
+   "w": 3,
+   "crit": false,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex F2",
+   "tags": ["schemes", "freebies", "tracking"]
+  },
+  {
+   "id": "Q022",
+   "text": "Is the FIFO (First In First Out) method followed for all perishable and near-expiry inventory?",
+   "proc": "Inventory Management",
+   "sp": "Expiry & Shelf Life",
+   "at": "Store Visit",
+   "w": 5,
+   "crit": true,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "Y",
+   "da_ref": "Sheet 3",
+   "annex": "Annex G1",
+   "tags": ["inventory", "FIFO", "expiry"]
+  },
+  {
+   "id": "Q023",
+   "text": "Are expired products identified, segregated, and removed from the sales floor?",
+   "proc": "Inventory Management",
+   "sp": "Expiry & Shelf Life",
+   "at": "Store Visit",
+   "w": 5,
+   "crit": true,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "Y",
+   "da_ref": "Sheet 3",
+   "annex": "Annex G1",
+   "tags": ["inventory", "expired", "segregation"]
+  },
+  {
+   "id": "Q024",
+   "text": "Is a near-expiry review conducted weekly and documented in the expiry tracker?",
+   "proc": "Inventory Management",
+   "sp": "Expiry & Shelf Life",
+   "at": "Structured data/DA",
+   "w": 4,
+   "crit": true,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "Y",
+   "da_ref": "Sheet 3",
+   "annex": "Annex G2",
+   "tags": ["inventory", "near-expiry", "review"]
+  },
+  {
+   "id": "Q025",
+   "text": "Is the system stock count matching with the physical stock for sampled SKUs?",
+   "proc": "Inventory Management",
+   "sp": "Stock Accuracy",
+   "at": "Store Visit",
+   "w": 5,
+   "crit": true,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex G3",
+   "tags": ["inventory", "stock-count", "physical"]
+  },
+  {
+   "id": "Q026",
+   "text": "Are damaged/defective items logged in the shrinkage register and segregated?",
+   "proc": "Inventory Management",
+   "sp": "Stock Accuracy",
+   "at": "Store Visit",
+   "w": 3,
+   "crit": false,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex G3",
+   "tags": ["inventory", "damaged", "shrinkage"]
+  },
+  {
+   "id": "Q027",
+   "text": "Is the receiving dock process followed — GRN matched with PO and invoice?",
+   "proc": "Inventory Management",
+   "sp": "Receiving & GRN",
+   "at": "Store Visit",
+   "w": 4,
+   "crit": true,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex H1",
+   "tags": ["inventory", "GRN", "receiving"]
+  },
+  {
+   "id": "Q028",
+   "text": "Are fire extinguishers serviced, accessible, and within validity?",
+   "proc": "EHS & Compliance",
+   "sp": "Fire Safety",
+   "at": "Store Visit",
+   "w": 5,
+   "crit": true,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex I1",
+   "tags": ["EHS", "fire", "extinguisher"]
+  },
+  {
+   "id": "Q029",
+   "text": "Are emergency exits clearly marked, unobstructed, and functional?",
+   "proc": "EHS & Compliance",
+   "sp": "Fire Safety",
+   "at": "Store Visit",
+   "w": 5,
+   "crit": true,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex I1",
+   "tags": ["EHS", "fire", "exits"]
+  },
+  {
+   "id": "Q030",
+   "text": "Is periodic fire drill conducted and documented as per norms?",
+   "proc": "EHS & Compliance",
+   "sp": "Fire Safety",
+   "at": "Unstructured data",
+   "w": 3,
+   "crit": false,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex I2",
+   "tags": ["EHS", "fire", "drill"]
+  },
+  {
+   "id": "Q031",
+   "text": "Is housekeeping checklist followed and signed off daily?",
+   "proc": "EHS & Compliance",
+   "sp": "Hygiene & Housekeeping",
+   "at": "Store Visit",
+   "w": 3,
+   "crit": false,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex I3",
+   "tags": ["EHS", "housekeeping"]
+  },
+  {
+   "id": "Q032",
+   "text": "Are pest control measures in place and pest control records maintained?",
+   "proc": "EHS & Compliance",
+   "sp": "Hygiene & Housekeeping",
+   "at": "Store Visit",
+   "w": 3,
+   "crit": false,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex I3",
+   "tags": ["EHS", "pest-control"]
+  },
+  {
+   "id": "Q033",
+   "text": "Are FSSAI/trade licenses displayed and within validity?",
+   "proc": "EHS & Compliance",
+   "sp": "Regulatory Compliance",
+   "at": "Store Visit",
+   "w": 4,
+   "crit": true,
+   "on": true,
+   "photo_video": "Yes",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex J1",
+   "tags": ["EHS", "FSSAI", "license"]
+  },
+  {
+   "id": "Q034",
+   "text": "Are staff trained on food safety and hygiene practices with training records maintained?",
+   "proc": "EHS & Compliance",
+   "sp": "Regulatory Compliance",
+   "at": "Unstructured data",
+   "w": 3,
+   "crit": false,
+   "on": true,
+   "photo_video": "No",
+   "da_enabled": "N",
+   "da_ref": null,
+   "annex": "Annex J1",
+   "tags": ["EHS", "training", "food-safety"]
+  }
+ ],
+
+ "cash_reconciliation": [
+  {
+   "store_id": "ST001",
+   "cash_at_tills": 20000,
+   "cash_in_safe": 4000,
+   "cash_other_locations": 0,
+   "physical_cash_total": 24000,
+   "cash_sales_as_per_report": 20000,
+   "float_or_imprest_amount": 4000,
+   "book_cash_total": 24000,
+   "difference": 0,
+   "remarks": ""
+  },
+  {
+   "store_id": "ST002",
+   "cash_at_tills": 35000,
+   "cash_in_safe": 8000,
+   "cash_other_locations": 0,
+   "physical_cash_total": 43000,
+   "cash_sales_as_per_report": 37000,
+   "float_or_imprest_amount": 8000,
+   "book_cash_total": 45000,
+   "difference": -2000,
+   "remarks": "Cash short by Rs. 2000 - under investigation"
+  },
+  {
+   "store_id": "ST003",
+   "cash_at_tills": 18000,
+   "cash_in_safe": 5000,
+   "cash_other_locations": 500,
+   "physical_cash_total": 23500,
+   "cash_sales_as_per_report": 18500,
+   "float_or_imprest_amount": 5000,
+   "book_cash_total": 23500,
+   "difference": 0,
+   "remarks": ""
+  },
+  {
+   "store_id": "ST004",
+   "cash_at_tills": 25000,
+   "cash_in_safe": 6000,
+   "cash_other_locations": 0,
+   "physical_cash_total": 31000,
+   "cash_sales_as_per_report": 25000,
+   "float_or_imprest_amount": 6000,
+   "book_cash_total": 31000,
+   "difference": 0,
+   "remarks": ""
+  },
+  {
+   "store_id": "ST005",
+   "cash_at_tills": 15000,
+   "cash_in_safe": 3000,
+   "cash_other_locations": 0,
+   "physical_cash_total": 18000,
+   "cash_sales_as_per_report": 16000,
+   "float_or_imprest_amount": 3000,
+   "book_cash_total": 19000,
+   "difference": -1000,
+   "remarks": "Minor discrepancy - petty cash adjustment pending"
+  },
+  {
+   "store_id": "ST006",
+   "cash_at_tills": 12000,
+   "cash_in_safe": 2500,
+   "cash_other_locations": 0,
+   "physical_cash_total": 14500,
+   "cash_sales_as_per_report": 12000,
+   "float_or_imprest_amount": 2500,
+   "book_cash_total": 14500,
+   "difference": 0,
+   "remarks": ""
+  },
+  {
+   "store_id": "ST007",
+   "cash_at_tills": 10000,
+   "cash_in_safe": 2000,
+   "cash_other_locations": 0,
+   "physical_cash_total": 12000,
+   "cash_sales_as_per_report": 10000,
+   "float_or_imprest_amount": 2000,
+   "book_cash_total": 12000,
+   "difference": 0,
+   "remarks": ""
+  },
+  {
+   "store_id": "ST008",
+   "cash_at_tills": 22000,
+   "cash_in_safe": 5500,
+   "cash_other_locations": 0,
+   "physical_cash_total": 27500,
+   "cash_sales_as_per_report": 22000,
+   "float_or_imprest_amount": 5500,
+   "book_cash_total": 27500,
+   "difference": 0,
+   "remarks": ""
+  }
+ ],
+
+ "cash_deposit_pickups": [
+  {"store_id": "ST001", "sales_date": "2025-11-01", "cash_sales": 30000, "cash_deposited": 30000, "difference": 0, "cms_pickup_date": "2025-11-03", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST001", "sales_date": "2025-11-02", "cash_sales": 42000, "cash_deposited": 42000, "difference": 0, "cms_pickup_date": "2025-11-04", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST001", "sales_date": "2025-11-03", "cash_sales": 38000, "cash_deposited": 38000, "difference": 0, "cms_pickup_date": "2025-11-05", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST001", "sales_date": "2025-11-04", "cash_sales": 45000, "cash_deposited": 45000, "difference": 0, "cms_pickup_date": "2025-11-06", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST001", "sales_date": "2025-11-05", "cash_sales": 55000, "cash_deposited": 55000, "difference": 0, "cms_pickup_date": "2025-11-07", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST001", "sales_date": "2025-11-06", "cash_sales": 35000, "cash_deposited": 35000, "difference": 0, "cms_pickup_date": "2025-11-08", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST001", "sales_date": "2025-11-07", "cash_sales": 28000, "cash_deposited": 28000, "difference": 0, "cms_pickup_date": "2025-11-10", "handover_delay_days": 3, "remarks": "Weekend delay"},
+
+  {"store_id": "ST002", "sales_date": "2025-11-01", "cash_sales": 30000, "cash_deposited": 30000, "difference": 0, "cms_pickup_date": "2025-11-03", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST002", "sales_date": "2025-11-02", "cash_sales": 40000, "cash_deposited": 38000, "difference": 2000, "cms_pickup_date": "2025-11-05", "handover_delay_days": 3, "remarks": "Amount short - under investigation"},
+  {"store_id": "ST002", "sales_date": "2025-11-03", "cash_sales": 45000, "cash_deposited": 45000, "difference": 0, "cms_pickup_date": "2025-11-05", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST002", "sales_date": "2025-11-04", "cash_sales": 30000, "cash_deposited": 30000, "difference": 0, "cms_pickup_date": "2025-11-06", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST002", "sales_date": "2025-11-05", "cash_sales": 55000, "cash_deposited": 55000, "difference": 0, "cms_pickup_date": "2025-11-07", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST002", "sales_date": "2025-11-06", "cash_sales": 35000, "cash_deposited": 35000, "difference": 0, "cms_pickup_date": "2025-11-08", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST002", "sales_date": "2025-11-07", "cash_sales": 28000, "cash_deposited": 28000, "difference": 0, "cms_pickup_date": "2025-11-10", "handover_delay_days": 3, "remarks": "Weekend delay"},
+
+  {"store_id": "ST003", "sales_date": "2025-11-01", "cash_sales": 22000, "cash_deposited": 22000, "difference": 0, "cms_pickup_date": "2025-11-03", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST003", "sales_date": "2025-11-02", "cash_sales": 25000, "cash_deposited": 25000, "difference": 0, "cms_pickup_date": "2025-11-04", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST003", "sales_date": "2025-11-03", "cash_sales": 27000, "cash_deposited": 27000, "difference": 0, "cms_pickup_date": "2025-11-05", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST003", "sales_date": "2025-11-04", "cash_sales": 19000, "cash_deposited": 18000, "difference": 1000, "cms_pickup_date": "2025-11-07", "handover_delay_days": 3, "remarks": "Partial deposit - balance next day"},
+  {"store_id": "ST003", "sales_date": "2025-11-05", "cash_sales": 31000, "cash_deposited": 32000, "difference": -1000, "cms_pickup_date": "2025-11-07", "handover_delay_days": 2, "remarks": "Includes balance from Nov 4"},
+  {"store_id": "ST003", "sales_date": "2025-11-06", "cash_sales": 20000, "cash_deposited": 20000, "difference": 0, "cms_pickup_date": "2025-11-08", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST003", "sales_date": "2025-11-07", "cash_sales": 18000, "cash_deposited": 18000, "difference": 0, "cms_pickup_date": "2025-11-10", "handover_delay_days": 3, "remarks": "Weekend delay"},
+
+  {"store_id": "ST005", "sales_date": "2025-11-01", "cash_sales": 18000, "cash_deposited": 18000, "difference": 0, "cms_pickup_date": "2025-11-03", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST005", "sales_date": "2025-11-02", "cash_sales": 21000, "cash_deposited": 21000, "difference": 0, "cms_pickup_date": "2025-11-04", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST005", "sales_date": "2025-11-03", "cash_sales": 24000, "cash_deposited": 23500, "difference": 500, "cms_pickup_date": "2025-11-06", "handover_delay_days": 3, "remarks": "Short deposit"},
+  {"store_id": "ST005", "sales_date": "2025-11-04", "cash_sales": 16000, "cash_deposited": 16500, "difference": -500, "cms_pickup_date": "2025-11-06", "handover_delay_days": 2, "remarks": "Adjusted from previous day"},
+  {"store_id": "ST005", "sales_date": "2025-11-05", "cash_sales": 28000, "cash_deposited": 28000, "difference": 0, "cms_pickup_date": "2025-11-07", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST005", "sales_date": "2025-11-06", "cash_sales": 15000, "cash_deposited": 15000, "difference": 0, "cms_pickup_date": "2025-11-08", "handover_delay_days": 2, "remarks": ""},
+  {"store_id": "ST005", "sales_date": "2025-11-07", "cash_sales": 13000, "cash_deposited": 13000, "difference": 0, "cms_pickup_date": "2025-11-10", "handover_delay_days": 3, "remarks": "Weekend delay"}
+ ],
+
+ "expired_inventory": [
+  {"store_id": "ST001", "article_code": "ART001", "article_description": "Biscuit Premium Pack", "expiry_date": "2025-09-15", "review_date": "2025-10-01", "quantity": 25, "mrp": 45.00},
+  {"store_id": "ST001", "article_code": "ART007", "article_description": "Chocolate Bar 50g", "expiry_date": "2025-10-20", "review_date": "2025-10-25", "quantity": 10, "mrp": 30.00},
+  {"store_id": "ST002", "article_code": "ART002", "article_description": "Shampoo 200ml", "expiry_date": "2025-08-20", "review_date": "2025-10-01", "quantity": 12, "mrp": 210.00},
+  {"store_id": "ST002", "article_code": "ART008", "article_description": "Hair Oil 100ml", "expiry_date": "2025-09-30", "review_date": "2025-10-01", "quantity": 8, "mrp": 150.00},
+  {"store_id": "ST003", "article_code": "ART003", "article_description": "Instant Noodles 4-Pack", "expiry_date": "2025-10-05", "review_date": "2025-10-15", "quantity": 40, "mrp": 80.00},
+  {"store_id": "ST003", "article_code": "ART004", "article_description": "Face Cream 50g", "expiry_date": "2025-07-30", "review_date": "2025-10-01", "quantity": 8, "mrp": 320.00},
+  {"store_id": "ST003", "article_code": "ART009", "article_description": "Body Lotion 250ml", "expiry_date": "2025-08-15", "review_date": "2025-10-01", "quantity": 15, "mrp": 280.00},
+  {"store_id": "ST003", "article_code": "ART010", "article_description": "Toothpaste 150g", "expiry_date": "2025-09-01", "review_date": "2025-10-01", "quantity": 20, "mrp": 95.00},
+  {"store_id": "ST003", "article_code": "ART011", "article_description": "Canned Soup 400g", "expiry_date": "2025-10-10", "review_date": "2025-10-15", "quantity": 6, "mrp": 145.00},
+  {"store_id": "ST003", "article_code": "ART012", "article_description": "Energy Drink 250ml", "expiry_date": "2025-09-25", "review_date": "2025-10-01", "quantity": 30, "mrp": 65.00},
+  {"store_id": "ST004", "article_code": "ART005", "article_description": "Tomato Ketchup 500ml", "expiry_date": "2025-11-01", "review_date": "2025-10-15", "quantity": 15, "mrp": 120.00},
+  {"store_id": "ST005", "article_code": "ART006", "article_description": "Baby Powder 200g", "expiry_date": "2025-09-10", "review_date": "2025-10-01", "quantity": 5, "mrp": 175.00},
+  {"store_id": "ST005", "article_code": "ART013", "article_description": "Olive Oil 500ml", "expiry_date": "2025-10-30", "review_date": "2025-10-15", "quantity": 3, "mrp": 450.00},
+  {"store_id": "ST006", "article_code": "ART014", "article_description": "Protein Bar 60g", "expiry_date": "2025-08-28", "review_date": "2025-10-01", "quantity": 18, "mrp": 55.00},
+  {"store_id": "ST006", "article_code": "ART015", "article_description": "Jam 500g", "expiry_date": "2025-09-20", "review_date": "2025-10-01", "quantity": 7, "mrp": 135.00},
+  {"store_id": "ST007", "article_code": "ART016", "article_description": "Cereal Box 450g", "expiry_date": "2025-11-15", "review_date": "2025-10-25", "quantity": 4, "mrp": 290.00},
+  {"store_id": "ST008", "article_code": "ART017", "article_description": "Juice Pack 1L", "expiry_date": "2025-10-12", "review_date": "2025-10-15", "quantity": 22, "mrp": 110.00},
+  {"store_id": "ST008", "article_code": "ART018", "article_description": "Biscuit Family Pack", "expiry_date": "2025-09-05", "review_date": "2025-10-01", "quantity": 14, "mrp": 85.00}
+ ],
+
+ "store_scores": [
+  {"store_code": "RC-MUM-001", "store_id": "ST001", "status": "Operating", "q1": 88, "q2": 91, "q3": 93, "q4": 92},
+  {"store_code": "RC-DEL-001", "store_id": "ST002", "status": "Operating", "q1": 85, "q2": 89, "q3": 91, "q4": 91},
+  {"store_code": "RC-BLR-001", "store_id": "ST003", "status": "Operating", "q1": 78, "q2": 76, "q3": 74, "q4": 75},
+  {"store_code": "RC-DEL-002", "store_id": "ST004", "status": "Operating", "q1": 79, "q2": 80, "q3": 82, "q4": 81},
+  {"store_code": "RC-PUN-001", "store_id": "ST005", "status": "Operating", "q1": 70, "q2": 75, "q3": 78, "q4": 79},
+  {"store_code": "RC-CHD-001", "store_id": "ST006", "status": "Operating", "q1": 55, "q2": 60, "q3": 67, "q4": 68},
+  {"store_code": "RC-NAG-001", "store_id": "ST007", "status": "Operating", "q1": 92, "q2": 88, "q3": 84, "q4": 85},
+  {"store_code": "RC-DDN-001", "store_id": "ST008", "status": "Operating", "q1": 96, "q2": 95, "q3": 93, "q4": 94},
+  {"store_code": "RC-KOL-001", "store_id": "ST009", "status": "Dehired", "q1": 48, "q2": 50, "q3": 47, "q4": 50},
+  {"store_code": "RC-JAI-001", "store_id": "ST010", "status": "Dehired", "q1": 65, "q2": 62, "q3": 51, "q4": 55}
+ ],
+
+ "observations": [
+  {
+   "sr_no": 1,
+   "store_id": "ST002",
+   "observation": "Cash difference of Rs. 2000 found during physical verification on 2-Nov-25. Tills cash short against POS report.",
+   "risk": "High",
+   "action_plan": "Investigate root cause, review CCTV footage, reconcile with cashier shift reports",
+   "person_responsible": "Store Manager - J. Patel",
+   "target": "15-Nov-25",
+   "status": "Open"
+  },
+  {
+   "sr_no": 2,
+   "store_id": "ST002",
+   "observation": "CMS pickup delay of 3 days observed on 2-Nov-25. Cash handover exceeded 2-day SLA.",
+   "risk": "Medium",
+   "action_plan": "Reschedule CMS pickup frequency, escalate to CMS provider, ensure daily pickup for high-volume days",
+   "person_responsible": "Operations Manager - Rajesh Verma",
+   "target": "20-Nov-25",
+   "status": "In Progress"
+  },
+  {
+   "sr_no": 3,
+   "store_id": "ST003",
+   "observation": "6 expired items found on sales floor during Store Visit. Items include Face Cream (expired Jul-25) and Body Lotion (expired Aug-25).",
+   "risk": "Critical",
+   "action_plan": "Remove all expired stock immediately, implement weekly FIFO checks, retrain staff on expiry monitoring",
+   "person_responsible": "Store Manager - N. Singh",
+   "target": "Immediate",
+   "status": "Open"
+  },
+  {
+   "sr_no": 4,
+   "store_id": "ST005",
+   "observation": "Credit notes worth Rs. 15,000 issued without dual authorization. 3 credit notes lacked manager approval stamp.",
+   "risk": "High",
+   "action_plan": "Implement mandatory dual-authorization for all credit notes above Rs. 2000, conduct credit note register review",
+   "person_responsible": "Store Manager - R. Das",
+   "target": "30-Nov-25",
+   "status": "Open"
+  },
+  {
+   "sr_no": 5,
+   "store_id": "ST001",
+   "observation": "UPI reconciliation pending for 3 consecutive days (3-Nov to 5-Nov). Bank statement not matched with POS.",
+   "risk": "Medium",
+   "action_plan": "Complete daily UPI reconciliation without fail, assign dedicated resource for digital payment reconciliation",
+   "person_responsible": "Store Manager - P. Rao",
+   "target": "10-Nov-25",
+   "status": "Closed"
+  },
+  {
+   "sr_no": 6,
+   "store_id": "ST006",
+   "observation": "Fire extinguisher in aisle 3 found expired (servicing due Aug-25). Emergency exit near stockroom partially blocked by cartons.",
+   "risk": "Critical",
+   "action_plan": "Service all fire extinguishers immediately, clear emergency exits, conduct fire safety audit",
+   "person_responsible": "Deputy Manager - Deepak Gill",
+   "target": "05-Nov-25",
+   "status": "In Progress"
+  },
+  {
+   "sr_no": 7,
+   "store_id": "ST003",
+   "observation": "Physical stock count for 5 sampled SKUs showed variance >5%. System showed 120 units vs 108 physical for ART003.",
+   "risk": "High",
+   "action_plan": "Conduct full cycle count for high-value SKUs, investigate shrinkage, review CCTV for stockroom access",
+   "person_responsible": "Store Manager - N. Singh",
+   "target": "20-Nov-25",
+   "status": "Open"
+  },
+  {
+   "sr_no": 8,
+   "store_id": "ST005",
+   "observation": "Two promotional schemes (Diwali Bonanza, Festive Pack) still active in POS system despite HO circular cancelling them on 1-Nov-25.",
+   "risk": "Medium",
+   "action_plan": "Remove expired schemes from POS immediately, implement scheme expiry alerts in system",
+   "person_responsible": "Store Manager - R. Das",
+   "target": "08-Nov-25",
+   "status": "Closed"
+  },
+  {
+   "sr_no": 9,
+   "store_id": "ST004",
+   "observation": "GRN for supplier delivery on 3-Nov-25 not matched with PO. 2 line items received without corresponding purchase order.",
+   "risk": "High",
+   "action_plan": "Reject unmatched deliveries, train receiving team on GRN-PO matching process, escalate to procurement",
+   "person_responsible": "Deputy Manager - Ritu Sharma",
+   "target": "12-Nov-25",
+   "status": "Open"
+  },
+  {
+   "sr_no": 10,
+   "store_id": "ST008",
+   "observation": "Cash deposit for Nov 3 picked up after 3 days due to CMS route change. Rs. 38,000 held in safe beyond SLA.",
+   "risk": "Medium",
+   "action_plan": "Coordinate with CMS for route optimization, maintain temporary insurance for excess cash holding",
+   "person_responsible": "Operations Manager - Pooja Bisht",
+   "target": "15-Nov-25",
+   "status": "In Progress"
+  }
+ ],
+
  "schedules": [
   {
    "id": "SCH001",
@@ -297,1573 +1113,350 @@
   {
    "id": "SCH009",
    "type": "Checklist based Audit",
-   "region": "North India",
-   "auditor": "",
-   "role": "",
-   "date": "22 Jun, 2026",
-   "time": "04:24 PM",
-   "status": "Scheduled",
-   "prog": 0,
-   "store": "Orbit Mall – Retail",
-   "storeSub": "Jaipur, North Region",
-   "notes": "Awaiting auditor assignment."
+   "region": "West India",
+   "auditor": "Sara Khan",
+   "role": "Field Auditor",
+   "date": "15 Jun, 2026",
+   "time": "02:00 PM",
+   "status": "Assigned",
+   "prog": 5,
+   "store": "Phoenix Mall – Retail",
+   "storeSub": "Mumbai, West Region",
+   "notes": "Quarterly compliance and cash audit."
   },
   {
    "id": "SCH010",
    "type": "Checklist based Audit",
-   "region": "South India",
-   "auditor": "Sara Khan",
-   "role": "Field Auditor",
-   "date": "05 Jun, 2026",
-   "time": "04:24 PM",
-   "status": "Completed",
-   "prog": 100,
-   "store": "Ub City – Retail",
-   "storeSub": "Bengaluru, South Region",
-   "notes": "Completed successfully."
-  },
-  {
-   "id": "SCH011",
-   "type": "Checklist based Audit",
-   "region": "West India",
+   "region": "North India",
    "auditor": "Amit Singh",
    "role": "Senior Field Auditor",
-   "date": "25 Jun, 2026",
+   "date": "20 Jun, 2026",
    "time": "10:00 AM",
    "status": "Scheduled",
    "prog": 0,
-   "store": "Nexus Mall – Retail",
-   "storeSub": "Pune, West Region",
-   "notes": "Pre-monsoon safety check."
-  },
-  {
-   "id": "SCH012",
-   "type": "Checklist based Audit",
-   "region": "East India",
-   "auditor": "Priya Das",
-   "role": "Field Auditor",
-   "date": "28 Jun, 2026",
-   "time": "11:00 AM",
-   "status": "Assigned",
-   "prog": 5,
-   "store": "South City – Retail",
-   "storeSub": "Kolkata, East Region",
-   "notes": "Focus on billing compliance."
+   "store": "Pacific Hub – Retail",
+   "storeSub": "Dehradun, North Region",
+   "notes": "Annual comprehensive audit."
   }
  ],
+
  "audits": [
   {
    "id": "AUD-1000",
    "store": "Phoenix Mall",
-   "city": "Mumbai",
-   "region": "West India",
-   "sched": "23 Jun 2026, 06:04",
+   "auditor": "Sara Khan",
    "status": "Completed",
-   "score": 97,
-   "issues": "4/5",
-   "auditor": "J. Patel",
-   "ai": "J"
+   "score": 91,
+   "sched": "15 Jun 2026, 02:00"
   },
   {
    "id": "AUD-1001",
    "store": "DLF Avenue",
-   "city": "Delhi",
-   "region": "North India",
-   "sched": "07 Jun 2026, 11:04",
+   "auditor": "Meera Patel",
    "status": "Completed",
-   "score": 89,
-   "issues": "5/9",
-   "auditor": "A. Sharma",
-   "ai": "A"
+   "score": 87,
+   "sched": "10 Jun 2026, 04:24"
   },
   {
    "id": "AUD-1002",
    "store": "Ub City",
-   "city": "Bengaluru",
-   "region": "South India",
-   "sched": "17 Jun 2026, 05:04",
+   "auditor": "Rohit Sharma",
    "status": "In Progress",
    "score": null,
-   "issues": "3/8",
-   "auditor": "P. Rao",
-   "ai": "P"
+   "sched": "11 Jun 2026, 08:24"
   },
   {
    "id": "AUD-1003",
    "store": "Select Citywalk",
-   "city": "Delhi",
-   "region": "North India",
-   "sched": "27 May 2026, 16:04",
-   "status": "In Progress",
-   "score": null,
-   "issues": "5/10",
-   "auditor": "P. Rao",
-   "ai": "P"
+   "auditor": "Meera Patel",
+   "status": "Completed",
+   "score": 78,
+   "sched": "10 Jun 2026, 04:24"
   },
   {
    "id": "AUD-1004",
    "store": "Nexus Mall",
-   "city": "Pune",
-   "region": "West India",
-   "sched": "19 Jun 2026, 11:04",
+   "auditor": "Sara Khan",
    "status": "In Progress",
    "score": null,
-   "issues": "4/6",
-   "auditor": "P. Rao",
-   "ai": "P"
+   "sched": "11 Jun 2026, 09:24"
   },
   {
    "id": "AUD-1005",
    "store": "Centra Mall",
-   "city": "Chandigarh",
-   "region": "North India",
-   "sched": "29 May 2026, 03:04",
-   "status": "Overdue",
+   "auditor": "Priya Das",
+   "status": "Scheduled",
    "score": null,
-   "issues": "0/2",
-   "auditor": "J. Patel",
-   "ai": "J"
+   "sched": "12 Jun 2026, 04:24"
   },
   {
    "id": "AUD-1006",
    "store": "Elante Outpost",
-   "city": "Nagpur",
-   "region": "West India",
-   "sched": "29 May 2026, 12:04",
+   "auditor": "Amit Singh",
    "status": "Completed",
-   "score": 70,
-   "issues": "0/3",
-   "auditor": "J. Patel",
-   "ai": "J"
+   "score": 95,
+   "sched": "08 Jun 2026, 04:24"
   },
   {
    "id": "AUD-1007",
    "store": "Pacific Hub",
-   "city": "Dehradun",
-   "region": "North India",
-   "sched": "08 Jun 2026, 19:04",
-   "status": "In Progress",
+   "auditor": "Amit Singh",
+   "status": "Scheduled",
    "score": null,
-   "issues": "3/5",
-   "auditor": "N. Singh",
-   "ai": "N"
+   "sched": "20 Jun 2026, 10:00"
   },
   {
    "id": "AUD-1008",
    "store": "South City",
-   "city": "Kolkata",
-   "region": "East India",
-   "sched": "22 Jun 2026, 21:04",
-   "status": "Planned",
+   "auditor": "Meera Patel",
+   "status": "Scheduled",
    "score": null,
-   "issues": "1/2",
-   "auditor": "R. Das",
-   "ai": "R"
+   "sched": "19 Jun 2026, 04:24"
   },
   {
    "id": "AUD-1009",
    "store": "Orbit Mall",
-   "city": "Jaipur",
-   "region": "North India",
-   "sched": "08 Jun 2026, 20:04",
-   "status": "In Progress",
-   "score": null,
-   "issues": "4/8",
-   "auditor": "P. Rao",
-   "ai": "P"
+   "auditor": "Rohit Sharma",
+   "status": "Completed",
+   "score": 52,
+   "sched": "05 Jun 2026, 10:00"
   }
  ],
+
  "issues": [
   {
-   "id": "ISS001",
-   "aid": "AUD-1004",
-   "title": "Freezer temperature fluctuation",
-   "status": "In Progress",
-   "pri": "Critical",
-   "tags": [
-    "equipment",
-    "fridge"
-   ],
-   "proc": "Inventory Management",
-   "sp": "Storage & Stock Handling",
-   "store": "Mumbai #07",
-   "assignee": "Jitendra",
-   "created": "30 Jun 2026, 16:27",
-   "due": "01 Jun 2026",
-   "ov": true,
-   "dp": 100,
-   "dc": "#e02424",
-   "desc": "Freezer showing -6 to -20°C swings. Check thermostat.",
-   "files": 1,
-   "comments": 1
-  },
-  {
-   "id": "ISS002",
-   "aid": "AUD-1006",
-   "title": "Generator oil leakage detected",
-   "status": "Open",
-   "pri": "Critical",
-   "tags": [
-    "generator",
-    "maintenance"
-   ],
-   "proc": "HR & Admin and Operations",
-   "sp": "Housekeeping & Hygiene",
-   "store": "Mumbai #07",
-   "assignee": "Lisa",
-   "created": "01 Jun 2026, 16:27",
-   "due": "12 Jun 2026",
-   "ov": false,
-   "dp": 70,
-   "dc": "#e02424",
-   "desc": "Small oil patch under generator. Needs immediate attention.",
-   "files": 3,
-   "comments": 2
-  },
-  {
-   "id": "ISS003",
-   "aid": "AUD-1010",
-   "title": "Critical Gas line inspection overdue",
-   "status": "Open",
-   "pri": "Critical",
-   "tags": [
-    "safety",
-    "compliance"
-   ],
-   "proc": "EHS & Compliance",
-   "sp": "Permits, Licenses & Certifications Management",
-   "store": "Delhi #01",
-   "assignee": "Raj",
-   "created": "27 May 2026, 16:27",
-   "due": "05 Jun 2026",
-   "ov": true,
-   "dp": 100,
-   "dc": "#e02424",
-   "desc": "Annual safety certification expired last week. Urgent scheduling required.",
-   "files": 3,
-   "comments": 2
-  },
-  {
-   "id": "ISS004",
+   "id": "ISS-001",
    "aid": "AUD-1001",
-   "title": "Wet floor in prep area",
-   "status": "Open",
-   "pri": "High",
-   "tags": [
-    "safety",
-    "hygiene"
-   ],
-   "proc": "HR & Admin and Operations",
-   "sp": "Housekeeping & Hygiene",
-   "store": "Delhi #05",
-   "assignee": "Raj",
-   "created": "02 Jun 2026, 16:27",
-   "due": "12 Jun 2026",
-   "ov": false,
-   "dp": 50,
-   "dc": "#f59e0b",
-   "desc": "Clear leakage near sink causing slippery floor.",
-   "files": 2,
-   "comments": 3
-  },
-  {
-   "id": "ISS005",
-   "aid": "AUD-1005",
-   "title": "AC unit not cooling in customer area",
-   "status": "Open",
-   "pri": "High",
-   "tags": [
-    "hvac",
-    "maintenance"
-   ],
-   "proc": "HR & Admin and Operations",
-   "sp": "Housekeeping & Hygiene",
-   "store": "Bangalore #03",
-   "assignee": "Raj",
-   "created": "10 Jun 2026, 16:27",
-   "due": "14 Jun 2026",
-   "ov": false,
-   "dp": 30,
-   "dc": "#00338D",
-   "desc": "Fan belt worn and needs replacement.",
-   "files": 2,
-   "comments": 0
-  },
-  {
-   "id": "ISS006",
-   "aid": "AUD-1011",
-   "title": "Broken freezer seal – Section B",
-   "status": "In Progress",
-   "pri": "Critical",
-   "tags": [
-    "maintenance",
-    "energy"
-   ],
-   "proc": "Inventory Management",
-   "sp": "Storage & Stock Handling",
-   "store": "Mumbai #01",
-   "assignee": "Jitendra",
-   "created": "06 Jun 2026, 16:27",
-   "due": "10 Jun 2026",
-   "ov": true,
-   "dp": 100,
-   "dc": "#e02424",
-   "desc": "The rubber gasket is torn, causing energy losses.",
-   "files": 0,
-   "comments": 0
-  },
-  {
-   "id": "ISS007",
-   "aid": "AUD-1012",
-   "title": "Fire extinguisher inspection pending",
-   "status": "Open",
-   "pri": "Medium",
-   "tags": [
-    "compliance",
-    "safety"
-   ],
-   "proc": "EHS & Compliance",
-   "sp": "Permits, Licenses & Certifications Management",
-   "store": "Bangalore #03",
-   "assignee": "Lisa",
-   "created": "08 Jun 2026, 16:27",
-   "due": "31 Jun 2026",
-   "ov": false,
-   "dp": 15,
-   "dc": "#00338D",
-   "desc": "Monthly inspection overdue for two extinguishers.",
-   "files": 1,
-   "comments": 1
-  },
-  {
-   "id": "ISS008",
-   "aid": "AUD-1003",
-   "title": "Broken soap dispenser in washroom",
-   "status": "Resolved",
-   "pri": "Low",
-   "tags": [
-    "maintenance",
-    "hygiene"
-   ],
-   "proc": "HR & Admin and Operations",
-   "sp": "Housekeeping & Hygiene",
-   "store": "Delhi #05",
-   "assignee": "Zed",
-   "created": "04 Jun 2026, 16:27",
-   "due": "08 Jun 2026",
-   "ov": false,
-   "dp": 100,
-   "dc": "#0e9f6e",
-   "desc": "Soap dispenser near kitchen washroom not working.",
-   "files": 0,
-   "comments": 3
-  },
-  {
-   "id": "ISS009",
-   "aid": "AUD-1008",
-   "title": "Delay in deposit of cash collected",
-   "status": "Open",
-   "pri": "High",
-   "tags": [
-    "cash",
-    "finance",
-    "compliance"
-   ],
+   "store": "DLF Avenue",
+   "title": "Cash shortfall of Rs. 2000 at tills",
+   "desc": "Physical cash count at tills showed Rs. 2000 less than POS system report. Discrepancy noted during shift-end reconciliation on 2-Nov-25.",
    "proc": "Cashiering",
    "sp": "Cash sales & Recon",
-   "store": "South City",
-   "assignee": "Raj",
-   "created": "26 Jul 2026, 11:40",
-   "due": "29 Jul 2026",
-   "ov": true,
-   "dp": 20,
-   "dc": "#e02424",
-   "desc": "Cash collected from sales not deposited within the mandated timeline. Immediate reconciliation and process correction required.",
-   "files": 1,
-   "comments": 0
-  },
-  {
-   "id": "ISS010",
-   "aid": "AUD-1004",
-   "title": "Excess cash discount provided to customer",
-   "status": "In Progress",
-   "pri": "Medium",
-   "tags": [
-    "cash",
-    "discount",
-    "billing"
-   ],
-   "proc": "Cashiering",
-   "sp": "POS controls",
-   "store": "Nexus Mall",
-   "assignee": "Lisa",
-   "created": "24 Jul 2026, 15:05",
-   "due": "02 Aug 2026",
-   "ov": false,
-   "dp": 40,
-   "dc": "#00338D",
-   "desc": "Discount extended beyond approved store manager limit on customer bills. Reviewing billing approvals and staff training.",
-   "files": 2,
-   "comments": 1
-  },
-  {
-   "id": "ISS011",
-   "aid": "AUD-1002",
-   "title": "Ineligible SKUs returned by customers",
+   "pri": "High",
    "status": "Open",
-   "pri": "Low",
-   "tags": [
-    "inventory",
-    "returns",
-    "sku"
-   ],
+   "due": "15 Nov 2026",
+   "tags": ["cash", "discrepancy"]
+  },
+  {
+   "id": "ISS-002",
+   "aid": "AUD-1001",
+   "store": "DLF Avenue",
+   "title": "CMS pickup delayed beyond 2-day SLA",
+   "desc": "Cash Management Service pickup was delayed to 3 days for Nov 2 deposit. Rs. 40,000 held in safe beyond permissible duration.",
+   "proc": "Cashiering",
+   "sp": "Cash handover to collection agency",
+   "pri": "Medium",
+   "status": "In Progress",
+   "due": "20 Nov 2026",
+   "tags": ["CMS", "delay"]
+  },
+  {
+   "id": "ISS-003",
+   "aid": "AUD-1002",
+   "store": "Ub City",
+   "title": "6 expired products found on sales floor",
+   "desc": "Multiple expired items including Face Cream (Jul-25), Body Lotion (Aug-25), and Toothpaste (Sep-25) found on active shelves. FIFO not followed.",
+   "proc": "Inventory Management",
+   "sp": "Expiry & Shelf Life",
+   "pri": "Critical",
+   "status": "Open",
+   "due": "01 Nov 2026",
+   "tags": ["expired", "FIFO"]
+  },
+  {
+   "id": "ISS-004",
+   "aid": "AUD-1004",
+   "store": "Nexus Mall",
+   "title": "Credit notes issued without dual authorization",
+   "desc": "3 credit notes totaling Rs. 15,000 were issued without the required manager counter-signature. Process bypass noted.",
    "proc": "Cashiering",
    "sp": "Credit Notes Issuance",
-   "store": "Ub City",
-   "assignee": "Jitendra",
-   "created": "22 Jul 2026, 09:30",
-   "due": "05 Aug 2026",
-   "ov": false,
-   "dp": 10,
-   "dc": "#0e9f6e",
-   "desc": "Return of SKUs not eligible under the return policy accepted at store. Reinforce return-policy checks at counter.",
-   "files": 0,
-   "comments": 1
-  }
- ],
- "questions": [
-  {
-   "id": "Q001",
-   "text": "Whether all cash physically available in the store (i.e. Till cash + Sales cash of previous day, if any + petty cash) match with the books? (Take a physical cash stock immediately on visiting the store including all tills & backroom & review it vis-a-vis cash as per books. Prepare a reconciliation statement & take sign off from Store Manager)",
-   "at": "Store Visit",
-   "proc": "Cashiering",
-   "sp": "Cash sales & Recon",
-   "w": 5,
-   "tags": [
-    "cash",
-    "reconciliation",
-    "store-visit"
-   ],
-   "crit": true,
-   "on": true
+   "pri": "High",
+   "status": "Open",
+   "due": "30 Nov 2026",
+   "tags": ["credit-note", "authorization"]
   },
   {
-   "id": "Q002",
-   "text": "Whether Cash sales from Daily Sales Report agree with cash deposited and submitted to collection agency?",
-   "at": "Structured dataDA",
-   "proc": "Cashiering",
-   "sp": "Cash sales & Recon",
-   "w": 4,
-   "tags": [
-    "cash",
-    "CMS",
-    "structured"
-   ],
-   "crit": true,
-   "on": true
-  },
-  {
-   "id": "Q003",
-   "text": "Whether the Store team identifies collection agency's agent by Photo Identity Card?",
-   "at": "Store Visit",
-   "proc": "Cashiering",
-   "sp": "Cash handover to collection agency",
-   "w": 3,
-   "tags": [
-    "CMS",
-    "identity",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q004",
-   "text": "Whether the photo & specimen signature of the collection agency agent matches with the list available in stores?",
-   "at": "Store Visit",
-   "proc": "Cashiering",
-   "sp": "Cash handover to collection agency",
-   "w": 3,
-   "tags": [
-    "CMS",
-    "signature",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q005",
-   "text": "Whether the collection agency has affixed their SEAL as well as signature on the Pay In Slip?",
-   "at": "Structured dataDA",
-   "proc": "Cashiering",
-   "sp": "Cash handover to collection agency",
-   "w": 3,
-   "tags": [
-    "CMS",
-    "documentation",
-    "structured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q006",
-   "text": "Whether fake note detectors are available at the store and being used?",
-   "at": "Store Visit",
-   "proc": "Cashiering",
-   "sp": "Cash handover to collection agency",
-   "w": 3,
-   "tags": [
-    "fake-note",
-    "device",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q007",
-   "text": "Whether the store is not having any fake/soiled notes? (If observation is \"no\", please provide the amount with denominations of fake notes available in the Observations Column)",
-   "at": "Store Visit",
-   "proc": "Cashiering",
-   "sp": "Cash handover to collection agency",
-   "w": 3,
-   "tags": [
-    "fake-note",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q008",
-   "text": "Whether the credit card sales from daily sales report agree with the batch settlement report for EDC payments?",
-   "at": "Structured dataDA",
-   "proc": "Cashiering",
-   "sp": "Debit/ Credit card sales",
-   "w": 4,
-   "tags": [
-    "card",
-    "EDC",
-    "structured"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q009",
-   "text": "Whether charge slips of the previous days are stored in BLACK/BROWN envelopes along with batch closure report?",
-   "at": "Store Visit",
-   "proc": "Cashiering",
-   "sp": "Debit/ Credit card sales",
-   "w": 3,
-   "tags": [
-    "documentation",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q010",
-   "text": "Whether the UPI sales from daily sales report agree with the bank summary?",
-   "at": "Structured dataDA",
+   "id": "ISS-005",
+   "aid": "AUD-1000",
+   "store": "Phoenix Mall",
+   "title": "UPI reconciliation backlog — 3 days pending",
+   "desc": "UPI payments for Nov 3-5 not reconciled against bank statement. Digital payment reconciliation SOP not followed.",
    "proc": "Cashiering",
    "sp": "UPI Payments",
-   "w": 3,
-   "tags": [
-    "UPI",
-    "structured"
-   ],
-   "crit": false,
-   "on": true
+   "pri": "Medium",
+   "status": "Closed",
+   "due": "10 Nov 2026",
+   "tags": ["UPI", "reconciliation"]
   },
   {
-   "id": "Q011",
-   "text": "Whether no manual credit note is issued? All credit should be issued via POS. (If manual credit note is issued, is the same updated in the system immediately or same day and system credit note number is written on the manual credit note). Whether written communication either on mail or otherwise is available regarding issuance of manual credit note from HO or cluster?",
-   "at": "Unstructured data",
-   "proc": "Cashiering",
-   "sp": "Credit Notes Issuance",
-   "w": 3,
-   "tags": [
-    "credit-note",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": false
+   "id": "ISS-006",
+   "aid": "AUD-1005",
+   "store": "Centra Mall",
+   "title": "Expired fire extinguisher and blocked exit",
+   "desc": "Fire extinguisher in aisle 3 past service date. Emergency exit near stockroom partially blocked by incoming cartons.",
+   "proc": "EHS & Compliance",
+   "sp": "Fire Safety",
+   "pri": "Critical",
+   "status": "In Progress",
+   "due": "05 Nov 2026",
+   "tags": ["fire", "safety", "exit"]
   },
   {
-   "id": "Q012",
-   "text": "Whether any instance noted for \"Sales returns processed more than original billed quantity or Sales returns processed more than original billed amount\"?",
-   "at": "Structured dataDA",
-   "proc": "Cashiering",
-   "sp": "Credit Notes Issuance",
-   "w": 4,
-   "tags": [
-    "sales-return",
-    "structured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q013",
-   "text": "Whether Sales returns processed for ineligible items or Sales returns processed after specified days like as per policy after 14 days no sales return is allowed?",
-   "at": "Structured dataDA",
-   "proc": "Cashiering",
-   "sp": "Credit Notes Issuance",
-   "w": 4,
-   "tags": [
-    "sales-return",
-    "policy",
-    "structured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q014",
-   "text": "Whether the security prepares a receipt for goods to be taken inside the store?",
-   "at": "Store Visit",
-   "proc": "Cashiering",
-   "sp": "Credit Notes Issuance",
-   "w": 2,
-   "tags": [
-    "security",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q015",
-   "text": "Whether the number and count of SKUs as per the gate pass match with the entries in the Credit Note Register with Customer Service Desk?",
-   "at": "Unstructured data",
-   "proc": "Cashiering",
-   "sp": "Credit Notes Issuance",
-   "w": 3,
-   "tags": [
-    "SKU",
-    "gate-pass",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q068",
-   "text": "Whether returns are accepted for eligible SKUs only",
-   "at": "Structured dataDA",
-   "proc": "Cashiering",
-   "sp": "Credit Notes Issuance",
-   "w": 3,
-   "tags": [
-    "sales-return",
-    "SKU",
-    "structured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q016",
-   "text": "Check the time gap between scheme creation & scheme start date, schemes running beyond end dates. Verify at store in POS if active schemes and promotions are available.",
-   "at": "Unstructured data",
-   "proc": "Cashiering",
-   "sp": "Schemes and Promotions",
-   "w": 3,
-   "tags": [
-    "schemes",
-    "promotions",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q017",
-   "text": "Whether selling price available on POS match with active MRP maintained in the system?",
-   "at": "Structured dataDA",
-   "proc": "Cashiering",
-   "sp": "Schemes and Promotions",
-   "w": 4,
-   "tags": [
-    "POS",
-    "MRP",
-    "structured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q018",
-   "text": "Does POS allows to mark any tickets marked as void post printing to the ticket?",
-   "at": "Store Visit",
-   "proc": "Cashiering",
-   "sp": "POS controls",
-   "w": 2,
-   "tags": [
-    "POS",
-    "void",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q019",
-   "text": "Does POS allows to provide discount in addition to the approved store manager discount limit?",
-   "at": "Store Visit",
-   "proc": "Cashiering",
-   "sp": "POS controls",
-   "w": 3,
-   "tags": [
-    "POS",
-    "discount",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q020",
-   "text": "Whether any store manager discounts are provided in addition to the approved store manager limit?",
-   "at": "Structured dataDA",
-   "proc": "Cashiering",
-   "sp": "POS controls",
-   "w": 3,
-   "tags": [
-    "discount",
-    "manager",
-    "structured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q021",
-   "text": "Are new staff onboarded as per the approved joining process (documentation, background verification)?",
-   "at": "Store Visit",
-   "proc": "HR & Admin and Operations",
-   "sp": "Staff Onboarding",
-   "w": 3,
-   "tags": [
-    "HR",
-    "onboarding",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q022",
-   "text": "Are employee personnel files complete and available at the store or central system?",
-   "at": "Store Visit",
-   "proc": "HR & Admin and Operations",
-   "sp": "Staff Onboarding",
-   "w": 2,
-   "tags": [
-    "HR",
-    "personnel",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q023",
-   "text": "Whether all staff have valid ID cards or authenticated login credentials issued?",
-   "at": "Structured data / DA",
-   "proc": "HR & Admin and Operations",
-   "sp": "Staff Onboarding",
-   "w": 3,
-   "tags": [
-    "HR",
-    "ID",
-    "structured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q024",
-   "text": "Are staff trained on store SOPs, safety norms, and product knowledge as per policy?",
-   "at": "Store Visit",
-   "proc": "HR & Admin and Operations",
-   "sp": "Staff Training & Monitoring",
-   "w": 3,
-   "tags": [
-    "training",
-    "SOP",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q025",
-   "text": "Is there evidence of periodic refresher training conducted?",
-   "at": "Store Visit",
-   "proc": "HR & Admin and Operations",
-   "sp": "Staff Training & Monitoring",
-   "w": 2,
-   "tags": [
-    "training",
-    "refresher",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q026",
-   "text": "Whether training records are updated and maintained for all staff?",
-   "at": "Structured data / DA",
-   "proc": "HR & Admin and Operations",
-   "sp": "Staff Training & Monitoring",
-   "w": 2,
-   "tags": [
-    "training",
-    "records",
-    "structured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q027",
-   "text": "Is staff attendance recorded through the approved biometric device?",
-   "at": "Store Visit",
-   "proc": "HR & Admin and Operations",
-   "sp": "Attendance Monitoring",
-   "w": 3,
-   "tags": [
-    "attendance",
-    "biometric",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q028",
-   "text": "Is attendance matches with staff entry and exit register?",
-   "at": "Unstructured data",
-   "proc": "HR & Admin and Operations",
-   "sp": "Attendance Monitoring",
-   "w": 3,
-   "tags": [
-    "attendance",
-    "register",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q029",
-   "text": "Are deviations (late marks, absenteeism) monitored and escalated as per policy?",
-   "at": "Store Visit",
-   "proc": "HR & Admin and Operations",
-   "sp": "Attendance Monitoring",
-   "w": 2,
-   "tags": [
-    "attendance",
-    "deviation",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q030",
-   "text": "Whether shift rosters are prepared, approved, and adhered to?",
-   "at": "Structured data / DA",
-   "proc": "HR & Admin and Operations",
-   "sp": "Attendance Monitoring",
-   "w": 2,
-   "tags": [
-    "roster",
-    "shift",
-    "structured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q031",
-   "text": "Are staff in proper uniform and wearing identification badges?",
-   "at": "Store Visit",
-   "proc": "HR & Admin and Operations",
-   "sp": "Staff Etiquettes",
-   "w": 3,
-   "tags": [
-    "uniform",
-    "badge",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q032",
-   "text": "Are staff following customer-handling standards and communication norms?",
-   "at": "Store Visit",
-   "proc": "HR & Admin and Operations",
-   "sp": "Staff Etiquettes",
-   "w": 3,
-   "tags": [
-    "customer-service",
-    "standards",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q033",
-   "text": "Whether staff conduct aligns with expected behavioural guidelines (no mobile usage on shopfloor)?",
-   "at": "Unstructured data",
-   "proc": "HR & Admin and Operations",
-   "sp": "Staff Etiquettes",
-   "w": 2,
-   "tags": [
-    "conduct",
-    "mobile",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q034",
-   "text": "Are all fixed assets in the store tagged with barcode/FA tags as per company norms?",
-   "at": "Unstructured data",
-   "proc": "HR & Admin and Operations",
-   "sp": "Fixed Assets Tagging",
-   "w": 3,
-   "tags": [
-    "fixed-assets",
-    "barcode",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q035",
-   "text": "Is the asset register updated and reconciled with physical assets?",
-   "at": "Store Visit",
-   "proc": "HR & Admin and Operations",
-   "sp": "Fixed Assets Tagging",
-   "w": 3,
-   "tags": [
-    "fixed-assets",
-    "register",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q036",
-   "text": "Whether there are any untagged, damaged, or missing assets requiring escalation?",
-   "at": "Unstructured data",
-   "proc": "HR & Admin and Operations",
-   "sp": "Fixed Assets Tagging",
-   "w": 3,
-   "tags": [
-    "fixed-assets",
-    "untagged",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q037",
-   "text": "Is the store floor, shelves, backroom, and trial rooms clean and well-maintained?",
-   "at": "Store Visit",
-   "proc": "HR & Admin and Operations",
-   "sp": "Housekeeping & Hygiene",
-   "w": 3,
-   "tags": [
-    "housekeeping",
-    "hygiene",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q038",
-   "text": "Are washrooms clean, functional, and checked as per the defined cleaning schedule?",
-   "at": "Store Visit",
-   "proc": "HR & Admin and Operations",
-   "sp": "Housekeeping & Hygiene",
-   "w": 3,
-   "tags": [
-    "washroom",
-    "hygiene",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q039",
-   "text": "Whether pest-control services and deep-cleaning activities are documented and up to date?",
-   "at": "Structured data / DA",
-   "proc": "HR & Admin and Operations",
-   "sp": "Housekeeping & Hygiene",
-   "w": 2,
-   "tags": [
-    "pest-control",
-    "hygiene",
-    "structured"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q040",
-   "text": "Does GRN quantity match with the PO quantity?",
-   "at": "Structured dataDA",
-   "proc": "Inventory Management",
-   "sp": "Goods Receiving & Inward Processing",
-   "w": 4,
-   "tags": [
-    "GRN",
-    "PO",
-    "structured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q041",
-   "text": "Does GRN quantity match with inward register maintained by SLP?",
-   "at": "Structured dataDA",
-   "proc": "Inventory Management",
-   "sp": "Goods Receiving & Inward Processing",
-   "w": 3,
-   "tags": [
-    "GRN",
-    "SLP",
-    "structured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q042",
-   "text": "Does the store verify quantities received against the PO/dispatch note before acknowledging receipt?",
-   "at": "Unstructured data",
-   "proc": "Inventory Management",
-   "sp": "Goods Receiving & Inward Processing",
-   "w": 3,
-   "tags": [
-    "GRN",
-    "dispatch",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q043",
-   "text": "Are discrepancies (short/excess/damaged) recorded and reported on the same day of receipt?",
-   "at": "Store Visit",
-   "proc": "Inventory Management",
-   "sp": "Goods Receiving & Inward Processing",
-   "w": 3,
-   "tags": [
-    "discrepancy",
-    "GRN",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q044",
-   "text": "Whether all inward receipts are duly recorded in the system on the same day?",
-   "at": "Structured dataDA",
-   "proc": "Inventory Management",
-   "sp": "GRN & Inward Controls",
-   "w": 4,
-   "tags": [
-    "GRN",
-    "inward",
-    "structured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q045",
-   "text": "Are stocks stored as per planogram/bin locations with no mixing of SKUs?",
-   "at": "Store Visit",
-   "proc": "Inventory Management",
-   "sp": "Storage & Stock Handling",
-   "w": 3,
-   "tags": [
-    "planogram",
-    "storage",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q046",
-   "text": "Are high-value or shrink-prone SKUs stored under enhanced visibility or restricted access?",
-   "at": "Store Visit",
-   "proc": "Inventory Management",
-   "sp": "Storage & Stock Handling",
-   "w": 4,
-   "tags": [
-    "high-value",
-    "shrink",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q047",
-   "text": "Whether slow-moving or non-moving items are periodically identified and escalated?",
-   "at": "Unstructured data",
-   "proc": "Inventory Management",
-   "sp": "Storage & Stock Handling",
-   "w": 3,
-   "tags": [
-    "slow-moving",
-    "escalation",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q048",
-   "text": "Are daily cycle counts performed and variances documented for review?",
-   "at": "Store Visit",
+   "id": "ISS-007",
+   "aid": "AUD-1002",
+   "store": "Ub City",
+   "title": "Stock variance >5% for sampled SKUs",
+   "desc": "Physical stock count vs system showed 10% variance for ART003 (Instant Noodles). System: 120 units, Physical: 108 units.",
    "proc": "Inventory Management",
    "sp": "Stock Accuracy",
-   "w": 4,
-   "tags": [
-    "cycle-count",
-    "variance",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
+   "pri": "High",
+   "status": "Open",
+   "due": "20 Nov 2026",
+   "tags": ["stock", "variance", "shrinkage"]
   },
   {
-   "id": "Q049",
-   "text": "Does the store reconcile physical vs system stock for high-variance SKUs as per defined timelines?",
-   "at": "Store Visit",
+   "id": "ISS-008",
+   "aid": "AUD-1004",
+   "store": "Nexus Mall",
+   "title": "Discontinued schemes still active in POS",
+   "desc": "Diwali Bonanza and Festive Pack promotions still running in POS despite HO cancellation circular dated 1-Nov-25.",
+   "proc": "Schemes and Promotions",
+   "sp": "Scheme Authorization",
+   "pri": "Medium",
+   "status": "Closed",
+   "due": "08 Nov 2026",
+   "tags": ["scheme", "POS", "expired"]
+  },
+  {
+   "id": "ISS-009",
+   "aid": "AUD-1003",
+   "store": "Select Citywalk",
+   "title": "GRN not matched with PO for supplier delivery",
+   "desc": "2 line items in Nov-3 delivery received without matching purchase order. GRN-PO matching process not followed at receiving dock.",
    "proc": "Inventory Management",
-   "sp": "Stock Accuracy",
-   "w": 4,
-   "tags": [
-    "reconciliation",
-    "SKU",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
+   "sp": "Receiving & GRN",
+   "pri": "High",
+   "status": "Open",
+   "due": "12 Nov 2026",
+   "tags": ["GRN", "PO", "receiving"]
   },
   {
-   "id": "Q050",
-   "text": "Whether stock adjustments (damage, expiry, write-offs) are supported with proper approval?",
-   "at": "Unstructured data",
-   "proc": "Inventory Management",
-   "sp": "Stock Accuracy",
-   "w": 3,
-   "tags": [
-    "adjustment",
-    "approval",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q051",
-   "text": "Are nearing-expiry products segregated and actioned as per policy?",
-   "at": "Store Visit",
-   "proc": "Inventory Management",
-   "sp": "Expiry & Damage Management",
-   "w": 3,
-   "tags": [
-    "expiry",
-    "segregation",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q052",
-   "text": "Are damaged goods recorded immediately and moved to designated quarantine area?",
-   "at": "Store Visit",
-   "proc": "Inventory Management",
-   "sp": "Expiry & Damage Management",
-   "w": 3,
-   "tags": [
-    "damage",
-    "quarantine",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q053",
-   "text": "Whether all expired/damaged disposals are supported by approval documentation?",
-   "at": "Unstructured data",
-   "proc": "Inventory Management",
-   "sp": "Expiry & Damage Management",
-   "w": 3,
-   "tags": [
-    "disposal",
-    "approval",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q054",
-   "text": "Are stock transfers initiated only against approved transfer requests?",
-   "at": "Store Visit",
-   "proc": "Inventory Management",
-   "sp": "Inter-Store Transfers",
-   "w": 3,
-   "tags": [
-    "transfer",
-    "approval",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q055",
-   "text": "Are dispatch and receipt of transferred stocks recorded on the same day in the system?",
-   "at": "Store Visit",
-   "proc": "Inventory Management",
-   "sp": "Inter-Store Transfers",
-   "w": 3,
-   "tags": [
-    "transfer",
-    "dispatch",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q056",
-   "text": "Whether all pending transfers (inward/outward) have valid justification?",
-   "at": "Structured dataDA",
-   "proc": "Inventory Management",
-   "sp": "Inter-Store Transfers",
-   "w": 3,
-   "tags": [
-    "transfer",
-    "pending",
-    "structured"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q057",
-   "text": "Does the store monitor abnormal stock losses or repeated variances for specific SKUs?",
-   "at": "Unstructured data",
-   "proc": "Inventory Management",
-   "sp": "Shrinkage Controls",
-   "w": 4,
-   "tags": [
-    "shrinkage",
-    "variance",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q058",
-   "text": "Are CCTV-mandated areas (back-store, receiving bay) functioning during audit checks?",
-   "at": "Store Visit",
-   "proc": "Inventory Management",
-   "sp": "Shrinkage Controls",
-   "w": 4,
-   "tags": [
-    "CCTV",
-    "shrinkage",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q059",
-   "text": "Whether shrinkage is within defined tolerance levels for the period under review?",
-   "at": "Unstructured data",
-   "proc": "Inventory Management",
-   "sp": "Shrinkage Controls",
-   "w": 3,
-   "tags": [
-    "shrinkage",
-    "tolerance",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q060",
-   "text": "Is shelf replenishment done as per the defined frequency and documented schedule?",
-   "at": "Store Visit",
-   "proc": "Inventory Management",
-   "sp": "Replenishment",
-   "w": 2,
-   "tags": [
-    "replenishment",
-    "shelf",
-    "store-visit"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q061",
-   "text": "Are out-of-stock SKUs reviewed and escalated daily?",
-   "at": "Unstructured data",
-   "proc": "Inventory Management",
-   "sp": "Replenishment",
-   "w": 3,
-   "tags": [
-    "out-of-stock",
-    "escalation",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q062",
-   "text": "Whether auto-replenishment parameters (min-max levels) are updated as per policy?",
-   "at": "Structured dataDA",
-   "proc": "Inventory Management",
-   "sp": "Replenishment",
-   "w": 3,
-   "tags": [
-    "replenishment",
-    "parameters",
-    "structured"
-   ],
-   "crit": false,
-   "on": false
-  },
-  {
-   "id": "Q063",
-   "text": "Are scrap sales approved as per defined matrix?",
-   "at": "Structured dataDA",
-   "proc": "Inventory Management",
-   "sp": "Scrap Sales",
-   "w": 3,
-   "tags": [
-    "scrap",
-    "approval",
-    "structured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q064",
-   "text": "Scrap sales invoices matches with details mentioned in the outward register?",
-   "at": "Unstructured data",
-   "proc": "Inventory Management",
-   "sp": "Scrap Sales",
-   "w": 3,
-   "tags": [
-    "scrap",
-    "invoice",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q065",
-   "text": "Are all statutory licenses/permits (e.g., Shops & Establishment, Trade License, Fire NOC) valid and displayed as required?",
-   "at": "Store Visit",
+   "id": "ISS-010",
+   "aid": "AUD-1009",
+   "store": "Orbit Mall",
+   "title": "FSSAI license expired — not renewed",
+   "desc": "FSSAI food license displayed at store expired on 30-Sep-25. Renewal application not submitted. Regulatory non-compliance.",
    "proc": "EHS & Compliance",
-   "sp": "Permits, Licenses & Certifications Management",
-   "w": 5,
-   "tags": [
-    "license",
-    "statutory",
-    "store-visit"
-   ],
-   "crit": true,
-   "on": true
+   "sp": "Regulatory Compliance",
+   "pri": "Critical",
+   "status": "Open",
+   "due": "01 Nov 2026",
+   "tags": ["FSSAI", "license", "expired"]
   },
   {
-   "id": "Q066",
-   "text": "Is a register or tracker maintained with license numbers, issue/expiry dates, and renewal status?",
-   "at": "Unstructured data",
+   "id": "ISS-011",
+   "aid": "AUD-1006",
+   "store": "Elante Outpost",
+   "title": "Housekeeping checklist not signed for 4 days",
+   "desc": "Daily housekeeping sign-off missing for Nov 1-4. No evidence of routine cleaning schedule being followed.",
    "proc": "EHS & Compliance",
-   "sp": "Permits, Licenses & Certifications Management",
-   "w": 3,
-   "tags": [
-    "license",
-    "register",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": true
-  },
-  {
-   "id": "Q067",
-   "text": "Whether any licenses are expired or due for renewal within the next 30 days and escalations are documented?",
-   "at": "Unstructured data",
-   "proc": "EHS & Compliance",
-   "sp": "Permits, Licenses & Certifications Management",
-   "w": 4,
-   "tags": [
-    "license",
-    "expiry",
-    "unstructured"
-   ],
-   "crit": false,
-   "on": false
+   "sp": "Hygiene & Housekeeping",
+   "pri": "Low",
+   "status": "Closed",
+   "due": "10 Nov 2026",
+   "tags": ["housekeeping", "sign-off"]
   }
  ],
- "emails": [
-  {
-   "id": "E001",
-   "from": "qa@brand.com",
-   "date": "11 Jun, 14:25",
-   "subj": "Audit report for Store Delhi #01",
-   "prev": "Please find attached the October audit summary...",
-   "labels": [
-    "Audit",
-    "Operations"
-   ],
-   "star": true,
-   "att": true,
-   "folder": "Inbox"
-  },
-  {
-   "id": "E002",
-   "from": "warehouse@brand.com",
-   "date": "11 Jun, 13:29",
-   "subj": "Stock shortage alert – coffee beans",
-   "prev": "Stock for coffee beans below reorder level at Delhi warehouse.",
-   "labels": [
-    "Operations"
-   ],
-   "star": false,
-   "att": false,
-   "folder": "Inbox"
-  },
-  {
-   "id": "E003",
-   "from": "ops.head@brand.com",
-   "date": "11 Jun, 11:25",
-   "subj": "Weekly cleaning compliance check",
-   "prev": "Please confirm if the cleaning checklist was completed for all zones.",
-   "labels": [
-    "Operations"
-   ],
-   "star": false,
-   "att": false,
-   "folder": "Inbox"
-  },
-  {
-   "id": "E004",
-   "from": "customer.relations@brand.com",
-   "date": "11 Jun, 08:25",
-   "subj": "Positive feedback – Delhi Store",
-   "prev": "Customer appreciated cleanliness and quick service.",
-   "labels": [
-    "Customer"
-   ],
-   "star": true,
-   "att": false,
-   "folder": "Inbox"
-  },
-  {
-   "id": "E005",
-   "from": "jane.doe@gmail.com",
-   "date": "10 Jun, 16:25",
-   "subj": "Customer complaint – incorrect billing",
-   "prev": "I was charged twice for my order yesterday...",
-   "labels": [
-    "Customer",
-    "Billing"
-   ],
-   "star": false,
-   "att": false,
-   "folder": "Inbox"
-  },
-  {
-   "id": "E006",
-   "from": "qa@brand.com",
-   "date": "10 Jun, 16:25",
-   "subj": "Audit findings – Store Mumbai #07",
-   "prev": "Attached summary of minor compliance issues found during audit.",
-   "labels": [
-    "Audit"
-   ],
-   "star": true,
-   "att": true,
-   "folder": "Inbox"
-  },
-  {
-   "id": "E007",
-   "from": "legal@brand.com",
-   "date": "09 Jun, 16:25",
-   "subj": "FW: Legal notice for signage placement",
-   "prev": "Sharing notice regarding outdoor signage restrictions...",
-   "labels": [
-    "Legal"
-   ],
-   "star": false,
-   "att": true,
-   "folder": "Inbox"
-  },
-  {
-   "id": "E008",
-   "from": "it.support@brand.com",
-   "date": "05 Jun, 16:25",
-   "subj": "System update scheduled",
-   "prev": "Scheduled downtime for POS maintenance.",
-   "labels": [
-    "Operations"
-   ],
-   "star": false,
-   "att": false,
-   "folder": "Inbox"
-  }
- ],
- "processes": [
-  "Cashiering",
-  "HR & Admin and Operations",
-  "Inventory Management",
-  "EHS & Compliance"
- ],
- "responseTypes": [
-  "Store Visit",
-  "Unstructured data analysis",
-  "Structured data analysis"
- ]
+
+ "use_case_mapping": {
+  "description": "Maps each data area to the audit questions that consume it and the use cases it supports",
+  "mappings": [
+   {
+    "data_area": "Cash Reconciliation (Sheet 1)",
+    "table": "cash_reconciliations",
+    "columns": ["Cash at Tills", "Cash in Safe", "Any other place", "Physical Cash Total", "Cash Sales as per sales Report", "Float and Imprest allocated to store as per Master", "Book Cash Total", "Difference (A-B)"],
+    "linked_questions": ["Q001", "Q002", "Q003", "Q004"],
+    "use_cases": [
+     "Verify physical cash matches POS/system-reported cash for each shift",
+     "Detect cash shortages or surpluses at tills and safe",
+     "Validate float/imprest is maintained per authorized allocation",
+     "Data Analyst auto-flags any non-zero difference for auditor review"
+    ]
+   },
+   {
+    "data_area": "Cash Sales vs Deposits (Sheet 2)",
+    "table": "cash_deposit_pickups",
+    "columns": ["Sales Date", "Cash Sales", "Cash Deposited", "Difference (B-C)", "CMS Pick Up date", "Delay in cash handover (A-D)", "Remarks"],
+    "linked_questions": ["Q005", "Q006", "Q007", "Q008"],
+    "use_cases": [
+     "Track daily cash deposit compliance with CMS agency schedules",
+     "Flag delays exceeding 2-day SLA for cash handover",
+     "Detect deposit shortages (cash deposited < cash sales) for investigation",
+     "Monitor CMS pickup patterns and identify route inefficiencies"
+    ]
+   },
+   {
+    "data_area": "Expired Inventory (Sheet 3)",
+    "table": "expired_inventory",
+    "columns": ["Article Code", "Article Description", "Expiry Date", "Review Date", "Quantity", "MRP"],
+    "linked_questions": ["Q022", "Q023", "Q024"],
+    "use_cases": [
+     "Identify expired products still on sales floor (FIFO non-compliance)",
+     "Track near-expiry items requiring markdown or return-to-vendor action",
+     "Quantify financial exposure from expired inventory (Quantity x MRP)",
+     "Data Analyst auto-generates expiry risk report per store"
+    ]
+   },
+   {
+    "data_area": "Store Details",
+    "table": "stores",
+    "columns": ["Store ID", "Store code", "Name", "State", "City", "Region", "District", "Postal Address", "Deputy Manager", "Operation Manager", "StoreCatg_main"],
+    "linked_questions": [],
+    "use_cases": [
+     "Master data for all store operations and audit scheduling",
+     "Regional grouping for dashboard analytics and audit planning",
+     "Store category-based checklist assignment (Flagship vs Compact vs Kiosk)",
+     "Manager responsibility mapping for issue assignment"
+    ]
+   },
+   {
+    "data_area": "Store Scores",
+    "table": "store_scores",
+    "columns": ["Store code", "Status", "Q1", "Q2", "Q3", "Q4"],
+    "linked_questions": [],
+    "use_cases": [
+     "Track quarterly audit score trends per store",
+     "Identify declining stores for increased audit frequency",
+     "Benchmark store performance across regions",
+     "Feed into dashboard top/bottom store rankings"
+    ]
+   },
+   {
+    "data_area": "Observations",
+    "table": "observations",
+    "columns": ["Sr No", "Observation", "Risk", "Action Plan", "Person Responsible", "Target", "Status"],
+    "linked_questions": [],
+    "use_cases": [
+     "Record audit-level findings with risk classification",
+     "Track action plans and accountability for each observation",
+     "Monitor resolution timelines and overdue corrective actions",
+     "Feed into management reporting for audit committee reviews"
+    ]
+   },
+   {
+    "data_area": "All Process Checklist",
+    "table": "questions",
+    "columns": ["Process", "Sub-Process", "Question", "Type", "Yes/No/NA", "Remarks", "Photo/Video - Enablement", "Data Analyst Enabled", "Data Analyst_Reference", "Weights", "Annex"],
+    "linked_questions": ["Q001-Q034"],
+    "use_cases": [
+     "Define structured audit checklist grouped by process and sub-process",
+     "Classify question types: Store Visit (physical), Structured data/DA (automated), Unstructured data (review)",
+     "Link questions to data sheets for auto-populated answers via Data Analyst",
+     "Weight questions for scoring (1-5 scale) and mark critical questions for auto-issue-raising",
+     "Enable photo/video evidence collection for Store Visit type questions"
+    ]
+   }
+  ]
+ }
 }

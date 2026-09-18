@@ -58,4 +58,35 @@ export const api = {
   updateIssue: (id, body) => request(`/issues/${id}`, { method: 'PUT', body }),
   availability: () => request('/availability'),
   addAvailability: (body) => request('/availability', { method: 'POST', body }),
+  // Observations
+  observations: (q = '') => request('/observations' + q),
+  createObservation: (body) => request('/observations', { method: 'POST', body }),
+  updateObservation: (id, body) => request(`/observations/${id}`, { method: 'PUT', body }),
+  // Structured data endpoints
+  dataImports: () => request('/data-imports'),
+  cashReconciliations: (q = '') => request('/cash-reconciliations' + q),
+  cashDepositPickups: (q = '') => request('/cash-deposit-pickups' + q),
+  expiredInventory: (q = '') => request('/expired-inventory' + q),
+  storeScores: (q = '') => request('/store-scores' + q),
+  // CRUD
+  createStore: (body) => request('/stores', { method: 'POST', body }),
+  updateStore: (id, body) => request(`/stores/${id}`, { method: 'PUT', body }),
+  createIssue: (body) => request('/issues', { method: 'POST', body }),
+  // File upload
+  uploadFile: async (file, section) => {
+    const session = loadSession()
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('section', section)
+    const res = await fetch(BASE + '/upload', {
+      method: 'POST',
+      headers: session?.token ? { Authorization: `Bearer ${session.token}` } : {},
+      body: fd,
+    })
+    if (!res.ok) {
+      const detail = await res.json().catch(() => ({}))
+      throw new Error(detail.error || `Upload failed (${res.status})`)
+    }
+    return res.json()
+  },
 }

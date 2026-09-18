@@ -93,6 +93,13 @@ class Store(Base):
     contact = Column(String(40))
     email = Column(String(200))
     address = Column(Text)
+    store_code = Column(String(40), index=True)
+    state = Column(String(80))
+    district = Column(String(80))
+    postal_code = Column(Text)
+    deputy_manager = Column(String(120))
+    operations_manager = Column(String(120))
+    store_category = Column(String(80))
     meta = Column(JSON, default=dict)                   # historic scores etc.
 
     manager = relationship("User", foreign_keys=[manager_id])
@@ -105,8 +112,95 @@ class Store(Base):
             "manager": self.manager.name if self.manager else None,
             "manager_id": self.manager_id, "contact": self.contact,
             "email": self.email, "address": self.address,
+            "store_code": self.store_code, "state": self.state,
+            "district": self.district, "postal_code": self.postal_code,
+            "deputy_manager": self.deputy_manager,
+            "operations_manager": self.operations_manager,
+            "store_category": self.store_category,
             "meta": self.meta or {},
         }
+
+
+# --------------------------------------------------------------------------
+# Client file imports and audit evidence data
+# --------------------------------------------------------------------------
+class DataImport(Base):
+    """Tracks a source file while retaining its original column headers."""
+    __tablename__ = "data_imports"
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    file_name = Column(String(240), nullable=False)
+    data_section = Column(String(60), nullable=False)
+    column_headers = Column(JSON, nullable=False, default=list)
+    imported_at = Column(DateTime, default=dt.datetime.utcnow)
+    meta = Column(JSON, default=dict)
+
+
+class CashReconciliation(Base):
+    __tablename__ = "cash_reconciliations"
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    import_id = Column(String(12), ForeignKey("data_imports.id"))
+    store_id = Column(String(20), ForeignKey("stores.id"), index=True)
+    source_row_number = Column(Integer)
+    cash_at_tills = Column(Float)
+    cash_in_safe = Column(Float)
+    cash_other_locations = Column(Float)
+    physical_cash_total = Column(Float)
+    cash_sales_as_per_report = Column(Float)
+    float_or_imprest_amount = Column(Float)
+    difference = Column(Float)
+    remarks = Column(Text)
+    raw_data = Column(JSON, default=dict)
+
+
+class CashDepositPickup(Base):
+    __tablename__ = "cash_deposit_pickups"
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    import_id = Column(String(12), ForeignKey("data_imports.id"))
+    store_id = Column(String(20), ForeignKey("stores.id"), index=True)
+    source_row_number = Column(Integer)
+    sales_date = Column(Date)
+    cash_sales = Column(Float)
+    cash_deposited = Column(Float)
+    difference = Column(Float)
+    cms_pickup_date = Column(Date)
+    handover_delay_days = Column(Integer)
+    remarks = Column(Text)
+    raw_data = Column(JSON, default=dict)
+
+
+class ExpiredInventory(Base):
+    __tablename__ = "expired_inventory"
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    import_id = Column(String(12), ForeignKey("data_imports.id"))
+    store_id = Column(String(20), ForeignKey("stores.id"), index=True)
+    source_row_number = Column(Integer)
+    article_code = Column(String(80), index=True)
+    article_description = Column(String(240))
+    expiry_date = Column(Date)
+    review_date = Column(Date)
+    quantity = Column(Float)
+    mrp = Column(Float)
+    raw_data = Column(JSON, default=dict)
+
+
+class StoreScore(Base):
+    __tablename__ = "store_scores"
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    import_id = Column(String(12), ForeignKey("data_imports.id"))
+    store_id = Column(String(20), ForeignKey("stores.id"), index=True)
+    source_row_number = Column(Integer)
+    store_code = Column(String(40), index=True)
+    status = Column(String(40))
+    q1 = Column(Float)
+    q2 = Column(Float)
+    q3 = Column(Float)
+    q4 = Column(Float)
+    raw_data = Column(JSON, default=dict)
 
 
 # --------------------------------------------------------------------------
@@ -128,10 +222,16 @@ class Question(Base):
     text = Column(Text, nullable=False)
     process = Column(String(80))                # Cashiering, EHS & Compliance...
     sub_process = Column(String(120))
-    audit_type = Column(String(60))             # Store Visit / Structured data analysis
+    audit_type = Column(String(60))             # Store Visit / Structured data/DA / Unstructured data
     weight = Column(Integer, default=1)
     is_critical = Column(Boolean, default=False)
     active = Column(Boolean, default=True)
+
+    # Photo/Video and Data Analyst columns from the client checklist
+    photo_video_enablement = Column(String(10), default="No")   # Yes / No
+    data_analyst_enabled = Column(String(10), default="N")      # Y / N
+    data_analyst_reference = Column(String(60))                 # Sheet 1, Sheet 2, Sheet 3...
+    annex = Column(String(120))                                 # Annex reference
 
     # Auditor-proposed questions wait here until an Audit Manager approves.
     approval_status = Column(String(20), default="APPROVED")  # PENDING/APPROVED/REJECTED
@@ -148,6 +248,10 @@ class Question(Base):
             "process": self.process, "sub_process": self.sub_process,
             "audit_type": self.audit_type, "weight": self.weight,
             "is_critical": self.is_critical, "active": self.active,
+            "photo_video_enablement": self.photo_video_enablement,
+            "data_analyst_enabled": self.data_analyst_enabled,
+            "data_analyst_reference": self.data_analyst_reference,
+            "annex": self.annex,
             "approval_status": self.approval_status,
             "proposed_by_id": self.proposed_by_id,
             "meta": self.meta or {},
@@ -273,7 +377,44 @@ class AuditResponse(Base):
 
 
 # --------------------------------------------------------------------------
-# Observations / actions
+# Observations — audit-level findings with action plans
+# --------------------------------------------------------------------------
+class Observation(Base):
+    """
+    Maps to the Observations sheet from the client checklist.
+    Columns: Sr No, Observation, Risk, Action Plan, Person Responsible, Target, Status
+    """
+    __tablename__ = "observations"
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    audit_id = Column(String(20), ForeignKey("audits.id"), index=True)
+    store_id = Column(String(20), ForeignKey("stores.id"), index=True)
+    sr_no = Column(Integer, nullable=False)
+    observation = Column(Text, nullable=False)
+    risk = Column(String(20))                   # Critical / High / Medium / Low
+    action_plan = Column(Text)
+    person_responsible = Column(String(160))
+    target = Column(String(120))                # Target date or milestone
+    status = Column(String(40), default="Open") # Open / In Progress / Closed / Overdue
+
+    store = relationship("Store")
+    audit = relationship("Audit")
+
+    def to_dict(self):
+        return {
+            "id": self.id, "audit_id": self.audit_id,
+            "store_id": self.store_id,
+            "store": self.store.name if self.store else None,
+            "sr_no": self.sr_no,
+            "observation": self.observation, "risk": self.risk,
+            "action_plan": self.action_plan,
+            "person_responsible": self.person_responsible,
+            "target": self.target, "status": self.status,
+        }
+
+
+# --------------------------------------------------------------------------
+# Issues / actions
 # --------------------------------------------------------------------------
 class Issue(Base):
     __tablename__ = "issues"

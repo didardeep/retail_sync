@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '../components/Toast';
-import { mockIssues, mockStores } from '../data/mockData';
+import { api } from '../api/client';
 import { avC, prC, stC, exportCSV } from '../utils/helpers';
 
 function stBorder(s) {
@@ -21,7 +21,9 @@ function fmtDisp(d) {
 
 export default function Issues() {
   const toast = useToast();
-  const [issues, setIssues] = useState(() => mockIssues.map(i => ({ ...i })));
+  const [issues, setIssues] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [view, setView] = useState('table');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -39,14 +41,42 @@ export default function Issues() {
   });
   const [files, setFiles] = useState([]);
 
+  useEffect(() => {
+    Promise.all([
+      api.issues().catch(() => []),
+      api.stores().catch(() => []),
+    ]).then(([i, s]) => {
+      // Normalize issue data for display
+      const normalized = (i || []).map(iss => ({
+        ...iss,
+        pri: iss.priority || iss.pri || 'Medium',
+        store: iss.store || iss.store_id || '',
+        assignee: iss.assignee || iss.assignee_id || 'Unassigned',
+        desc: iss.description || iss.desc || '',
+        aid: iss.audit_id || iss.aid || '',
+        created: iss.created_at ? fmtDisp(new Date(iss.created_at)) : '',
+        due: iss.due_date || '',
+        ov: iss.is_overdue || false,
+        tags: iss.tags || [],
+        dp: 0,
+        dc: '#6b7280',
+        files: 0,
+        comments: 0,
+      }));
+      setIssues(normalized);
+      setStores(s || []);
+      setLoading(false);
+    });
+  }, []);
+
   /* ── derived data ── */
-  const storeOpts = [...new Set(issues.map(i => i.store))];
-  const assigneeOpts = [...new Set(issues.map(i => i.assignee))];
+  const storeOpts = [...new Set(issues.map(i => i.store).filter(Boolean))];
+  const assigneeOpts = [...new Set(issues.map(i => i.assignee).filter(Boolean))];
 
   const filtered = issues.filter(i => {
     if (search) {
       const q = search.toLowerCase();
-      if (!i.title.toLowerCase().includes(q) && !i.desc.toLowerCase().includes(q) && !i.tags.join(' ').toLowerCase().includes(q)) return false;
+      if (!(i.title||'').toLowerCase().includes(q) && !(i.desc||'').toLowerCase().includes(q) && !(i.tags||[]).join(' ').toLowerCase().includes(q)) return false;
     }
     if (statusFilter && i.status !== statusFilter) return false;
     if (priFilter && i.pri !== priFilter) return false;
@@ -64,7 +94,7 @@ export default function Issues() {
   const completedCount = issues.filter(i => i.status === 'Resolved').length;
 
   /* ── modal store options ── */
-  const modalStoreOpts = [...new Set([...issues.map(i => i.store), ...mockStores.map(s => s.name)])];
+  const modalStoreOpts = [...new Set([...issues.map(i => i.store).filter(Boolean), ...stores.map(s => s.name)])];
 
   /* ── handlers ── */
   function setIssueView(v) {
@@ -104,7 +134,7 @@ export default function Issues() {
       assignee: i.assignee,
       created: fmtLocalDT(new Date()),
       due: fmtLocalDT(new Date()),
-      aid: i.aid === 'AUD-NEW' ? '' : i.aid,
+      aid: i.aid || '',
       tags: (i.tags || []).join(', '),
       comment: ''
     });
@@ -142,6 +172,13 @@ export default function Issues() {
           aid: form.aid.trim() || i.aid
         };
       }));
+      // Also update in backend
+      api.updateIssue(editId, {
+        title: form.title.trim(),
+        status: form.status,
+        priority: form.pri,
+        description: form.desc,
+      }).catch(() => {});
       toast('Issue updated');
     } else {
       const newId = 'ISS' + String(issues.length + 1).padStart(3, '0');
@@ -196,6 +233,10 @@ export default function Issues() {
 
   /* ── board columns ── */
   const boardCols = ['Open', 'In Progress', 'On Hold', 'Resolved', 'Closed'];
+
+  if (loading) {
+    return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',color:'var(--text3)'}}>Loading issues...</div>;
+  }
 
   /* ── render ── */
   return (
@@ -295,15 +336,13 @@ export default function Issues() {
                 <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
                   <span className={`badge ${stC(i.status)}`}>{i.status}</span>
                   <span className={`badge ${prC(i.pri)}`}>{i.pri}</span>
-                  {i.proc && <span className="chip">Process: {i.proc}</span>}
-                  {i.sp && <span className="chip">Sub-process: {i.sp}</span>}
                 </div>
                 {/* description */}
                 <div style={{ fontSize: 11.5, color: 'var(--text3)', marginBottom: 10, lineHeight: 1.4 }}>{i.desc}</div>
                 {/* assignee + store */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 9, borderTop: '1px solid var(--border)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div className={`av ${avC(i.assignee)}`} style={{ width: 22, height: 22, fontSize: 9.5 }}>{i.assignee[0]}</div>
+                    <div className={`av ${avC(i.assignee||'U')}`} style={{ width: 22, height: 22, fontSize: 9.5 }}>{(i.assignee||'U')[0]}</div>
                     <span style={{ fontSize: 11.5, color: 'var(--text2)' }}>{i.assignee}</span>
                   </div>
                   <span style={{ fontSize: 11, color: 'var(--text3)' }}>{i.store}</span>
@@ -313,13 +352,6 @@ export default function Issues() {
                   <span style={{ fontSize: 10.5, color: 'var(--text3)' }}>Created {i.created}</span>
                   <span style={{ fontSize: 11, color: i.ov ? 'var(--red)' : 'var(--text3)', fontWeight: 600 }}>Due {i.due}</span>
                 </div>
-                {/* file/comment counts */}
-                {(i.files || i.comments) ? (
-                  <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-                    {i.files ? <span style={{ fontSize: 11, color: 'var(--text3)' }}>&#x1F4CE; {i.files}</span> : null}
-                    {i.comments ? <span style={{ fontSize: 11, color: 'var(--text3)' }}>&#x1F4AC; {i.comments}</span> : null}
-                  </div>
-                ) : null}
               </div>
             )) : (
               <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40, color: 'var(--text3)' }}>&#x2705; No issues match your filters</div>
@@ -351,7 +383,7 @@ export default function Issues() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <div className={`av ${avC(i.assignee)}`} style={{ width: 20, height: 20, fontSize: 9 }}>{i.assignee[0]}</div>
+                            <div className={`av ${avC(i.assignee||'U')}`} style={{ width: 20, height: 20, fontSize: 9 }}>{(i.assignee||'U')[0]}</div>
                             <span style={{ fontSize: 11, color: 'var(--text3)' }}>{i.store}</span>
                           </div>
                           <span style={{ fontSize: 10.5, color: i.ov ? 'var(--red)' : 'var(--text3)' }}>{i.due}</span>

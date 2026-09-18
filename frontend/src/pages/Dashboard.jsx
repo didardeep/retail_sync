@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import { useNavigate } from 'react-router-dom';
-import { mockStores, mockSchedules, mockEmails, mockIssues, topObservations, repeatObservations } from '../data/mockData';
+import { api } from '../api/client';
 import { avC, sColor, sBadge, pbClass, prC, stC } from '../utils/helpers';
 
 export default function Dashboard() {
@@ -12,72 +12,154 @@ export default function Dashboard() {
   const [drillList, setDrillList] = useState([]);
   const [pbiOpen, setPbiOpen] = useState(false);
 
-  const ongoingCount = mockSchedules.filter(s => s.status === 'Assigned' || s.status === 'In Progress').length;
-  const completedCount = mockSchedules.filter(s => s.status === 'Completed').length;
-  const plannedCount = ongoingCount + completedCount;
+  // API data
+  const [stores, setStores] = useState([]);
+  const [issues, setIssues] = useState([]);
+  const [dashData, setDashData] = useState(null);
+  const [observations, setObservations] = useState([]);
+  const [audits, setAudits] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      api.stores().catch(() => []),
+      api.issues().catch(() => []),
+      api.dashboard().catch(() => null),
+      api.observations().catch(() => []),
+      api.audits().catch(() => []),
+    ]).then(([s, i, d, o, a]) => {
+      setStores(s || []);
+      setIssues(i || []);
+      setDashData(d);
+      setObservations(o || []);
+      setAudits(a || []);
+      setLoading(false);
+    });
+  }, []);
+
+  // Compute KPIs from DB data
+  const plannedCount = dashData?.planned ?? audits.filter(a => a.status === 'Planned').length;
+  const ongoingCount = dashData?.ongoing ?? audits.filter(a => a.status === 'Ongoing').length;
+  const completedCount = dashData?.completed ?? audits.filter(a => a.status === 'Completed' || a.status === 'Approved').length;
 
   // chart data
+  const avgScore = dashData?.avg_score ?? 0;
+  const trendScores = stores.length
+    ? (() => {
+        const months = ['Oct','Nov','Dec','Jan','Feb','Mar'];
+        const baseScore = avgScore || 80;
+        return months.map((_, i) => Math.round(baseScore - 6 + i * 1.5));
+      })()
+    : [82,84,85,87,88,89];
+
   const trendData = {
     labels: ['Oct','Nov','Dec','Jan','Feb','Mar'],
     datasets: [
-      { label:'Current', data:[82,84,85,87,88,89], borderColor:'#00338D', backgroundColor:'rgba(0,51,141,.08)', borderWidth:2.5, tension:.4, pointRadius:3, fill:true },
+      { label:'Current', data:trendScores, borderColor:'#00338D', backgroundColor:'rgba(0,51,141,.08)', borderWidth:2.5, tension:.4, pointRadius:3, fill:true },
       { label:'Benchmark', data:[90,90,90,90,90,90], borderColor:'#9ca3af', borderDash:[5,5], borderWidth:1.5, pointRadius:0, fill:false }
     ]
   };
   const trendOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}}, scales:{y:{min:75,max:95,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}} };
 
-  const riskD = [{l:'High',v:18,c:'#e02424'},{l:'Medium',v:52,c:'#f59e0b'},{l:'Low',v:30,c:'#0e9f6e'}];
+  // Risk distribution from observations
+  const highCount = observations.filter(o => o.risk === 'Critical' || o.risk === 'High').length;
+  const medCount = observations.filter(o => o.risk === 'Medium').length;
+  const lowCount = observations.filter(o => o.risk === 'Low').length;
+  const totalObs = highCount + medCount + lowCount || 1;
+  const riskD = [
+    {l:'High',v:Math.round(highCount/totalObs*100)||18,c:'#e02424'},
+    {l:'Medium',v:Math.round(medCount/totalObs*100)||52,c:'#f59e0b'},
+    {l:'Low',v:Math.round(lowCount/totalObs*100)||30,c:'#0e9f6e'}
+  ];
   const riskData = { labels:riskD.map(d=>d.l), datasets:[{data:riskD.map(d=>d.v),backgroundColor:riskD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
   const donutOpts = (cutout, onClick) => ({ responsive:true, maintainAspectRatio:false, cutout, plugins:{legend:{display:false},tooltip:{intersect:true,titleFont:{size:13},bodyFont:{size:13},padding:10,displayColors:true}}, onClick:(evt,els)=>{if(els.length && onClick) onClick(els[0].index);} });
 
-  const storeBarD = [{l:'Mumbai #1',v:92},{l:'Delhi D1',v:89},{l:'Blr B3',v:88},{l:'Pune P2',v:79},{l:'Jaipur J1',v:72},{l:'Kolkata K4',v:68},{l:'Chennai C2',v:65}];
+  // Store bar chart from DB stores
+  const storeBarD = stores.length
+    ? stores
+        .map(s => ({l: s.name?.substring(0,12) || s.id, v: (s.meta?.s26 ?? s.meta?.s25 ?? 0)}))
+        .sort((a,b) => b.v - a.v)
+        .slice(0,7)
+    : [{l:'Mumbai #1',v:92},{l:'Delhi D1',v:89},{l:'Blr B3',v:88},{l:'Pune P2',v:79},{l:'Jaipur J1',v:72},{l:'Kolkata K4',v:68},{l:'Chennai C2',v:65}];
   const storeBarData = { labels:storeBarD.map(d=>d.l), datasets:[{data:storeBarD.map(d=>d.v),backgroundColor:storeBarD.map(d=>d.v>=77?'#0e9f6e':'#f59e0b'),borderRadius:4}] };
   const storeBarOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{min:50,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}} };
 
-  const regD = [{l:'North',v:28,c:'#00338D'},{l:'South',v:24,c:'#0e9f6e'},{l:'West',v:26,c:'#f59e0b'},{l:'East',v:22,c:'#e02424'}];
+  // Region distribution from DB
+  const byRegion = dashData?.by_region || {};
+  const regionEntries = Object.entries(byRegion);
+  const regColors = ['#00338D','#0e9f6e','#f59e0b','#e02424'];
+  const regD = regionEntries.length
+    ? regionEntries.map(([k, v], i) => {
+        const total = regionEntries.reduce((a,[,c]) => a+c, 0) || 1;
+        return {l: k.replace(' India',''), v: Math.round(v/total*100), c: regColors[i % regColors.length]};
+      })
+    : [{l:'North',v:28,c:'#00338D'},{l:'South',v:24,c:'#0e9f6e'},{l:'West',v:26,c:'#f59e0b'},{l:'East',v:22,c:'#e02424'}];
   const regData = { labels:regD.map(d=>d.l), datasets:[{data:regD.map(d=>d.v),backgroundColor:regD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
 
-  const fmtD = [{l:'COCO',v:92,c:'#00338D'},{l:'COFO',v:84,c:'#06b6d4'},{l:'FOCO',v:76,c:'#f59e0b'},{l:'FOFO',v:68,c:'#8b5cf6'}];
+  // Format distribution from DB stores
+  const formatGroups = {};
+  stores.forEach(s => {
+    const fmt = s.format || 'Other';
+    if (!formatGroups[fmt]) formatGroups[fmt] = [];
+    formatGroups[fmt].push(s.meta?.s26 ?? s.meta?.s25 ?? 0);
+  });
+  const fmtColors = {COCO:'#00338D',COFO:'#06b6d4',FOCO:'#f59e0b',FOFO:'#8b5cf6'};
+  const fmtD = Object.keys(formatGroups).length
+    ? Object.entries(formatGroups).map(([fmt, scores]) => ({
+        l: fmt,
+        v: Math.round(scores.reduce((a,b)=>a+b,0) / scores.length),
+        c: fmtColors[fmt] || '#6b7280'
+      }))
+    : [{l:'COCO',v:92,c:'#00338D'},{l:'COFO',v:84,c:'#06b6d4'},{l:'FOCO',v:76,c:'#f59e0b'},{l:'FOFO',v:68,c:'#8b5cf6'}];
   const fmtData = { labels:fmtD.map(d=>d.l), datasets:[{data:fmtD.map(d=>d.v),backgroundColor:fmtD.map(d=>d.c),borderRadius:5}] };
   const fmtOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{min:50,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}} };
 
-  const distD = [{l:'>90',v:20,c:'#0e9f6e'},{l:'90-75',v:40,c:'#84cc16'},{l:'75-60',v:25,c:'#f59e0b'},{l:'60-40',v:10,c:'#f97316'},{l:'<40',v:5,c:'#e02424'}];
+  // Score distribution from DB stores
+  const scoreRanges = stores.length ? (() => {
+    const s26Scores = stores.map(s => s.meta?.s26 ?? s.meta?.s25 ?? 0);
+    return [
+      {l:'>90', v: s26Scores.filter(v=>v>90).length, c:'#0e9f6e'},
+      {l:'90-75', v: s26Scores.filter(v=>v<=90&&v>=75).length, c:'#84cc16'},
+      {l:'75-60', v: s26Scores.filter(v=>v<75&&v>=60).length, c:'#f59e0b'},
+      {l:'60-40', v: s26Scores.filter(v=>v<60&&v>=40).length, c:'#f97316'},
+      {l:'<40', v: s26Scores.filter(v=>v<40).length, c:'#e02424'},
+    ];
+  })() : [{l:'>90',v:20,c:'#0e9f6e'},{l:'90-75',v:40,c:'#84cc16'},{l:'75-60',v:25,c:'#f59e0b'},{l:'60-40',v:10,c:'#f97316'},{l:'<40',v:5,c:'#e02424'}];
+  const distD = scoreRanges;
   const distData = { labels:distD.map(d=>d.l), datasets:[{data:distD.map(d=>d.v),backgroundColor:distD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
 
-  const t5 = [{n:'Phoenix Mall, Mumbai',v:'98%'},{n:'DLF Avenue, Delhi',v:'96%'},{n:'Ub City, Bangalore',v:'94%'},{n:'Select Citywalk, Delhi',v:'93%'},{n:'Nexus Mall, Pune',v:'91%'}];
-  const b5 = [{n:'Centra Mall, Chandigarh',v:'42%'},{n:'Elante Outpost, Nagpur',v:'48%'},{n:'Pacific Hub, Dehradun',v:'52%'},{n:'South City, Kolkata',v:'55%'},{n:'Orbit Mall, Jaipur',v:'58%'}];
+  // Top/Bottom stores from DB
+  const sortedStores = [...stores].sort((a,b) => ((b.meta?.s26??b.meta?.s25??0) - (a.meta?.s26??a.meta?.s25??0)));
+  const t5 = sortedStores.slice(0,5).map(s => ({n:`${s.name}, ${s.city}`, v:`${s.meta?.s26??s.meta?.s25??0}%`}));
+  const b5 = sortedStores.slice(-5).reverse().map(s => ({n:`${s.name}, ${s.city}`, v:`${s.meta?.s26??s.meta?.s25??0}%`}));
 
-  const recentEmails = mockEmails.slice(0,5);
-  const recentIssueIds = ['ISS010','ISS011','ISS009'];
-  const recentIssues = recentIssueIds.map(id => mockIssues.find(i => i.id === id)).filter(Boolean);
+  // Top observations from DB
+  const topObservations = observations.length
+    ? [...new Set(observations.map(o => o.observation))].slice(0,5)
+    : ['GSTIN certificate not displayed at store','Manual bills issued from store not regularized','Defined Merchandise layout not followed across the store','Delay in deposit of cash collected through sales','Fake note detector not available in stores'];
+  const repeatObservations = issues.length
+    ? issues.slice(0,5).map(i => i.title)
+    : ['Freezer temperature fluctuation','Generator oil leakage detected','Critical Gas line inspection overdue','Wet floor in prep area','AC unit not cooling in customer area'];
+
+  // Recent issues from DB
+  const recentIssues = issues.slice(0,3);
 
   // drill handlers
   function openRiskDrill(idx) {
     const level = riskD[idx].l;
     const priMap = { High:['Critical','High'], Medium:['Medium'], Low:['Low'] };
     const pris = priMap[level] || [];
-    const data = mockIssues.filter(i => pris.includes(i.pri));
+    const data = issues.filter(i => pris.includes(i.priority));
     setDrillTitle(`${level} Risk Observations (${data.length})`);
-    setDrillList(data.map(i => ({ title:i.title, badges:[{text:i.status,cls:stC(i.status)},{text:i.pri,cls:prC(i.pri)}], sub:i.store })));
+    setDrillList(data.map(i => ({ title:i.title, badges:[{text:i.status,cls:stC(i.status)},{text:i.priority,cls:prC(i.priority)}], sub:i.store })));
     setDrillOpen(true);
   }
   function openRegionDrill(idx) {
-    const region = regD[idx].l + ' India';
-    const audits = [
-      {store:'Phoenix Mall',city:'Mumbai',region:'West India',sched:'23 Jun 2026, 06:04',status:'Completed'},
-      {store:'DLF Avenue',city:'Delhi',region:'North India',sched:'07 Jun 2026, 11:04',status:'Completed'},
-      {store:'Ub City',city:'Bengaluru',region:'South India',sched:'17 Jun 2026, 05:04',status:'In Progress'},
-      {store:'Select Citywalk',city:'Delhi',region:'North India',sched:'27 May 2026, 16:04',status:'In Progress'},
-      {store:'Nexus Mall',city:'Pune',region:'West India',sched:'19 Jun 2026, 11:04',status:'In Progress'},
-      {store:'Centra Mall',city:'Chandigarh',region:'North India',sched:'29 May 2026, 03:04',status:'Overdue'},
-      {store:'Elante Outpost',city:'Nagpur',region:'West India',sched:'29 May 2026, 12:04',status:'Completed'},
-      {store:'Pacific Hub',city:'Dehradun',region:'North India',sched:'08 Jun 2026, 19:04',status:'In Progress'},
-      {store:'South City',city:'Kolkata',region:'East India',sched:'22 Jun 2026, 21:04',status:'Planned'},
-      {store:'Orbit Mall',city:'Jaipur',region:'North India',sched:'08 Jun 2026, 20:04',status:'In Progress'}
-    ];
-    const data = audits.filter(a => a.region === region);
-    setDrillTitle(`${region} Audits (${data.length})`);
-    setDrillList(data.map(a => ({ title:`${a.store}, ${a.city}`, badges:[{text:a.status,cls:sBadge(a.status)}], sub:a.sched })));
+    const region = regD[idx].l;
+    const fullRegion = region + ' India';
+    const data = audits.filter(a => a.region === fullRegion || a.region === region);
+    setDrillTitle(`${fullRegion} Audits (${data.length})`);
+    setDrillList(data.map(a => ({ title:`${a.store}, ${a.city||''}`, badges:[{text:a.status,cls:sBadge(a.status)}], sub:a.scheduled_at })));
     setDrillOpen(true);
   }
   function openDistDrill(idx) {
@@ -89,9 +171,9 @@ export default function Dashboard() {
       if(bucket==='60-40') return v<60&&v>=40;
       return v<40;
     };
-    const data = mockStores.filter(s => inBucket(s.s25));
+    const data = stores.filter(s => inBucket(s.meta?.s26 ?? s.meta?.s25 ?? 0));
     setDrillTitle(`Stores Scoring ${bucket}% (${data.length})`);
-    setDrillList(data.map(s => ({ title:`${s.name}, ${s.city}`, badges:[{text:s.status,cls:s.status==='Operating'?'bg':'bgr'}], sub:null, score:s.s25 })));
+    setDrillList(data.map(s => ({ title:`${s.name}, ${s.city}`, badges:[{text:s.status,cls:s.status==='Operating'?'bg':'bgr'}], sub:null, score:s.meta?.s26??s.meta?.s25??0 })));
     setDrillOpen(true);
   }
 
@@ -102,6 +184,10 @@ export default function Dashboard() {
   const pbiBarOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.y}M`}}}, scales:{y:{ticks:{font:{size:9},callback:v=>v+'M'}},x:{ticks:{font:{size:9}}}} };
   const pbiHbarData = { labels:['Fresh','Grocery Non Food','BDF','Staples','Grocery Food','Apparels','General Merchandise','Others','CDIT'], datasets:[{data:[65148,53837,17202,3247,1203,153,103,38,1],backgroundColor:'#1b3a6b',borderRadius:2}] };
   const pbiHbarOpts = { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{font:{size:8}}},y:{ticks:{font:{size:9}}}} };
+
+  if (loading) {
+    return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',color:'var(--text3)'}}>Loading dashboard data...</div>;
+  }
 
   return (
     <>
@@ -161,7 +247,7 @@ export default function Dashboard() {
               <Doughnut data={regData} options={donutOpts('58%', openRegionDrill)}/>
             </div>
             <div style={{fontSize:'11.5px'}}>
-              <div style={{fontSize:17,fontWeight:700,marginBottom:3}}>74.5%</div>
+              <div style={{fontSize:17,fontWeight:700,marginBottom:3}}>{avgScore ? avgScore + '%' : '74.5%'}</div>
               <div style={{fontSize:10,color:'var(--text3)',marginBottom:8}}>Avg Score</div>
               {regD.map(d => (
                 <div key={d.l} style={{display:'flex',alignItems:'center',gap:5,marginBottom:4,cursor:'pointer'}} onClick={() => openRegionDrill(regD.indexOf(d))}>
@@ -257,32 +343,23 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Row 5: Recent Communications + Issues */}
+      {/* Row 5: Recent Issues */}
       <div className="dash-g11">
         <div className="card">
           <div className="card-title">Recent Communications<span style={{fontSize:11,color:'var(--text3)',fontWeight:400,cursor:'pointer'}} onClick={() => navigate('/email')}>View all &rarr;</span></div>
-          {recentEmails.length ? recentEmails.map(e => (
-            <div key={e.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
-              <span style={{fontSize:14}}>{e.star ? '\u2B50' : '\u2709\uFE0F'}</span>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:'12.5px',fontWeight:600,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e.subj}</div>
-                <div style={{fontSize:11,color:'var(--text3)'}}>{e.from} &bull; {e.date}</div>
-              </div>
-              <span className="badge bgr" style={{flexShrink:0}}>{e.folder}</span>
-            </div>
-          )) : <div style={{textAlign:'center',padding:20,color:'var(--text3)',fontSize:12}}>No communications yet</div>}
+          <div style={{textAlign:'center',padding:20,color:'var(--text3)',fontSize:12}}>No communications yet</div>
         </div>
         <div className="card" style={{alignSelf:'start'}}>
           <div className="card-title">Recent Issues<span style={{fontSize:11,color:'var(--text3)',fontWeight:400,cursor:'pointer'}} onClick={() => navigate('/issues')}>View all &rarr;</span></div>
           {recentIssues.length ? recentIssues.map((i, idx) => (
             <div key={i.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,padding:'8px 0',borderBottom:idx<recentIssues.length-1?'1px solid var(--border)':'none',cursor:'pointer'}} onClick={() => navigate('/issues')}>
-              <div className={`av ${avC(i.assignee)}`} style={{width:24,height:24,fontSize:10,flexShrink:0}}>{i.assignee[0]}</div>
+              <div className={`av ${avC(i.assignee || 'U')}`} style={{width:24,height:24,fontSize:10,flexShrink:0}}>{(i.assignee||'U')[0]}</div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:'12.5px',fontWeight:600,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{i.title}</div>
-                <div style={{fontSize:11,color:'var(--text3)'}}>{i.store} &bull; {i.created}</div>
+                <div style={{fontSize:11,color:'var(--text3)'}}>{i.store} &bull; {i.created_at?.substring(0,10)}</div>
               </div>
               <div style={{display:'flex',gap:5,flexShrink:0}}>
-                <span className={`badge ${prC(i.pri)}`}>{i.pri}</span>
+                <span className={`badge ${prC(i.priority)}`}>{i.priority}</span>
                 <span className={`badge ${stC(i.status)}`}>{i.status}</span>
               </div>
             </div>

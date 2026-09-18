@@ -17,8 +17,9 @@ from app.auth import hash_password
 from app.db import Base, SessionLocal, engine, init_db
 from app.models import (
     ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
-    Audit, AuditResponse, AuditorAvailability, Checklist, ChecklistItem,
-    Issue, Question, Store, User,
+    Audit, AuditResponse, AuditorAvailability, CashReconciliation,
+    CashDepositPickup, Checklist, ChecklistItem, DataImport,
+    ExpiredInventory, Issue, Observation, Question, Store, StoreScore, User,
 )
 
 SEED_FILE = Path(__file__).parent / "seed_data.json"
@@ -50,13 +51,10 @@ def seed():
     data = load_seed()
 
     # ---- users -----------------------------------------------------------
-    # Store managers come from the store records; auditors from the schedule.
     manager_names = sorted({st["manager"] for st in data["stores"] if st.get("manager")})
     auditor_names = sorted({sc["auditor"] for sc in data["schedules"] if sc.get("auditor")}
                            | {a["auditor"] for a in data["audits"] if a.get("auditor")})
 
-    # Keyed by (role, name): the prototype uses the same person names for
-    # auditors and store managers, but they are different accounts.
     users = {}
 
     def slug(name):
@@ -95,6 +93,13 @@ def seed():
             manager_id=mgr.id if mgr else None,
             contact=st.get("contact"), email=st.get("email"),
             address=st.get("address"),
+            store_code=st.get("store_code"),
+            state=st.get("state"),
+            district=st.get("district"),
+            postal_code=st.get("postal_address"),
+            deputy_manager=st.get("deputy_manager"),
+            operations_manager=st.get("operations_manager"),
+            store_category=st.get("store_category"),
             meta={k: st[k] for k in ("s22", "s23", "s24", "s25", "s26") if k in st},
         ))
     s.flush()
@@ -107,6 +112,10 @@ def seed():
             process=q.get("proc"), sub_process=q.get("sp"),
             audit_type=q.get("at"), weight=q.get("w", 1),
             is_critical=bool(q.get("crit")), active=bool(q.get("on", True)),
+            photo_video_enablement=q.get("photo_video", "No"),
+            data_analyst_enabled=q.get("da_enabled", "N"),
+            data_analyst_reference=q.get("da_ref"),
+            annex=q.get("annex"),
             approval_status="APPROVED", approved_by_id=admin.id,
             meta={"tags": q.get("tags", [])},
         )
@@ -133,6 +142,98 @@ def seed():
         s.add(ChecklistItem(checklist_id=full.id, question_id=q.id, sort_order=i))
     s.flush()
 
+    # ---- data imports (container for structured data) --------------------
+    di_cash_recon = DataImport(
+        file_name="Store_Audit_Cash_Reconciliation.xlsx",
+        data_section="cash_reconciliation",
+        column_headers=["Cash at Tills", "Cash in Safe", "Any other place",
+                        "Physical Cash Total", "Cash Sales as per sales Report",
+                        "Float and Imprest allocated to store as per Master",
+                        "Book Cash Total", "Difference (A-B)", "Remarks"],
+    )
+    di_cash_deposit = DataImport(
+        file_name="Store_Audit_Cash_Deposits.xlsx",
+        data_section="cash_deposit_pickups",
+        column_headers=["Sales Date", "Cash Sales", "Cash Deposited",
+                        "Difference (B-C)", "CMS Pick Up date",
+                        "Delay in cash handover (A-D)", "Remarks"],
+    )
+    di_expired = DataImport(
+        file_name="Store_Audit_Expired_Inventory.xlsx",
+        data_section="expired_inventory",
+        column_headers=["Article Code", "Article Description", "Expiry Date",
+                        "Review Date", "Quantity", "MRP"],
+    )
+    di_scores = DataImport(
+        file_name="Store_Audit_Scores.xlsx",
+        data_section="store_scores",
+        column_headers=["Store code", "Status", "Q1", "Q2", "Q3", "Q4"],
+    )
+    for di in [di_cash_recon, di_cash_deposit, di_expired, di_scores]:
+        s.add(di)
+    s.flush()
+
+    # ---- cash reconciliation (Sheet 1) -----------------------------------
+    for idx, cr in enumerate(data.get("cash_reconciliation", []), 1):
+        s.add(CashReconciliation(
+            import_id=di_cash_recon.id,
+            store_id=cr["store_id"],
+            source_row_number=idx,
+            cash_at_tills=cr["cash_at_tills"],
+            cash_in_safe=cr["cash_in_safe"],
+            cash_other_locations=cr["cash_other_locations"],
+            physical_cash_total=cr["physical_cash_total"],
+            cash_sales_as_per_report=cr["cash_sales_as_per_report"],
+            float_or_imprest_amount=cr["float_or_imprest_amount"],
+            difference=cr["difference"],
+            remarks=cr.get("remarks", ""),
+            raw_data=cr,
+        ))
+
+    # ---- cash deposit pickups (Sheet 2) ----------------------------------
+    for idx, cd in enumerate(data.get("cash_deposit_pickups", []), 1):
+        s.add(CashDepositPickup(
+            import_id=di_cash_deposit.id,
+            store_id=cd["store_id"],
+            source_row_number=idx,
+            sales_date=dt.date.fromisoformat(cd["sales_date"]),
+            cash_sales=cd["cash_sales"],
+            cash_deposited=cd["cash_deposited"],
+            difference=cd["difference"],
+            cms_pickup_date=dt.date.fromisoformat(cd["cms_pickup_date"]),
+            handover_delay_days=cd["handover_delay_days"],
+            remarks=cd.get("remarks", ""),
+            raw_data=cd,
+        ))
+
+    # ---- expired inventory (Sheet 3) -------------------------------------
+    for idx, ei in enumerate(data.get("expired_inventory", []), 1):
+        s.add(ExpiredInventory(
+            import_id=di_expired.id,
+            store_id=ei["store_id"],
+            source_row_number=idx,
+            article_code=ei["article_code"],
+            article_description=ei["article_description"],
+            expiry_date=dt.date.fromisoformat(ei["expiry_date"]),
+            review_date=dt.date.fromisoformat(ei["review_date"]),
+            quantity=ei["quantity"],
+            mrp=ei["mrp"],
+            raw_data=ei,
+        ))
+
+    # ---- store scores ----------------------------------------------------
+    for idx, ss in enumerate(data.get("store_scores", []), 1):
+        s.add(StoreScore(
+            import_id=di_scores.id,
+            store_id=ss["store_id"],
+            source_row_number=idx,
+            store_code=ss["store_code"],
+            status=ss["status"],
+            q1=ss["q1"], q2=ss["q2"], q3=ss["q3"], q4=ss["q4"],
+            raw_data=ss,
+        ))
+    s.flush()
+
     # ---- audits ----------------------------------------------------------
     stores_by_name = {st["name"]: st["id"] for st in data["stores"]}
     audit_objs = {}
@@ -154,7 +255,7 @@ def seed():
         audit_objs[a["id"]] = audit
 
         # Give completed audits plausible answers so screens aren't empty.
-        sample = list(questions.values())[:25]
+        sample = list(questions.values())
         for q in sample:
             answer = None
             if status == "Completed":
@@ -171,10 +272,28 @@ def seed():
         if auditor and auditor.role == ROLE_AUDITOR and not auditor.designation:
             auditor.designation = sc.get("role")
 
+    # ---- observations ----------------------------------------------------
+    for obs in data.get("observations", []):
+        # Try to find matching audit for this store
+        obs_audit = None
+        for aid, aobj in audit_objs.items():
+            if aobj.store_id == obs["store_id"]:
+                obs_audit = aobj
+                break
+        s.add(Observation(
+            audit_id=obs_audit.id if obs_audit else None,
+            store_id=obs["store_id"],
+            sr_no=obs["sr_no"],
+            observation=obs["observation"],
+            risk=obs["risk"],
+            action_plan=obs["action_plan"],
+            person_responsible=obs["person_responsible"],
+            target=obs["target"],
+            status=obs["status"],
+        ))
+
     # ---- issues ----------------------------------------------------------
     for iss in data.get("issues", []):
-        # The prototype labels issues with strings like "Mumbai #07"; the
-        # reliable link is the audit they came from, so use that store.
         parent = audit_objs.get(iss.get("aid"))
         store = s.get(Store, parent.store_id) if parent and parent.store_id else None
         s.add(Issue(
@@ -201,9 +320,19 @@ def seed():
 
     s.commit()
 
+    # ---- summary ---------------------------------------------------------
+    cr_count = len(data.get("cash_reconciliation", []))
+    cd_count = len(data.get("cash_deposit_pickups", []))
+    ei_count = len(data.get("expired_inventory", []))
+    ss_count = len(data.get("store_scores", []))
+    ob_count = len(data.get("observations", []))
+
     print(f"Seeded: {len(data['stores'])} stores, {len(questions)} questions, "
           f"{len(checklists) + 1} checklists, {len(audit_objs)} audits, "
           f"{len(users) + 1} users")
+    print(f"  Data: {cr_count} cash reconciliations, {cd_count} cash deposits, "
+          f"{ei_count} expired inventory, {ss_count} store scores, {ob_count} observations")
+    print(f"  Issues: {len(data.get('issues', []))}")
     print(f"\nLogins (password: {DEFAULT_PASSWORD})")
     print("  Audit Manager : am@retail-chain.com")
     for role, label in ((ROLE_AUDITOR, "Auditor      "),
