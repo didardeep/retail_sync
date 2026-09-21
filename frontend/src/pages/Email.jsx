@@ -1,6 +1,23 @@
 import { useState } from 'react';
 import { useToast } from '../components/Toast';
-import { mockEmails, EMAIL_LABEL_COLORS, EMAIL_LABEL_BG, EMAIL_TEMPLATES } from '../data/mockData';
+
+const EMAIL_LABEL_COLORS = {Audit:'#00338D',Billing:'#0e9f6e',Customer:'#f59e0b',Legal:'#8b5cf6',Operations:'#06b6d4'};
+const EMAIL_LABEL_BG = {Audit:'#e8eefa',Billing:'#def7ec',Customer:'#fdf6b2',Legal:'#ede9fe',Operations:'#e3f3ff'};
+const EMAIL_TEMPLATES = {
+  audit: {subj:'Audit Summary Report',body:'Dear Team,\n\nPlease find attached the audit summary report for the recent store visit.\n\nKey findings and recommendations are outlined in the attached document.\n\nBest regards,\nQA Team'},
+  issue: {subj:'Follow-up on Reported Issue',body:'Dear Store Manager,\n\nThis is a follow-up regarding the issue reported during the last audit.\n\nPlease provide an update on the corrective actions taken.\n\nRegards,\nAudit Team'},
+  reminder: {subj:'Compliance Reminder',body:'Dear Team,\n\nThis is a reminder to ensure all compliance documentation is updated before the next scheduled audit.\n\nPlease verify the following:\n- All licenses are current\n- Safety certificates are displayed\n- Staff training records are up to date\n\nBest regards,\nCompliance Team'},
+};
+const INITIAL_EMAILS = [
+  {id:'E001',from:'qa@brand.com',date:'11 Jun, 14:25',subj:'Audit report for Store Delhi #01',prev:'Please find attached the October audit summary...',labels:['Audit','Operations'],star:true,att:true,folder:'Inbox'},
+  {id:'E002',from:'warehouse@brand.com',date:'11 Jun, 13:29',subj:'Stock shortage alert \u2013 coffee beans',prev:'Stock for coffee beans below reorder level at Delhi warehouse.',labels:['Operations'],star:false,att:false,folder:'Inbox'},
+  {id:'E003',from:'ops.head@brand.com',date:'11 Jun, 11:25',subj:'Weekly cleaning compliance check',prev:'Please confirm if the cleaning checklist was completed for all zones.',labels:['Operations'],star:false,att:false,folder:'Inbox'},
+  {id:'E004',from:'customer.relations@brand.com',date:'11 Jun, 08:25',subj:'Positive feedback \u2013 Delhi Store',prev:'Customer appreciated cleanliness and quick service.',labels:['Customer'],star:true,att:false,folder:'Inbox'},
+  {id:'E005',from:'jane.doe@gmail.com',date:'10 Jun, 16:25',subj:'Customer complaint \u2013 incorrect billing',prev:'I was charged twice for my order yesterday...',labels:['Customer','Billing'],star:false,att:false,folder:'Inbox'},
+  {id:'E006',from:'qa@brand.com',date:'10 Jun, 16:25',subj:'Audit findings \u2013 Store Mumbai #07',prev:'Attached summary of minor compliance issues found during audit.',labels:['Audit'],star:true,att:true,folder:'Inbox'},
+  {id:'E007',from:'legal@brand.com',date:'09 Jun, 16:25',subj:'FW: Legal notice for signage placement',prev:'Sharing notice regarding outdoor signage restrictions...',labels:['Legal'],star:false,att:true,folder:'Inbox'},
+  {id:'E008',from:'it.support@brand.com',date:'05 Jun, 16:25',subj:'System update scheduled',prev:'Scheduled downtime for POS maintenance.',labels:['Operations'],star:false,att:false,folder:'Inbox'},
+];
 
 const FOLDERS = [
   { key: 'Inbox',   icon: '\ud83d\udce5' },
@@ -23,7 +40,7 @@ const TEMPLATE_OPTIONS = [
 export default function Email() {
   const toast = useToast();
 
-  const [emails, setEmails] = useState(() => mockEmails.map(e => ({ ...e })));
+  const [emails, setEmails] = useState(() => INITIAL_EMAILS.map(e => ({ ...e })));
   const [folder, setFolder] = useState('Inbox');
   const [labelFilter, setLabelFilter] = useState('');
   const [search, setSearch] = useState('');

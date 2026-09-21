@@ -18,6 +18,8 @@ export default function Dashboard() {
   const [dashData, setDashData] = useState(null);
   const [observations, setObservations] = useState([]);
   const [audits, setAudits] = useState([]);
+  const [scoreMap, setScoreMap] = useState({});
+  const [selectedQ, setSelectedQ] = useState('q4');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,15 +29,25 @@ export default function Dashboard() {
       api.dashboard().catch(() => null),
       api.observations().catch(() => []),
       api.audits().catch(() => []),
-    ]).then(([s, i, d, o, a]) => {
+      api.storeScores().catch(() => []),
+    ]).then(([s, i, d, o, a, scores]) => {
       setStores(s || []);
       setIssues(i || []);
       setDashData(d);
       setObservations(o || []);
       setAudits(a || []);
+      const map = {};
+      for (const sc of (scores || [])) map[sc.store_id] = sc;
+      setScoreMap(map);
       setLoading(false);
     });
   }, []);
+
+  function latestScore(s) {
+    const sc = scoreMap[s.id];
+    if (!sc) return 0;
+    return sc[selectedQ] || 0;
+  }
 
   // Compute KPIs from DB data
   const plannedCount = dashData?.planned ?? audits.filter(a => a.status === 'Planned').length;
@@ -77,7 +89,7 @@ export default function Dashboard() {
   // Store bar chart from DB stores
   const storeBarD = stores.length
     ? stores
-        .map(s => ({l: s.name?.substring(0,12) || s.id, v: (s.meta?.s26 ?? s.meta?.s25 ?? 0)}))
+        .map(s => ({l: s.name?.substring(0,12) || s.id, v: latestScore(s)}))
         .sort((a,b) => b.v - a.v)
         .slice(0,7)
     : [{l:'Mumbai #1',v:92},{l:'Delhi D1',v:89},{l:'Blr B3',v:88},{l:'Pune P2',v:79},{l:'Jaipur J1',v:72},{l:'Kolkata K4',v:68},{l:'Chennai C2',v:65}];
@@ -101,7 +113,7 @@ export default function Dashboard() {
   stores.forEach(s => {
     const fmt = s.format || 'Other';
     if (!formatGroups[fmt]) formatGroups[fmt] = [];
-    formatGroups[fmt].push(s.meta?.s26 ?? s.meta?.s25 ?? 0);
+    formatGroups[fmt].push(latestScore(s));
   });
   const fmtColors = {COCO:'#00338D',COFO:'#06b6d4',FOCO:'#f59e0b',FOFO:'#8b5cf6'};
   const fmtD = Object.keys(formatGroups).length
@@ -116,22 +128,22 @@ export default function Dashboard() {
 
   // Score distribution from DB stores
   const scoreRanges = stores.length ? (() => {
-    const s26Scores = stores.map(s => s.meta?.s26 ?? s.meta?.s25 ?? 0);
+    const allScores = stores.map(s => latestScore(s));
     return [
-      {l:'>90', v: s26Scores.filter(v=>v>90).length, c:'#0e9f6e'},
-      {l:'90-75', v: s26Scores.filter(v=>v<=90&&v>=75).length, c:'#84cc16'},
-      {l:'75-60', v: s26Scores.filter(v=>v<75&&v>=60).length, c:'#f59e0b'},
-      {l:'60-40', v: s26Scores.filter(v=>v<60&&v>=40).length, c:'#f97316'},
-      {l:'<40', v: s26Scores.filter(v=>v<40).length, c:'#e02424'},
+      {l:'>90', v: allScores.filter(v=>v>90).length, c:'#0e9f6e'},
+      {l:'90-75', v: allScores.filter(v=>v<=90&&v>=75).length, c:'#84cc16'},
+      {l:'75-60', v: allScores.filter(v=>v<75&&v>=60).length, c:'#f59e0b'},
+      {l:'60-40', v: allScores.filter(v=>v<60&&v>=40).length, c:'#f97316'},
+      {l:'<40', v: allScores.filter(v=>v<40).length, c:'#e02424'},
     ];
   })() : [{l:'>90',v:20,c:'#0e9f6e'},{l:'90-75',v:40,c:'#84cc16'},{l:'75-60',v:25,c:'#f59e0b'},{l:'60-40',v:10,c:'#f97316'},{l:'<40',v:5,c:'#e02424'}];
   const distD = scoreRanges;
   const distData = { labels:distD.map(d=>d.l), datasets:[{data:distD.map(d=>d.v),backgroundColor:distD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
 
   // Top/Bottom stores from DB
-  const sortedStores = [...stores].sort((a,b) => ((b.meta?.s26??b.meta?.s25??0) - (a.meta?.s26??a.meta?.s25??0)));
-  const t5 = sortedStores.slice(0,5).map(s => ({n:`${s.name}, ${s.city}`, v:`${s.meta?.s26??s.meta?.s25??0}%`}));
-  const b5 = sortedStores.slice(-5).reverse().map(s => ({n:`${s.name}, ${s.city}`, v:`${s.meta?.s26??s.meta?.s25??0}%`}));
+  const sortedStores = [...stores].sort((a,b) => (latestScore(b) - latestScore(a)));
+  const t5 = sortedStores.slice(0,5).map(s => ({n:`${s.name}, ${s.city}`, v:`${latestScore(s)}%`}));
+  const b5 = sortedStores.slice(-5).reverse().map(s => ({n:`${s.name}, ${s.city}`, v:`${latestScore(s)}%`}));
 
   // Top observations from DB
   const topObservations = observations.length
@@ -171,9 +183,9 @@ export default function Dashboard() {
       if(bucket==='60-40') return v<60&&v>=40;
       return v<40;
     };
-    const data = stores.filter(s => inBucket(s.meta?.s26 ?? s.meta?.s25 ?? 0));
+    const data = stores.filter(s => inBucket(latestScore(s)));
     setDrillTitle(`Stores Scoring ${bucket}% (${data.length})`);
-    setDrillList(data.map(s => ({ title:`${s.name}, ${s.city}`, badges:[{text:s.status,cls:s.status==='Operating'?'bg':'bgr'}], sub:null, score:s.meta?.s26??s.meta?.s25??0 })));
+    setDrillList(data.map(s => ({ title:`${s.name}, ${s.city}`, badges:[{text:s.status,cls:s.status==='Operating'?'bg':'bgr'}], sub:null, score:latestScore(s) })));
     setDrillOpen(true);
   }
 
@@ -193,13 +205,12 @@ export default function Dashboard() {
     <>
       {/* Header */}
       <div className="page-hdr">
-        <div><h2>Audit Operations</h2><p>Consolidated View &bull; Q4</p></div>
+        <div><h2>Audit Operations</h2><p>Consolidated View &bull; {selectedQ.toUpperCase()}</p></div>
         <div className="btn-row">
-          <button className="btn btn-outline btn-sm">Q1</button>
-          <button className="btn btn-outline btn-sm">Q2</button>
-          <button className="btn btn-outline btn-sm">Q3</button>
-          <button className="btn btn-primary btn-sm">Q4</button>
-          <button className="btn btn-outline btn-sm" onClick={() => setPbiOpen(true)}>BI Dashboard</button>
+          {['q1','q2','q3','q4'].map(q => (
+            <button key={q} className={`btn ${selectedQ === q ? 'btn-primary' : 'btn-outline'} btn-sm`} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</button>
+          ))}
+          <button className="btn btn-primary btn-sm" onClick={() => setPbiOpen(true)}>&#x1F4CA; Power BI</button>
         </div>
       </div>
 

@@ -19,6 +19,27 @@ from app.models import (
 UPLOADS = Path(__file__).parent / "uploads"
 
 
+# ---------------------------------------------------------------------------
+# JSON safety — Excel date cells are python datetime, not JSON-serialisable
+# ---------------------------------------------------------------------------
+def _json_safe(val):
+    """Coerce a single value to a JSON-serialisable form."""
+    if val is None:
+        return None
+    if isinstance(val, dt.datetime):
+        return val.isoformat()
+    if isinstance(val, dt.date):
+        return val.isoformat()
+    if isinstance(val, (int, float, str, bool)):
+        return val
+    return str(val)
+
+
+def json_safe_row(row: dict) -> dict:
+    """Make every value in a row dict JSON-serialisable (dates -> isoformat)."""
+    return {k: _json_safe(v) for k, v in row.items()}
+
+
 def _parse_date(val):
     if val is None:
         return None
@@ -69,6 +90,31 @@ def _read_sheet(path):
     return headers, data
 
 
+def _resolve_store_id(session, row):
+    """Resolve 'Store ID' to a stores.id, handling ST0xx and numeric store_code."""
+    from app.models import Store
+    raw = str(row.get("Store ID", "")).strip()
+    if not raw:
+        return raw
+    if raw.upper().startswith("ST"):
+        return raw
+    store = session.query(Store).filter(Store.store_code == raw).first()
+    if store:
+        return store.id
+    try:
+        return f"ST{int(raw):03d}"
+    except (ValueError, TypeError):
+        return raw
+
+
+def _normalise_status(val):
+    """Canonical status: 'Operational' and 'Operating' both -> 'Operating'."""
+    s = str(val or "").strip()
+    if s.lower() == "operational":
+        return "Operating"
+    return s
+
+
 def import_cash_reconciliation(session):
     path = UPLOADS / "cash_reconciliation.xlsx"
     if not path.exists():
@@ -85,19 +131,21 @@ def import_cash_reconciliation(session):
     session.flush()
 
     for idx, row in enumerate(data, 1):
+        sid = _resolve_store_id(session, row)
         session.add(CashReconciliation(
             import_id=di.id,
-            store_id=str(row.get("Store ID", "")).strip(),
+            store_id=sid,
             source_row_number=idx,
             cash_at_tills=_float(row.get("Cash at Tills")),
             cash_in_safe=_float(row.get("Cash in Safe")),
-            cash_other_locations=_float(row.get("Cash Other Locations")),
+            cash_other_locations=_float(row.get("Cash Other Locations") or row.get("Any other place")),
             physical_cash_total=_float(row.get("Physical Cash Total")),
-            cash_sales_as_per_report=_float(row.get("Cash Sales as per Report")),
-            float_or_imprest_amount=_float(row.get("Float or Imprest Amount")),
-            difference=_float(row.get("Difference")),
+            cash_sales_as_per_report=_float(row.get("Cash Sales as per Report") or row.get("Cash Sales as per sales Report")),
+            float_or_imprest_amount=_float(row.get("Float or Imprest Amount") or row.get("Float and Imprest allocated to the store as per Master")),
+            book_cash_total=_float(row.get("Book Cash Total")),
+            difference=_float(row.get("Difference") or row.get("Difference (A-B)")),
             remarks=str(row.get("Remarks", "") or ""),
-            raw_data=row,
+            raw_data=json_safe_row(row),
         ))
 
     print(f"  Imported {len(data)} cash reconciliation records")
@@ -120,18 +168,19 @@ def import_cash_deposit_pickups(session):
     session.flush()
 
     for idx, row in enumerate(data, 1):
+        sid = _resolve_store_id(session, row)
         session.add(CashDepositPickup(
             import_id=di.id,
-            store_id=str(row.get("Store ID", "")).strip(),
+            store_id=sid,
             source_row_number=idx,
-            sales_date=_parse_date(row.get("Sales Date")),
+            sales_date=_parse_date(row.get("Sales Date") or row.get("Sales Date (A)")),
             cash_sales=_float(row.get("Cash Sales")),
-            cash_deposited=_float(row.get("Cash Deposited")),
-            difference=_float(row.get("Difference")),
-            cms_pickup_date=_parse_date(row.get("CMS Pickup Date")),
-            handover_delay_days=_int(row.get("Handover Delay Days")),
+            cash_deposited=_float(row.get("Cash Deposited") or row.get("Cash Deposited (c)")),
+            difference=_float(row.get("Difference") or row.get("Difference (B-C)")),
+            cms_pickup_date=_parse_date(row.get("CMS Pickup Date") or row.get("CMS Pick Up date (D)")),
+            handover_delay_days=_int(row.get("Handover Delay Days") or row.get("Delay in cash handover (A-D)")),
             remarks=str(row.get("Remarks", "") or ""),
-            raw_data=row,
+            raw_data=json_safe_row(row),
         ))
 
     print(f"  Imported {len(data)} cash deposit pickup records")
@@ -154,9 +203,10 @@ def import_expired_inventory(session):
     session.flush()
 
     for idx, row in enumerate(data, 1):
+        sid = _resolve_store_id(session, row)
         session.add(ExpiredInventory(
             import_id=di.id,
-            store_id=str(row.get("Store ID", "")).strip(),
+            store_id=sid,
             source_row_number=idx,
             article_code=str(row.get("Article Code", "") or ""),
             article_description=str(row.get("Article Description", "") or ""),
@@ -164,7 +214,7 @@ def import_expired_inventory(session):
             review_date=_parse_date(row.get("Review Date")),
             quantity=_float(row.get("Quantity")),
             mrp=_float(row.get("MRP")),
-            raw_data=row,
+            raw_data=json_safe_row(row),
         ))
 
     print(f"  Imported {len(data)} expired inventory records")
@@ -187,17 +237,18 @@ def import_store_scores(session):
     session.flush()
 
     for idx, row in enumerate(data, 1):
+        sid = _resolve_store_id(session, row)
         session.add(StoreScore(
             import_id=di.id,
-            store_id=str(row.get("Store ID", "")).strip(),
+            store_id=sid,
             source_row_number=idx,
-            store_code=str(row.get("Store Code", "") or ""),
-            status=str(row.get("Status", "") or ""),
+            store_code=str(row.get("Store Code") or row.get("Store code") or ""),
+            status=_normalise_status(row.get("Status")),
             q1=_float(row.get("Q1")),
             q2=_float(row.get("Q2")),
             q3=_float(row.get("Q3")),
             q4=_float(row.get("Q4")),
-            raw_data=row,
+            raw_data=json_safe_row(row),
         ))
 
     print(f"  Imported {len(data)} store score records")

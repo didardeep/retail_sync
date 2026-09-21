@@ -62,6 +62,43 @@ pattern is `aud.<name>@` and `sm.<name>@`.
 
 ---
 
+## Running on Postgres
+
+```bash
+# 1. Create the database
+createdb retail_sync
+
+# 2. Set DATABASE_URL (or copy backend/.env.example to backend/.env and edit)
+export DATABASE_URL="postgresql+psycopg2://user:pass@localhost:5432/retail_sync"
+
+# 3a. Seed from JSON (fast, placeholder data):
+python seed.py --reset
+
+# 3b. Seed from Excel (real column names, production-like data):
+python seed.py --reset --from-excel
+#   This reads Store_Master_dummy.xlsx, Store_Audit_Checklist_v1_dummy.xlsx,
+#   and the structured data files from uploads/ instead of seed_data.json.
+
+# 4. Import additional structured data (if not using --from-excel):
+python import_excel.py
+```
+
+SQLite works as a zero-config fallback — just omit `DATABASE_URL`.
+
+---
+
+## How data flows
+
+```
+Excel files (uploads/)
+  └─> import_excel.py / seed.py --from-excel
+        └─> Postgres (or SQLite) tables
+              └─> Flask /api endpoints (routes.py)
+                    └─> React pages (fetch via api/client.js)
+```
+
+---
+
 ## About the data
 
 There is no client data yet, so `seed.py` loads the prototype's own records —
@@ -132,6 +169,6 @@ frontend/
 
 ## Not built yet
 
-The AI chatbot, email module, file upload to object storage (evidence is
-currently a URL field), and Excel import of the question bank. These are on the
-project plan; the API is shaped to accept them without restructuring.
+The AI chatbot, file upload to object storage (evidence is currently a URL
+field). These are on the project plan; the API is shaped to accept them
+without restructuring.

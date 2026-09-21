@@ -3,15 +3,10 @@ import { Line } from 'react-chartjs-2'
 import { api } from '../api/client'
 import { sColor, pbClass, exportCSV } from '../utils/helpers'
 
-const YEARS = ['2022', '2023', '2024', '2025', '2026']
-const SCORE_KEY = { '2022': 's22', '2023': 's23', '2024': 's24', '2025': 's25', '2026': 's26' }
-
-function getScore(store, year) {
-  return (store.meta || {})[SCORE_KEY[year]] ?? store[SCORE_KEY[year]] ?? 0
-}
+const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4']
 
 function deltaDisplay(curr, prev) {
-  if (prev === undefined || prev === null) return ''
+  if (prev === undefined || prev === null || prev === 0) return ''
   const d = curr - prev
   if (d > 0) return <span className="db-up">+{d}</span>
   if (d < 0) return <span className="db-dn">{d}</span>
@@ -20,33 +15,36 @@ function deltaDisplay(curr, prev) {
 
 export default function StoreAuditScores() {
   const [search, setSearch] = useState('')
-  const [yearStart, setYearStart] = useState('2025')
-  const [yearEnd, setYearEnd] = useState('2026')
   const [statusFilter, setStatusFilter] = useState('all')
   const [detailStore, setDetailStore] = useState(null)
   const [stores, setStores] = useState([])
   const [audits, setAudits] = useState([])
+  const [scoreMap, setScoreMap] = useState({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     Promise.all([
       api.stores().catch(() => []),
       api.audits().catch(() => []),
-    ]).then(([s, a]) => {
+      api.storeScores().catch(() => []),
+    ]).then(([s, a, scores]) => {
       setStores(s || [])
       setAudits(a || [])
+      // Build lookup: store_id → {q1, q2, q3, q4}
+      const map = {}
+      for (const sc of (scores || [])) {
+        map[sc.store_id] = sc
+      }
+      setScoreMap(map)
       setLoading(false)
     })
   }, [])
 
-  /* ── derived year range ── */
-  const startIdx = YEARS.indexOf(yearStart)
-  const endIdx = YEARS.indexOf(yearEnd)
-  const selectedYears = YEARS.slice(
-    Math.min(startIdx, endIdx),
-    Math.max(startIdx, endIdx) + 1
-  )
-  const scoreCols = selectedYears.length
+  function getScore(store, quarter) {
+    const rec = scoreMap[store.id]
+    if (!rec) return 0
+    return rec[quarter.toLowerCase()] ?? 0
+  }
 
   /* ── filtering ── */
   const filtered = stores.filter(s => {
@@ -61,25 +59,23 @@ export default function StoreAuditScores() {
 
   /* ── handlers ── */
   function handleExport() {
-    const headers = ['ID', 'Store', 'City', 'Status', ...selectedYears.map(y => `Score ${y}`)]
-    const rows = filtered.map(s => [s.id, s.name, s.city, s.status, ...selectedYears.map(y => getScore(s, y))])
+    const headers = ['ID', 'Store', 'City', 'Status', ...QUARTERS]
+    const rows = filtered.map(s => [s.id, s.name, s.city, s.status, ...QUARTERS.map(q => getScore(s, q))])
     exportCSV(rows, headers, 'store_audit_scores.csv')
   }
 
   function handleRefresh() {
     setSearch('')
     setStatusFilter('all')
-    setYearStart('2025')
-    setYearEnd('2026')
   }
 
   /* ── chart config for detail modal ── */
   function chartData(s) {
     return {
-      labels: ['2022', '2023', '2024', '2025', '2026'],
+      labels: QUARTERS,
       datasets: [{
         label: 'Score',
-        data: [getScore(s,'2022'), getScore(s,'2023'), getScore(s,'2024'), getScore(s,'2025'), getScore(s,'2026')],
+        data: QUARTERS.map(q => getScore(s, q)),
         borderColor: '#00338D',
         backgroundColor: 'rgba(0,51,141,.1)',
         borderWidth: 2,
@@ -116,7 +112,7 @@ export default function StoreAuditScores() {
       <div className="page-hdr">
         <div>
           <h2>Store Audit Scores</h2>
-          <p>Multi-year trend analysis</p>
+          <p>Quarterly score analysis</p>
         </div>
         <div className="btn-row">
           <button className="btn btn-outline btn-sm" onClick={handleExport}>&#x2B07; Export CSV</button>
@@ -130,14 +126,6 @@ export default function StoreAuditScores() {
           <input placeholder="Search stores..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: 'var(--text3)' }}>YEAR RANGE:</span>
-          <select className="sel" value={yearStart} onChange={e => setYearStart(e.target.value)}>
-            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <span style={{ color: 'var(--text3)' }}>&rarr;</span>
-          <select className="sel" value={yearEnd} onChange={e => setYearEnd(e.target.value)}>
-            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
           <div style={{ display: 'flex', gap: 4 }}>
             <button className={`qtab${statusFilter === 'all' ? ' active' : ''}`} onClick={() => setStatusFilter('all')}>All</button>
             <button className={`qtab${statusFilter === 'open' ? ' active' : ''}`} onClick={() => setStatusFilter('open')}>Operating</button>
@@ -148,13 +136,13 @@ export default function StoreAuditScores() {
       </div>
 
       {/* Score table */}
-      <div className="tbl-card" style={{ '--score-cols': scoreCols }}>
+      <div className="tbl-card" style={{ '--score-cols': 4 }}>
         {/* Header row */}
         <div className="score-bar-row" style={{ background: '#fafafa', borderBottom: '1px solid var(--border)' }}>
           <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text3)' }}>Store Details</span>
           <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text3)' }}>Status</span>
-          {selectedYears.map(y => (
-            <span key={y} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text3)' }}>&#x1F4C5; Audit Score {y} &#x21C5;</span>
+          {QUARTERS.map(q => (
+            <span key={q} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text3)' }}>&#x1F4C5; {q} Score</span>
           ))}
           <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text3)' }}>Actions</span>
         </div>
@@ -183,12 +171,11 @@ export default function StoreAuditScores() {
               </div>
 
               {/* Score columns */}
-              {selectedYears.map(y => {
-                const score = getScore(s, y)
-                const prevYear = String(parseInt(y) - 1)
-                const prevScore = getScore(s, prevYear)
+              {QUARTERS.map((q, idx) => {
+                const score = getScore(s, q)
+                const prevScore = idx > 0 ? getScore(s, QUARTERS[idx - 1]) : null
                 return (
-                  <div key={y}>
+                  <div key={q}>
                     <div style={{ marginBottom: 4 }}>
                       <span className="sn" style={{ color: sColor(score) }}>{score}</span>
                     </div>
@@ -256,7 +243,7 @@ export default function StoreAuditScores() {
 
             {/* Score History chart */}
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>Score History</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>Quarterly Score Trend</div>
               <div className="ch-wrap" style={{ height: 180 }}>
                 <Line data={chartData(detailStore)} options={chartOpts} />
               </div>

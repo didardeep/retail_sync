@@ -19,30 +19,41 @@ export default function Stores() {
   const [insightStore, setInsightStore] = useState(null)
   const [siTab, setSiTab] = useState('info')
 
+  const [scoreMap, setScoreMap] = useState({})
+  const [selectedQ, setSelectedQ] = useState('q4')
+
   const [formOpen, setFormOpen] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ name: '', city: '', format: 'COCO', type: 'Standard', manager: '', region: 'North India', status: 'Operating' })
 
   useEffect(() => {
-    api.stores().then(s => {
+    Promise.all([
+      api.stores().catch(() => []),
+      api.storeScores().catch(() => []),
+    ]).then(([s, scores]) => {
       const normalized = (s || []).map(st => ({
         ...st,
         format: st.format || st.store_format || '',
         type: st.type || st.store_type || '',
         manager: st.manager || '',
-        s22: st.meta?.s22 ?? st.s22 ?? 0,
-        s23: st.meta?.s23 ?? st.s23 ?? 0,
-        s24: st.meta?.s24 ?? st.s24 ?? 0,
-        s25: st.meta?.s25 ?? st.s25 ?? 0,
-        s26: st.meta?.s26 ?? st.s26 ?? 0,
       }))
       setStores(normalized)
-      setLoading(false)
-    }).catch(() => {
-      setStores([])
+      const map = {}
+      for (const sc of (scores || [])) map[sc.store_id] = sc
+      setScoreMap(map)
       setLoading(false)
     })
   }, [])
+
+  function storeScore(s) {
+    const sc = scoreMap[s.id]
+    if (!sc) return 0
+    return sc[selectedQ] || 0
+  }
+  function qScores(s) {
+    const sc = scoreMap[s.id] || {}
+    return [sc.q1 || 0, sc.q2 || 0, sc.q3 || 0, sc.q4 || 0]
+  }
 
   /* ── derived ── */
   const filtered = stores.filter(s => {
@@ -59,8 +70,8 @@ export default function Stores() {
 
   const totalStores = stores.length
   const operational = stores.filter(s => s.status === 'Operating').length
-  const criticalAudit = stores.filter(s => (s.s26 ?? 0) < 60).length
-  const avgScore = totalStores ? Math.round(stores.reduce((a, s) => a + (s.s26 ?? 0), 0) / totalStores) : 0
+  const criticalAudit = stores.filter(s => storeScore(s) < 60).length
+  const avgScore = totalStores ? Math.round(stores.reduce((a, s) => a + storeScore(s), 0) / totalStores) : 0
 
   /* ── handlers ── */
   function handleTabFilter(f) {
@@ -98,7 +109,7 @@ export default function Stores() {
       toast('Store updated')
     } else {
       const newId = 'ST' + String(stores.length + 1).padStart(3, '0')
-      setStores(prev => [...prev, { id: newId, name: form.name.trim(), city: form.city.trim(), region: form.region, format: form.format, type: form.type, manager: form.manager || 'Unassigned', status: form.status, s22: 0, s23: 0, s24: 0, s25: 0, s26: 0, contact: '', email: '', address: '' }])
+      setStores(prev => [...prev, { id: newId, name: form.name.trim(), city: form.city.trim(), region: form.region, format: form.format, type: form.type, manager: form.manager || 'Unassigned', status: form.status, contact: '', email: '', address: '' }])
       toast('Store added')
     }
     setFormOpen(false)
@@ -112,8 +123,8 @@ export default function Stores() {
   }
 
   function handleExport() {
-    const headers = ['ID', 'Store', 'City', 'Region', 'Format', 'Manager', 'Status', 'Score 2026']
-    const rows = stores.map(s => [s.id, s.name, s.city, s.region, s.format, s.manager, s.status, s.s26 ?? 0])
+    const headers = ['ID', 'Store', 'City', 'Region', 'Format', 'Manager', 'Status', 'Latest Score']
+    const rows = stores.map(s => [s.id, s.name, s.city, s.region, s.format, s.manager, s.status, storeScore(s)])
     exportCSV(rows, headers, 'stores.csv')
     toast('CSV exported')
   }
@@ -121,10 +132,10 @@ export default function Stores() {
   /* ── chart data for insight modal ── */
   function perfChartData(s) {
     return {
-      labels: ['2022', '2023', '2024', '2025', '2026'],
+      labels: ['Q1', 'Q2', 'Q3', 'Q4'],
       datasets: [{
         label: 'Score',
-        data: [s.s22, s.s23, s.s24, s.s25, s.s26],
+        data: qScores(s),
         borderColor: '#00338D',
         backgroundColor: 'rgba(0,51,141,.1)',
         borderWidth: 2,
@@ -153,9 +164,12 @@ export default function Stores() {
       <div className="page-hdr">
         <div>
           <h2>Store Management</h2>
-          <p>Manage your retail locations and audit performance</p>
+          <p>Manage your retail locations &bull; {selectedQ.toUpperCase()}</p>
         </div>
         <div className="btn-row">
+          {['q1','q2','q3','q4'].map(q => (
+            <button key={q} className={`btn ${selectedQ === q ? 'btn-primary' : 'btn-outline'} btn-sm`} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</button>
+          ))}
           <button className="btn btn-outline btn-sm" onClick={handleExport}>&#x2B07; Export</button>
           <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add Store</button>
         </div>
@@ -183,7 +197,7 @@ export default function Stores() {
 
       <div className="tbl-card">
         <table>
-          <thead><tr><th>Store Details</th><th>Status</th><th>Audit Score</th><th>Manager</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Store Details</th><th>Status</th><th>{selectedQ.toUpperCase()} Score</th><th>Manager</th><th>Actions</th></tr></thead>
           <tbody>
             {pageData.map(s => (
               <tr key={s.id} style={{ cursor: 'pointer' }} onClick={() => openInsight(s.id)}>
@@ -198,8 +212,8 @@ export default function Stores() {
                 </td>
                 <td><span className={`badge ${s.status === 'Operating' ? 'bg' : 'bgr'}`}>{s.status}</span></td>
                 <td>
-                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 3, color: sColor(s.s26 ?? 0) }}>{s.s26 ?? 0}%</div>
-                  <div className="prog-bg" style={{ width: 130 }}><div className={`prog-fill ${pbClass(s.s26 ?? 0)}`} style={{ width: `${s.s26 ?? 0}%`, height: 6 }} /></div>
+                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 3, color: sColor(storeScore(s)) }}>{storeScore(s)}%</div>
+                  <div className="prog-bg" style={{ width: 130 }}><div className={`prog-fill ${pbClass(storeScore(s))}`} style={{ width: `${storeScore(s)}%`, height: 6 }} /></div>
                 </td>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

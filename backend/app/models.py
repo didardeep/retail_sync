@@ -149,6 +149,7 @@ class CashReconciliation(Base):
     physical_cash_total = Column(Float)
     cash_sales_as_per_report = Column(Float)
     float_or_imprest_amount = Column(Float)
+    book_cash_total = Column(Float)
     difference = Column(Float)
     remarks = Column(Text)
     raw_data = Column(JSON, default=dict)
@@ -354,7 +355,7 @@ class AuditResponse(Base):
 
     answer = Column(String(20))                 # Yes / No / Partial / NA
     remarks = Column(Text)
-    risk = Column(String(20))                   # Critical / High / Medium / Low
+    risk = Column(Text)                          # Risk description or level
     evidence = Column(JSON, default=list)       # [{"type":"photo","url":...}]
     answered_at = Column(DateTime, default=dt.datetime.utcnow)
 
@@ -391,7 +392,7 @@ class Observation(Base):
     store_id = Column(String(20), ForeignKey("stores.id"), index=True)
     sr_no = Column(Integer, nullable=False)
     observation = Column(Text, nullable=False)
-    risk = Column(String(20))                   # Critical / High / Medium / Low
+    risk = Column(Text)                          # Risk description or level
     action_plan = Column(Text)
     person_responsible = Column(String(160))
     target = Column(String(120))                # Target date or milestone

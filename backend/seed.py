@@ -185,6 +185,7 @@ def seed():
             physical_cash_total=cr["physical_cash_total"],
             cash_sales_as_per_report=cr["cash_sales_as_per_report"],
             float_or_imprest_amount=cr["float_or_imprest_amount"],
+            book_cash_total=cr.get("book_cash_total"),
             difference=cr["difference"],
             remarks=cr.get("remarks", ""),
             raw_data=cr,
@@ -348,4 +349,9 @@ if __name__ == "__main__":
         Base.metadata.drop_all(bind=engine)
         print("Dropped all tables.")
     init_db()
-    seed()
+
+    if "--from-excel" in sys.argv:
+        from import_master import seed_from_excel
+        seed_from_excel()
+    else:
+        seed()

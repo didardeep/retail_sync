@@ -532,8 +532,10 @@ def list_cash_reconciliations():
         "physical_cash_total": cr.physical_cash_total,
         "cash_sales_as_per_report": cr.cash_sales_as_per_report,
         "float_or_imprest_amount": cr.float_or_imprest_amount,
+        "book_cash_total": cr.book_cash_total,
         "difference": cr.difference,
         "remarks": cr.remarks,
+        "raw_data": cr.raw_data,
     } for cr in q.all()])
 
 
@@ -601,10 +603,15 @@ def dashboard():
         key = a.store.region if a.store else "Unknown"
         by_region[key] = by_region.get(key, 0) + 1
 
+    # Use StoreScore table (q4 as latest, fallback q3) for top/bottom ranking
+    all_scores = s.query(StoreScore).all()
+    store_by_id = {st.id: st for st in stores}
     store_scores = sorted(
-        [{"store": st.name, "city": st.city,
-          "score": (st.meta or {}).get("s26") or (st.meta or {}).get("s25")}
-         for st in stores if (st.meta or {}).get("s26") or (st.meta or {}).get("s25")],
+        [{"store": store_by_id[sc.store_id].name,
+          "city": store_by_id[sc.store_id].city,
+          "score": sc.q4 or sc.q3 or sc.q2 or sc.q1 or 0}
+         for sc in all_scores if sc.store_id in store_by_id
+         and (sc.q4 or sc.q3 or sc.q2 or sc.q1)],
         key=lambda x: x["score"], reverse=True)
 
     return jsonify({
@@ -706,6 +713,23 @@ def upload_file():
         return jsonify({"error": str(e)}), 500
 
 
+def _json_safe_val(val):
+    """Coerce a value to a JSON-serialisable form (dates -> isoformat)."""
+    if val is None:
+        return None
+    if isinstance(val, dt.datetime):
+        return val.isoformat()
+    if isinstance(val, dt.date):
+        return val.isoformat()
+    if isinstance(val, (int, float, str, bool)):
+        return val
+    return str(val)
+
+
+def _json_safe_row(row: dict) -> dict:
+    return {k: _json_safe_val(v) for k, v in row.items()}
+
+
 def _parse_date_val(val):
     if val is None:
         return None
@@ -728,40 +752,66 @@ def _float_val(val):
         return None
 
 
+def _resolve_store_id(session, row):
+    """Resolve a 'Store ID' value to a stores.id, handling both ST0xx and
+    numeric store_code formats."""
+    raw = str(row.get("Store ID", "")).strip()
+    if not raw:
+        return raw
+    # Already an STxxx id?
+    if raw.upper().startswith("ST"):
+        return raw
+    # Try matching by store_code
+    from .models import Store
+    store = session.query(Store).filter(Store.store_code == raw).first()
+    if store:
+        return store.id
+    # Fallback: zero-pad and try as ST id
+    try:
+        return f"ST{int(raw):03d}"
+    except (ValueError, TypeError):
+        return raw
+
+
 def _import_rows(session, di, section, data_rows):
     count = 0
+    safe = _json_safe_row
     for idx, row in enumerate(data_rows, 1):
+        store_id = _resolve_store_id(session, row)
         if section == "cash_reconciliation":
             session.add(CashReconciliation(
                 import_id=di.id,
-                store_id=str(row.get("Store ID", "")).strip(),
+                store_id=store_id,
                 source_row_number=idx,
                 cash_at_tills=_float_val(row.get("Cash at Tills")),
                 cash_in_safe=_float_val(row.get("Cash in Safe")),
-                cash_other_locations=_float_val(row.get("Cash Other Locations")),
+                cash_other_locations=_float_val(row.get("Cash Other Locations") or row.get("Any other place")),
                 physical_cash_total=_float_val(row.get("Physical Cash Total")),
-                cash_sales_as_per_report=_float_val(row.get("Cash Sales as per Report")),
-                float_or_imprest_amount=_float_val(row.get("Float or Imprest Amount")),
-                difference=_float_val(row.get("Difference")),
+                cash_sales_as_per_report=_float_val(row.get("Cash Sales as per Report") or row.get("Cash Sales as per sales Report")),
+                float_or_imprest_amount=_float_val(row.get("Float or Imprest Amount") or row.get("Float and Imprest allocated to the store as per Master")),
+                book_cash_total=_float_val(row.get("Book Cash Total")),
+                difference=_float_val(row.get("Difference") or row.get("Difference (A-B)")),
                 remarks=str(row.get("Remarks", "") or ""),
+                raw_data=safe(row),
             ))
         elif section == "cash_deposit_pickups":
             session.add(CashDepositPickup(
                 import_id=di.id,
-                store_id=str(row.get("Store ID", "")).strip(),
+                store_id=store_id,
                 source_row_number=idx,
-                sales_date=_parse_date_val(row.get("Sales Date")),
+                sales_date=_parse_date_val(row.get("Sales Date") or row.get("Sales Date (A)")),
                 cash_sales=_float_val(row.get("Cash Sales")),
-                cash_deposited=_float_val(row.get("Cash Deposited")),
-                difference=_float_val(row.get("Difference")),
-                cms_pickup_date=_parse_date_val(row.get("CMS Pickup Date")),
-                handover_delay_days=int(row.get("Handover Delay Days") or 0),
+                cash_deposited=_float_val(row.get("Cash Deposited") or row.get("Cash Deposited (c)")),
+                difference=_float_val(row.get("Difference") or row.get("Difference (B-C)")),
+                cms_pickup_date=_parse_date_val(row.get("CMS Pickup Date") or row.get("CMS Pick Up date (D)")),
+                handover_delay_days=int(row.get("Handover Delay Days") or row.get("Delay in cash handover (A-D)") or 0),
                 remarks=str(row.get("Remarks", "") or ""),
+                raw_data=safe(row),
             ))
         elif section == "expired_inventory":
             session.add(ExpiredInventory(
                 import_id=di.id,
-                store_id=str(row.get("Store ID", "")).strip(),
+                store_id=store_id,
                 source_row_number=idx,
                 article_code=str(row.get("Article Code", "") or ""),
                 article_description=str(row.get("Article Description", "") or ""),
@@ -769,18 +819,20 @@ def _import_rows(session, di, section, data_rows):
                 review_date=_parse_date_val(row.get("Review Date")),
                 quantity=_float_val(row.get("Quantity")),
                 mrp=_float_val(row.get("MRP")),
+                raw_data=safe(row),
             ))
         elif section == "store_scores":
             session.add(StoreScore(
                 import_id=di.id,
-                store_id=str(row.get("Store ID", "")).strip(),
+                store_id=store_id,
                 source_row_number=idx,
-                store_code=str(row.get("Store Code", "") or ""),
+                store_code=str(row.get("Store Code") or row.get("Store code") or ""),
                 status=str(row.get("Status", "") or ""),
                 q1=_float_val(row.get("Q1")),
                 q2=_float_val(row.get("Q2")),
                 q3=_float_val(row.get("Q3")),
                 q4=_float_val(row.get("Q4")),
+                raw_data=safe(row),
             ))
         count += 1
     return count

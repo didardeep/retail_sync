@@ -1,15 +1,30 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useToast } from '../components/Toast'
-import { mockQuestions, mockProcesses, mockResponseTypes } from '../data/mockData'
+import { api } from '../api/client'
 import { wColor, qTypeLabel } from '../utils/helpers'
+
+function normalizeQ(q) {
+  return {
+    id: q.id || q.code,
+    text: q.text || '',
+    proc: q.process || '',
+    sp: q.sub_process || '',
+    at: q.audit_type || '',
+    w: q.weight || 1,
+    crit: !!q.is_critical,
+    on: q.active !== false,
+    tags: (q.meta?.tags) || [],
+    g: q.guidance || '',
+  }
+}
 
 export default function Questions() {
   const toast = useToast()
 
-  /* ── local state seeded from mock data ── */
-  const [questions, setQuestions] = useState(() => mockQuestions.map(q => ({ ...q })))
-  const [processes, setProcesses] = useState(() => [...mockProcesses])
-  const [responseTypes, setResponseTypes] = useState(() => [...mockResponseTypes])
+  const [questions, setQuestions] = useState([])
+  const [processes, setProcesses] = useState([])
+  const [responseTypes, setResponseTypes] = useState([])
+  const [loading, setLoading] = useState(true)
 
   /* ── filters ── */
   const [activeProc, setActiveProc] = useState('All Overview')
@@ -28,6 +43,18 @@ export default function Questions() {
   /* ── response-type modal state ── */
   const [showRTModal, setShowRTModal] = useState(false)
   const [rtName, setRTName] = useState('')
+
+  useEffect(() => {
+    api.questions().then(data => {
+      const qs = (data || []).map(normalizeQ)
+      setQuestions(qs)
+      const procs = [...new Set(qs.map(q => q.proc).filter(Boolean))]
+      setProcesses(procs)
+      const types = [...new Set(qs.map(q => q.at).filter(Boolean))]
+      setResponseTypes(types)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
 
   /* ────────────────── derived data ────────────────── */
   const procCounts = {}
@@ -87,19 +114,25 @@ export default function Questions() {
       } : q))
       toast('Question updated')
     } else {
-      const newId = 'Q' + String(questions.length + 1).padStart(3, '0')
-      setQuestions(prev => [...prev, {
-        id: newId,
+      const body = {
         text: qForm.text.trim(),
-        at: qForm.at,
-        proc: qForm.proc,
-        sp: qForm.sp,
-        w: parseInt(qForm.w) || 3,
-        g: qForm.g,
-        tags: parsedTags,
-        crit: qForm.crit,
-        on: true,
-      }])
+        process: qForm.proc,
+        sub_process: qForm.sp,
+        audit_type: qForm.at,
+        weight: parseInt(qForm.w) || 3,
+        is_critical: qForm.crit,
+        meta: { tags: parsedTags },
+      }
+      api.createQuestion(body).then(newQ => {
+        setQuestions(prev => [...prev, normalizeQ(newQ)])
+      }).catch(() => {
+        const newId = 'Q' + String(questions.length + 1).padStart(3, '0')
+        setQuestions(prev => [...prev, {
+          id: newId, text: qForm.text.trim(), at: qForm.at,
+          proc: qForm.proc, sp: qForm.sp, w: parseInt(qForm.w) || 3,
+          g: qForm.g, tags: parsedTags, crit: qForm.crit, on: true,
+        }])
+      })
       toast('Question added')
     }
     setShowQModal(false)
@@ -156,6 +189,10 @@ export default function Questions() {
     }
   }
 
+  if (loading) {
+    return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',color:'var(--text3)'}}>Loading questions...</div>
+  }
+
   /* ═══════════════════════ RENDER ═══════════════════════ */
   return (
     <>
@@ -174,7 +211,6 @@ export default function Questions() {
             <button className="btn btn-outline btn-sm" onClick={() => { setProcName(''); setShowProcModal(true) }}>Add</button>
           </div>
           <div>
-            {/* All Overview item */}
             <div
               className={`aq-pi${activeProc === 'All Overview' ? ' active' : ''}`}
               onClick={() => setActiveProc('All Overview')}
@@ -182,7 +218,6 @@ export default function Questions() {
               <span>All Overview</span>
               <span className="aq-pc">{questions.length}</span>
             </div>
-            {/* Individual process items */}
             {processes.map(p => (
               <div
                 key={p}
@@ -198,7 +233,6 @@ export default function Questions() {
 
         {/* ── right main area ── */}
         <div className="aq-main">
-          {/* filter bar */}
           <div className="filter-bar">
             <div className="srch">
               <span className="srch-ic">{'\uD83D\uDD0D'}</span>
@@ -210,9 +244,7 @@ export default function Questions() {
             </select>
           </div>
 
-          {/* table card */}
           <div className="tbl-card">
-            {/* grid header */}
             <div className="aq-gh">
               <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text3)' }}>Audit Question</span>
               <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text3)' }}>Process</span>
@@ -222,38 +254,30 @@ export default function Questions() {
               <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text3)' }}>Actions</span>
             </div>
 
-            {/* question rows */}
             <div>
               {filtered.length ? filtered.map(item => (
                 <div className="aq-gr" key={item.id} style={{ flexDirection: 'column' }}>
                   <div style={{ display: 'flex' }}>
-                    {/* critical bar or spacer */}
                     {item.crit
                       ? <div style={{ width: 3, background: '#e02424', flexShrink: 0, borderRadius: '2px 0 0 2px' }} />
                       : <div style={{ width: 3 }} />
                     }
                     <div className="aq-grc">
-                      {/* question text + type + tags */}
                       <div>
                         <div style={{ fontSize: '12.5px', color: 'var(--text)', lineHeight: 1.4, marginBottom: 3 }}>{item.text}</div>
                         <div style={{ fontSize: '10.5px', color: 'var(--text3)', marginBottom: 3, fontWeight: 500 }}>
                           <span style={{ color: 'var(--text2)', fontWeight: 600 }}>Type:</span> {qTypeLabel(item.at)}
                         </div>
                         <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                          {item.tags.map(t => <span className="chip" key={t}>{t}</span>)}
+                          {(item.tags || []).map(t => <span className="chip" key={t}>{t}</span>)}
                         </div>
                       </div>
-                      {/* process badge */}
                       <span className="badge bb" style={{ fontSize: '10px', whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.3, display: 'inline-block', padding: '4px 8px' }}>{item.proc}</span>
-                      {/* sub-process */}
                       <span style={{ fontSize: '12px', color: 'var(--text3)' }}>{item.sp}</span>
-                      {/* weight dot */}
                       <div>
                         <div className="wdot" style={{ background: wColor(item.w) }}>{item.w}</div>
                       </div>
-                      {/* toggle */}
                       <div className={`toggle${item.on ? ' on' : ''}`} onClick={() => toggleQ(item.id)} />
-                      {/* actions */}
                       <div style={{ display: 'flex', gap: 4 }}>
                         <button className="icon-btn" style={{ width: 25, height: 25, fontSize: '11px' }} onClick={() => openEditQuestion(item.id)}>{'\u270F\uFE0F'}</button>
                         <button className="icon-btn" style={{ width: 25, height: 25, fontSize: '11px', color: 'var(--red)' }} onClick={() => deleteQ(item.id)}>{'\uD83D\uDDD1\uFE0F'}</button>
@@ -267,7 +291,6 @@ export default function Questions() {
             </div>
           </div>
 
-          {/* pagination / count */}
           <div className="pagination"><span>{filtered.length} questions</span></div>
         </div>
       </div>
@@ -278,7 +301,6 @@ export default function Questions() {
           <div className="modal" style={{ width: 620 }}>
             <div className="modal-title">{editId ? 'Edit Audit Question' : 'New Audit Question'}</div>
             <div className="modal-grid">
-              {/* row: process + sub-process */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="fg">
                   <label className="fl">Process <span style={{ color: 'var(--red)' }}>*</span></label>
@@ -293,13 +315,11 @@ export default function Questions() {
                 </div>
               </div>
 
-              {/* question textarea */}
               <div className="fg">
                 <label className="fl">Question <span style={{ color: 'var(--red)' }}>*</span></label>
                 <textarea className="fta" placeholder="Whether..." value={qForm.text} onChange={e => setQForm(f => ({ ...f, text: e.target.value }))} />
               </div>
 
-              {/* row: type + weight + critical */}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 12, alignItems: 'flex-end' }}>
                 <div className="fg">
                   <label className="fl">Question Type</label>
@@ -318,13 +338,11 @@ export default function Questions() {
                 </div>
               </div>
 
-              {/* guidance textarea */}
               <div className="fg">
                 <label className="fl">Guidance</label>
                 <textarea className="fta" placeholder="Provide guidance for the auditor..." value={qForm.g} onChange={e => setQForm(f => ({ ...f, g: e.target.value }))} />
               </div>
 
-              {/* tags */}
               <div className="fg">
                 <label className="fl">Tags (comma separated)</label>
                 <input className="fi" placeholder="cash, reconciliation" value={qForm.tags} onChange={e => setQForm(f => ({ ...f, tags: e.target.value }))} />
