@@ -1,6 +1,6 @@
 # Retail Sync — Store Audit & Analysis
 
-A Python (Flask) + React implementation of the store audit prototype, with the
+A Python (FastAPI) + React implementation of the store audit prototype, with the
 three roles frozen and enforced server-side.
 
 The prototype kept all its data in a JavaScript object. This replaces that with
@@ -31,8 +31,12 @@ cd backend
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python seed.py --reset          # creates the DB and loads placeholder data
-python run.py                   # http://127.0.0.1:5000
+python run.py                   # http://127.0.0.1:5050
 ```
+
+Interactive API docs (Swagger UI) are at `http://127.0.0.1:5050/docs` once the
+server is running — every endpoint, request body and response shape, live and
+clickable.
 
 SQLite by default. For Postgres, set `DATABASE_URL` before running:
 
@@ -48,8 +52,8 @@ npm install
 npm run dev                     # http://localhost:5173
 ```
 
-Vite proxies `/api` to the Flask server, so no CORS configuration is needed in
-development.
+Vite proxies `/api` to the FastAPI server, so no CORS configuration is needed
+in development.
 
 **Seeded logins** — password `password123`
 
@@ -93,7 +97,7 @@ SQLite works as a zero-config fallback — just omit `DATABASE_URL`.
 Excel files (uploads/)
   └─> import_excel.py / seed.py --from-excel
         └─> Postgres (or SQLite) tables
-              └─> Flask /api endpoints (routes.py)
+              └─> FastAPI /api endpoints (app/routers/)
                     └─> React pages (fetch via api/client.js)
 ```
 
@@ -147,14 +151,16 @@ back as HTTP 409 with a reason.
 ```
 backend/
   app/
-    db.py          engine and session
+    main.py        FastAPI app, CORS, exception handlers, router registration
+    db.py          engine, session, get_db dependency
     models.py      SQLAlchemy models
-    auth.py        JWT, password hashing, role guards
+    auth.py        JWT, password hashing, FastAPI auth dependencies
+    schemas.py     Pydantic request/response models
     services.py    scoring and issue-raising logic
-    routes.py      the API
+    routers/       one APIRouter per domain (stores, audits, issues, ...)
   seed.py          placeholder data loader
   seed_data.json   extracted from the prototype
-  run.py
+  run.py           uvicorn entrypoint
 
 frontend/
   src/
