@@ -1,18 +1,21 @@
 """JWT auth + role guards."""
 import datetime as dt
 import os
-from functools import wraps
 
 import jwt
-from flask import g, jsonify, request
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from .db import SessionLocal
+from .db import get_db
 from .models import User
 
 SECRET = os.getenv("JWT_SECRET", "dev-secret-change-me")
 ALGO = "HS256"
 TOKEN_HOURS = 12
+
+_bearer = HTTPBearer(auto_error=False)
 
 
 def hash_password(pw: str) -> str:
@@ -33,37 +36,30 @@ def make_token(user: User) -> str:
     return jwt.encode(payload, SECRET, algorithm=ALGO)
 
 
-def _current_user():
-    header = request.headers.get("Authorization", "")
-    if not header.startswith("Bearer "):
-        return None
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    db: Session = Depends(get_db),
+) -> User:
+    if not credentials:
+        raise HTTPException(status_code=401, detail={"error": "unauthorized"})
     try:
-        payload = jwt.decode(header[7:], SECRET, algorithms=[ALGO])
+        payload = jwt.decode(credentials.credentials, SECRET, algorithms=[ALGO])
     except jwt.PyJWTError:
-        return None
-    return SessionLocal().get(User, payload["sub"])
+        raise HTTPException(status_code=401, detail={"error": "unauthorized"})
+    user = db.get(User, payload["sub"])
+    if not user or not user.active:
+        raise HTTPException(status_code=401, detail={"error": "unauthorized"})
+    return user
 
 
-def login_required(fn):
-    @wraps(fn)
-    def wrapper(*a, **kw):
-        user = _current_user()
-        if not user or not user.active:
-            return jsonify({"error": "unauthorized"}), 401
-        g.user = user
-        return fn(*a, **kw)
-    return wrapper
-
-
-def roles_required(*allowed):
+def require_roles(*allowed):
     """Guard an endpoint to specific roles. This is the single place role
     access is enforced — the frontend only hides UI, it does not secure it."""
-    def decorator(fn):
-        @wraps(fn)
-        @login_required
-        def wrapper(*a, **kw):
-            if g.user.role not in allowed:
-                return jsonify({"error": "forbidden", "required": list(allowed)}), 403
-            return fn(*a, **kw)
-        return wrapper
-    return decorator
+    def dependency(user: User = Depends(get_current_user)) -> User:
+        if user.role not in allowed:
+            raise HTTPException(
+                status_code=403,
+                detail={"error": "forbidden", "required": list(allowed)},
+            )
+        return user
+    return dependency
