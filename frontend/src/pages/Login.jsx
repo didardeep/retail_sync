@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { api } from '../api/client'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState('am@retail-chain.com')
@@ -21,28 +23,31 @@ export default function Login({ onLogin }) {
   }
 
   return (
-    <div className="login-wrap">
-      <form className="login-card" onSubmit={submit}>
-        <h1>Store Audit &amp; Analysis</h1>
-        <p>Sign in to continue</p>
-        <label className="field">
-          <span>Email</span>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
+    <div className="grid min-h-screen place-items-center bg-gradient-to-br from-[#0d2c5c] to-[#00338D] p-5">
+      <form
+        onSubmit={submit}
+        className="w-full max-w-[380px] rounded-2xl bg-card p-[34px] text-card-foreground"
+      >
+        <h1 className="mb-1.5 text-xl font-semibold">Store Audit &amp; Analysis</h1>
+        <p className="mb-[22px] text-sm text-muted-foreground">Sign in to continue</p>
+        <label className="mb-3 block">
+          <span className="mb-1 block text-[12.5px] text-muted-foreground">Email</span>
+          <Input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
         </label>
-        <label className="field">
-          <span>Password</span>
-          <input
+        <label className="mb-3 block">
+          <span className="mb-1 block text-[12.5px] text-muted-foreground">Password</span>
+          <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
           />
         </label>
-        {error && <p className="error">{error}</p>}
-        <button className="btn" style={{ width: '100%' }} disabled={busy}>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Button type="submit" className="mt-3 w-full" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
-        </button>
-        <div className="hint">
+        </Button>
+        <div className="mt-[18px] text-xs leading-[1.7] text-muted-foreground">
           Seeded accounts (password123):
           <br />
           am@retail-chain.com — Audit Manager

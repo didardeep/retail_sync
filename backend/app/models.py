@@ -34,6 +34,34 @@ ROLE_STORE_MANAGER = "STORE_MANAGER"
 ROLES = (ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER)
 
 
+# --------------------------------------------------------------------------
+# Audit log — who did what, for compliance review
+# --------------------------------------------------------------------------
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    user_id = Column(String(12), ForeignKey("users.id"))
+    action = Column(String(100), nullable=False)
+    entity_type = Column(String(100), nullable=False)
+    entity_id = Column(String(20))
+    details = Column(JSON, default=dict)
+    timestamp = Column(DateTime, default=dt.datetime.utcnow)
+
+    user = relationship("User")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "action": self.action,
+            "user_email": self.user.email if self.user else None,
+            "entity_type": self.entity_type,
+            "entity_id": self.entity_id,
+            "details": self.details or {},
+            "created_at": self.timestamp.isoformat() if self.timestamp else None,
+        }
+
+
 class User(Base):
     __tablename__ = "users"
 

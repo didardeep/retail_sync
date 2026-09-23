@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;background:#eef1f7;color:#1a1a2e;-webkit-font-smoothing:antialiased;}
 :root{
@@ -10,30 +14,47 @@ body{font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;background:#eef1
   --gray:#6b7280;--gray-soft:#f3f4f6;
   --border:#d7deea;--surface:#fff;
   --text:#0a1830;--text2:#31435c;--text3:#63748e;
+
+  /* shadcn/Tailwind design tokens, mapped from the palette above so
+     migrated pages keep retail_sync's look instead of shadcn's default blue. */
+  --background: 220 36% 95%;
+  --foreground: 218 65% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 218 65% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 218 65% 11%;
+  --primary: 218 100% 28%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 64% 95%;
+  --secondary-foreground: 218 100% 28%;
+  --muted: 220 20% 93%;
+  --muted-foreground: 216 18% 47%;
+  /* NOTE: --accent and --border collide in name (not value shape) with the
+     legacy hex palette above, still used by unmigrated pages -- suffixed
+     -ui here and repointed to in tailwind.config.js instead of overwriting
+     the legacy variables. */
+  --accent-ui: 220 64% 95%;
+  --accent-foreground: 218 100% 28%;
+  --destructive: 0 75% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border-ui: 218 31% 88%;
+  --input: 218 31% 88%;
+  --ring: 218 100% 28%;
+  --radius: 0.5rem;
+
+  --sidebar-bg: 218 100% 28%;
+  --sidebar-fg: 220 30% 82%;
+  --sidebar-active: 205 100% 43%;
+  --sidebar-active-fg: 0 0% 100%;
+  --sidebar-hover: 218 60% 22%;
+
+  --priority-low: 160 84% 34%;
+  --priority-medium: 37 97% 38%;
+  --priority-high: 16 100% 56%;
+  --priority-critical: 0 75% 51%;
 }
 button{font:inherit;cursor:pointer;}
 a{color:inherit;text-decoration:none;}
-.app{display:flex;height:100vh;overflow:hidden;}
-.sidebar{width:222px;flex-shrink:0;background:var(--navy);display:flex;flex-direction:column;overflow-y:auto;}
-.sidebar-brand{padding:16px 14px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07);}
-.brand-icon{width:36px;height:36px;background:var(--accent);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:700;}
-.brand-text{color:#fff;font-size:14px;font-weight:700;line-height:1.3;}
-.brand-text span{display:block;font-size:11px;font-weight:400;color:#8B94A3;}
-.sidebar-user{padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.07);margin-bottom:4px;}
-.user-dot{width:7px;height:7px;background:#fbbf24;border-radius:50%;}
-.user-lbl{font-size:11px;color:#8B94A3;} .user-lbl b{display:block;color:#fff;font-size:12px;}
-.sidebar nav{flex:1;padding:4px 8px;}
-.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;cursor:pointer;color:#fff;font-size:12.5px;font-weight:500;transition:all .15s;margin-bottom:2px;white-space:nowrap;text-decoration:none;}
-.nav-item:hover{background:rgba(255,255,255,.06);color:#fff;}
-.nav-item.active{background:rgba(0,128,219,.32);color:#fff;}
-.nav-item svg{width:15px;height:15px;flex-shrink:0;}
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
-.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 22px;height:50px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-.topbar-title{font-size:14px;font-weight:600;color:var(--text);}
-.topbar-right{display:flex;align-items:center;gap:10px;}
-.icon-btn{width:30px;height:30px;border-radius:7px;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;}
-.avatar-btn{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#00338D,#0080DB);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;cursor:pointer;}
-.content{flex:1;overflow-y:auto;padding:18px 22px 40px;}
 .page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
 .page-hdr h2{font-size:20px;font-weight:700;color:var(--text);}
 .page-hdr p{font-size:12px;color:var(--text3);margin-top:2px;}
@@ -111,8 +132,6 @@ tr:hover td{background:#fafbff;}
 .si-row:last-child{border-bottom:none;}
 .si-lbl{color:var(--text3);text-align:left;}
 .si-val{color:var(--text);font-weight:600;text-align:left;}
-.toast{position:fixed;bottom:22px;right:22px;background:#1f2937;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;z-index:2000;transform:translateY(70px);opacity:0;transition:all .28s;pointer-events:none;}
-.toast.show{transform:translateY(0);opacity:1;}
 .dash-g21{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px;}
 .dash-g11{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
 .dash-g21b{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px;}
@@ -172,16 +191,5 @@ tr:hover td{background:#fafbff;}
 .iss-grid{display:grid;grid-template-columns:95px 24px 1fr 120px 95px 115px 105px;gap:8px;align-items:start;}
 
 /* login */
-.login-wrap{min-height:100vh;display:grid;place-items:center;background:linear-gradient(160deg,#0d2c5c,#00338D);padding:20px;}
-.login-card{background:#fff;border-radius:14px;padding:34px;width:100%;max-width:380px;}
-.login-card h1{margin:0 0 6px;font-size:20px;}
-.login-card p{margin:0 0 22px;color:var(--text3);font-size:13px;}
-.login-card label.field{display:block;margin-bottom:12px;}
-.login-card label.field span{display:block;font-size:12.5px;color:var(--text3);margin-bottom:4px;}
-.login-card input{font:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);width:100%;}
-.login-card .btn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:9px 16px;width:100%;}
-.login-card .btn:disabled{opacity:.5;cursor:not-allowed;}
-.hint{margin-top:18px;font-size:12px;color:var(--text3);line-height:1.7;}
-.error{color:var(--red);font-size:13px;}
 
 @media(max-width:900px){.dash-g21,.dash-g11,.dash-g21b{grid-template-columns:1fr;}.kpi-row.c5,.kpi-row.c4{grid-template-columns:repeat(2,1fr);}}
