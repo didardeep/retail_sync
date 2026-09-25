@@ -3,6 +3,12 @@ import { Line } from 'react-chartjs-2'
 import { useToast } from '../components/Toast'
 import { api } from '../api/client'
 import { avC, sColor, pbClass, exportCSV } from '../utils/helpers'
+import { cn, fieldClass, labelClass } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Modal, ModalTitle, ModalActions } from '../components/Modal'
 
 const PP = 7
 
@@ -155,153 +161,157 @@ export default function Stores() {
   }
 
   if (loading) {
-    return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',color:'var(--text3)'}}>Loading stores...</div>
+    return <div className="flex h-[60vh] items-center justify-center text-muted-foreground">Loading stores...</div>
   }
 
   /* ── render ── */
   return (
     <>
-      <div className="page-hdr">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
         <div>
-          <h2>Store Management</h2>
-          <p>Manage your retail locations &bull; {selectedQ.toUpperCase()}</p>
+          <h2 className="text-xl font-bold text-foreground">Store Management</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">Manage your retail locations &bull; {selectedQ.toUpperCase()}</p>
         </div>
-        <div className="btn-row">
+        <div className="flex flex-wrap items-center gap-1.5">
           {['q1','q2','q3','q4'].map(q => (
-            <button key={q} className={`btn ${selectedQ === q ? 'btn-primary' : 'btn-outline'} btn-sm`} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</button>
+            <Button key={q} size="sm" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
           ))}
-          <button className="btn btn-outline btn-sm" onClick={handleExport}>&#x2B07; Export</button>
-          <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add Store</button>
+          <Button size="sm" variant="outline" onClick={handleExport}>&#x2B07; Export</Button>
+          <Button size="sm" onClick={openAdd}>+ Add Store</Button>
         </div>
       </div>
 
-      <div className="kpi-row c4">
-        <div className="kpi"><div className="kpi-ico" style={{ background: '#e8eefa' }}>&#x1F3EA;</div><div><div className="kpi-lbl">Total Stores</div><div className="kpi-val">{totalStores}</div></div></div>
-        <div className="kpi"><div className="kpi-ico" style={{ background: '#ecfdf5' }}>&uarr;</div><div><div className="kpi-lbl">Operational</div><div className="kpi-val">{operational}</div></div></div>
-        <div className="kpi"><div className="kpi-ico" style={{ background: '#fde8e8' }}>&#x26A0;</div><div><div className="kpi-lbl">Critical Audit</div><div className="kpi-val">{criticalAudit}</div></div></div>
-        <div className="kpi"><div className="kpi-ico" style={{ background: '#f3f4f6' }}>&#x25CC;</div><div><div className="kpi-lbl">Avg. Audit Score</div><div className="kpi-val">{avgScore}%</div></div></div>
+      <div className="mb-4 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
+        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4"><div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#e8eefa' }}>&#x1F3EA;</div><div><div className="mb-0.5 text-[11px] text-muted-foreground">Total Stores</div><div className="text-2xl font-bold leading-none text-foreground">{totalStores}</div></div></div>
+        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4"><div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#ecfdf5' }}>&uarr;</div><div><div className="mb-0.5 text-[11px] text-muted-foreground">Operational</div><div className="text-2xl font-bold leading-none text-foreground">{operational}</div></div></div>
+        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4"><div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#fde8e8' }}>&#x26A0;</div><div><div className="mb-0.5 text-[11px] text-muted-foreground">Critical Audit</div><div className="text-2xl font-bold leading-none text-foreground">{criticalAudit}</div></div></div>
+        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4"><div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#f3f4f6' }}>&#x25CC;</div><div><div className="mb-0.5 text-[11px] text-muted-foreground">Avg. Audit Score</div><div className="text-2xl font-bold leading-none text-foreground">{avgScore}%</div></div></div>
       </div>
 
-      <div className="filter-bar" style={{ justifyContent: 'space-between' }}>
-        <div className="srch" style={{ maxWidth: 360 }}>
-          <span className="srch-ic">&#x1F50D;</span>
-          <input placeholder="Search name, ID or city..." value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
+      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
+        <div className="relative max-w-[360px] flex-1">
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">&#x1F50D;</span>
+          <Input className="pl-8" placeholder="Search name, ID or city..." value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
         </div>
-        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-          <button className={`qtab${statusFilter === '' ? ' active' : ''}`} onClick={() => handleTabFilter('')}>All</button>
-          <button className={`qtab${statusFilter === 'Operating' ? ' active' : ''}`} onClick={() => handleTabFilter('Operating')}>Operating</button>
-          <button className={`qtab${statusFilter === 'Dehired' ? ' active' : ''}`} onClick={() => handleTabFilter('Dehired')}>Dehired</button>
-          <button className="icon-btn" onClick={() => { setSearch(''); setStatusFilter(''); setPage(1) }}>&#x1F504;</button>
+        <div className="flex items-center gap-1.5">
+          <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === '' && 'border-primary bg-primary text-primary-foreground')} onClick={() => handleTabFilter('')}>All</button>
+          <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === 'Operating' && 'border-primary bg-primary text-primary-foreground')} onClick={() => handleTabFilter('Operating')}>Operating</button>
+          <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === 'Dehired' && 'border-primary bg-primary text-primary-foreground')} onClick={() => handleTabFilter('Dehired')}>Dehired</button>
+          <button className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-card text-[13px]" onClick={() => { setSearch(''); setStatusFilter(''); setPage(1) }}>&#x1F504;</button>
         </div>
       </div>
 
-      <div className="tbl-card">
-        <table>
-          <thead><tr><th>Store Details</th><th>Status</th><th>{selectedQ.toUpperCase()} Score</th><th>Manager</th><th>Actions</th></tr></thead>
-          <tbody>
+      <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Store Details</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>{selectedQ.toUpperCase()} Score</TableHead>
+              <TableHead>Manager</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {pageData.map(s => (
-              <tr key={s.id} style={{ cursor: 'pointer' }} onClick={() => openInsight(s.id)}>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 26, height: 26, background: '#e8eefa', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>&#x1F3EA;</div>
+              <TableRow key={s.id} className="cursor-pointer" onClick={() => openInsight(s.id)}>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-xs" style={{ background: '#e8eefa' }}>&#x1F3EA;</div>
                     <div>
-                      <div style={{ fontWeight: 600 }}>{s.name}{s.type && <span className="chip">{s.type}</span>}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>{s.city}</div>
+                      <div className="flex items-center gap-1.5 font-semibold">{s.name}{s.type && <span className="rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10.5px] font-medium text-gray-700">{s.type}</span>}</div>
+                      <div className="text-[11px] text-muted-foreground">{s.city}</div>
                     </div>
                   </div>
-                </td>
-                <td><span className={`badge ${s.status === 'Operating' ? 'bg' : 'bgr'}`}>{s.status}</span></td>
-                <td>
-                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 3, color: sColor(storeScore(s)) }}>{storeScore(s)}%</div>
-                  <div className="prog-bg" style={{ width: 130 }}><div className={`prog-fill ${pbClass(storeScore(s))}`} style={{ width: `${storeScore(s)}%`, height: 6 }} /></div>
-                </td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div className={`av ${avC(s.manager||'U')}`}>{(s.manager || 'U')[0]}</div>
-                    <span style={{ fontSize: 12.5 }}>{s.manager}</span>
+                </TableCell>
+                <TableCell><Badge className={s.status === 'Operating' ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground border border-border'}>{s.status}</Badge></TableCell>
+                <TableCell>
+                  <div className="mb-1 text-[15px] font-bold" style={{ color: sColor(storeScore(s)) }}>{storeScore(s)}%</div>
+                  <div className="h-1.5 w-[130px] overflow-hidden rounded-[3px] bg-gray-200"><div className={cn('h-full rounded-[3px]', pbClass(storeScore(s)))} style={{ width: `${storeScore(s)}%` }} /></div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1.5">
+                    <div className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(s.manager||'U'))}>{(s.manager || 'U')[0]}</div>
+                    <span className="text-[12.5px]">{s.manager}</span>
                   </div>
-                </td>
-                <td onClick={e => e.stopPropagation()}>
-                  <div style={{ display: 'flex', gap: 3 }}>
-                    <button className="icon-btn" style={{ width: 25, height: 25, fontSize: 11 }} onClick={() => openInsight(s.id)}>&#x1F441;</button>
-                    <button className="icon-btn" style={{ width: 25, height: 25, fontSize: 11 }} onClick={() => openEdit(s.id)}>&#x270F;&#xFE0F;</button>
-                    <button className="icon-btn" style={{ width: 25, height: 25, fontSize: 11, color: 'var(--red)' }} onClick={() => deleteStore(s.id)}>&#x1F5D1;</button>
+                </TableCell>
+                <TableCell onClick={e => e.stopPropagation()}>
+                  <div className="flex gap-1">
+                    <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={() => openInsight(s.id)}>&#x1F441;</button>
+                    <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={() => openEdit(s.id)}>&#x270F;&#xFE0F;</button>
+                    <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px] text-destructive" onClick={() => deleteStore(s.id)}>&#x1F5D1;</button>
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
-      <div className="pagination">
-        <span style={{ marginRight: 8 }}>{filtered.length} stores</span>
-        <div style={{ display: 'flex', gap: 4 }}>
+      <div className="mt-3 flex items-center justify-end gap-1 text-xs text-muted-foreground">
+        <span className="mr-2">{filtered.length} stores</span>
+        <div className="flex gap-1">
           {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
-            <button key={n} className={`pgbtn${n === safePage ? ' active' : ''}`} onClick={() => setPage(n)}>{n}</button>
+            <button key={n} className={cn('flex h-[27px] w-[27px] items-center justify-center rounded-md border border-border bg-card text-xs text-foreground/80', n === safePage && 'border-primary bg-primary text-primary-foreground')} onClick={() => setPage(n)}>{n}</button>
           ))}
         </div>
       </div>
 
-      {insightOpen && insightStore && (
-        <div className="modal-ov open" onClick={e => { if (e.target === e.currentTarget) setInsightOpen(false) }}>
-          <div className="modal" style={{ width: 480, padding: 0, overflow: 'hidden' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text3)' }}>Store Insights</span>
-              <button className="icon-btn" style={{ width: 26, height: 26, border: 'none', fontSize: 13 }} onClick={() => setInsightOpen(false)}>&times;</button>
-            </div>
-            <div style={{ padding: '22px 20px 16px', textAlign: 'center', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ width: 52, height: 52, background: 'var(--accent-soft)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, margin: '0 auto 12px', color: 'var(--accent)' }}>&#x1F3EC;</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{insightStore.name}</div>
-              <div style={{ display: 'inline-block', marginTop: 8, background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 11, fontWeight: 700, padding: '3px 11px', borderRadius: 20 }}>
-                {'SI-' + (1000 + parseInt(insightStore.id.replace('ST', ''), 10) - 1)}
-              </div>
-            </div>
-            <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
-              <div className={`si-tab${siTab === 'info' ? ' active' : ''}`} onClick={() => setSiTab('info')}>General Info</div>
-              <div className={`si-tab${siTab === 'perf' ? ' active' : ''}`} onClick={() => setSiTab('perf')}>Performance</div>
-            </div>
-            <div style={{ padding: '16px 20px 6px' }}>
-              {siTab === 'info' && (
-                <div>
-                  <div className="si-row"><span className="si-lbl">Manager</span><span className="si-val">{insightStore.manager || '\u2014'}</span></div>
-                  <div className="si-row"><span className="si-lbl">Type of Store</span><span className="si-val">{insightStore.type || '\u2014'}</span></div>
-                  <div className="si-row"><span className="si-lbl">Location</span><span className="si-val">{insightStore.city}{insightStore.region ? ', ' + insightStore.region : ''}</span></div>
-                  <div className="si-row"><span className="si-lbl">Contact</span><span className="si-val">{insightStore.contact || '\u2014'}</span></div>
-                  <div className="si-row"><span className="si-lbl">Email</span><span className="si-val">{insightStore.email || '\u2014'}</span></div>
-                  <div className="si-row"><span className="si-lbl">Address</span><span className="si-val">{insightStore.address || '\u2014'}</span></div>
-                </div>
-              )}
-              {siTab === 'perf' && (
-                <div className="ch-wrap" style={{ height: 170 }}><Line data={perfChartData(insightStore)} options={chartOpts} /></div>
-              )}
-            </div>
-            <div className="modal-actions" style={{ padding: '4px 20px 20px', marginTop: 8 }}>
-              <button className="btn btn-outline btn-sm" onClick={() => setInsightOpen(false)}>Close</button>
-              <button className="btn btn-primary btn-sm" onClick={() => setInsightOpen(false)}>Full History</button>
+      {insightStore && (
+        <Modal open={insightOpen} onClose={() => setInsightOpen(false)} className="w-[480px] p-0">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <span className="text-[13px] font-semibold text-muted-foreground">Store Insights</span>
+            <button className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-[13px]" onClick={() => setInsightOpen(false)}>&times;</button>
+          </div>
+          <div className="border-b border-border px-5 pb-4 pt-[22px] text-center">
+            <div className="mx-auto mb-3 flex h-[52px] w-[52px] items-center justify-center rounded-xl bg-accent text-[22px] text-primary">&#x1F3EC;</div>
+            <div className="text-base font-bold text-foreground">{insightStore.name}</div>
+            <div className="mt-2 inline-block rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-bold text-primary">
+              {'SI-' + (1000 + parseInt(insightStore.id.replace('ST', ''), 10) - 1)}
             </div>
           </div>
-        </div>
+          <div className="flex border-b border-border px-5">
+            <div className={cn('cursor-pointer border-b-2 border-transparent px-4 py-2.5 text-[12.5px] font-semibold text-muted-foreground', siTab === 'info' && 'border-primary text-primary')} onClick={() => setSiTab('info')}>General Info</div>
+            <div className={cn('cursor-pointer border-b-2 border-transparent px-4 py-2.5 text-[12.5px] font-semibold text-muted-foreground', siTab === 'perf' && 'border-primary text-primary')} onClick={() => setSiTab('perf')}>Performance</div>
+          </div>
+          <div className="px-5 pb-1.5 pt-4">
+            {siTab === 'info' && (
+              <div>
+                <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Manager</span><span className="font-semibold text-foreground">{insightStore.manager || '—'}</span></div>
+                <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Type of Store</span><span className="font-semibold text-foreground">{insightStore.type || '—'}</span></div>
+                <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Location</span><span className="font-semibold text-foreground">{insightStore.city}{insightStore.region ? ', ' + insightStore.region : ''}</span></div>
+                <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Contact</span><span className="font-semibold text-foreground">{insightStore.contact || '—'}</span></div>
+                <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Email</span><span className="font-semibold text-foreground">{insightStore.email || '—'}</span></div>
+                <div className="grid grid-cols-[120px_1fr] gap-3.5 py-2.5 text-sm"><span className="text-muted-foreground">Address</span><span className="font-semibold text-foreground">{insightStore.address || '—'}</span></div>
+              </div>
+            )}
+            {siTab === 'perf' && (
+              <div className="relative w-full" style={{ height: 170 }}><Line data={perfChartData(insightStore)} options={chartOpts} /></div>
+            )}
+          </div>
+          <ModalActions>
+            <Button size="sm" variant="outline" onClick={() => setInsightOpen(false)}>Close</Button>
+            <Button size="sm" onClick={() => setInsightOpen(false)}>Full History</Button>
+          </ModalActions>
+        </Modal>
       )}
 
-      {formOpen && (
-        <div className="modal-ov open" onClick={e => { if (e.target === e.currentTarget) setFormOpen(false) }}>
-          <div className="modal">
-            <div className="modal-title">{editId ? 'Edit Store' : 'Add New Store'}</div>
-            <div className="fg"><label className="fl">Store Name</label><input className="fi" placeholder="e.g. Phoenix Mall" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-            <div className="fg"><label className="fl">City</label><input className="fi" placeholder="e.g. Mumbai" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} /></div>
-            <div className="fg"><label className="fl">Format</label><select className="fs" value={form.format} onChange={e => setForm(f => ({ ...f, format: e.target.value }))}><option>COCO</option><option>COFO</option><option>FOCO</option><option>FOFO</option></select></div>
-            <div className="fg"><label className="fl">Type of Store</label><select className="fs" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}><option>Flagship</option><option>Standard</option><option>Compact</option><option>Kiosk</option></select></div>
-            <div className="fg"><label className="fl">Manager</label><input className="fi" placeholder="Manager name" value={form.manager} onChange={e => setForm(f => ({ ...f, manager: e.target.value }))} /></div>
-            <div className="fg"><label className="fl">Region</label><select className="fs" value={form.region} onChange={e => setForm(f => ({ ...f, region: e.target.value }))}><option>North India</option><option>South India</option><option>East India</option><option>West India</option></select></div>
-            <div className="fg"><label className="fl">Status</label><select className="fs" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}><option>Operating</option><option>Dehired</option></select></div>
-            <div className="modal-actions">
-              <button className="btn btn-outline" onClick={() => setFormOpen(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={saveStore}>{editId ? 'Save Changes' : 'Add Store'}</button>
-            </div>
-          </div>
+      <Modal open={formOpen} onClose={() => setFormOpen(false)}>
+        <ModalTitle>{editId ? 'Edit Store' : 'Add New Store'}</ModalTitle>
+        <div className="grid gap-3">
+          <div><label className={labelClass}>Store Name</label><Input placeholder="e.g. Phoenix Mall" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
+          <div><label className={labelClass}>City</label><Input placeholder="e.g. Mumbai" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} /></div>
+          <div><label className={labelClass}>Format</label><select className={fieldClass} value={form.format} onChange={e => setForm(f => ({ ...f, format: e.target.value }))}><option>COCO</option><option>COFO</option><option>FOCO</option><option>FOFO</option></select></div>
+          <div><label className={labelClass}>Type of Store</label><select className={fieldClass} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}><option>Flagship</option><option>Standard</option><option>Compact</option><option>Kiosk</option></select></div>
+          <div><label className={labelClass}>Manager</label><Input placeholder="Manager name" value={form.manager} onChange={e => setForm(f => ({ ...f, manager: e.target.value }))} /></div>
+          <div><label className={labelClass}>Region</label><select className={fieldClass} value={form.region} onChange={e => setForm(f => ({ ...f, region: e.target.value }))}><option>North India</option><option>South India</option><option>East India</option><option>West India</option></select></div>
+          <div><label className={labelClass}>Status</label><select className={fieldClass} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}><option>Operating</option><option>Dehired</option></select></div>
         </div>
-      )}
+        <ModalActions>
+          <Button variant="outline" onClick={() => setFormOpen(false)}>Cancel</Button>
+          <Button onClick={saveStore}>{editId ? 'Save Changes' : 'Add Store'}</Button>
+        </ModalActions>
+      </Modal>
     </>
   )
 }

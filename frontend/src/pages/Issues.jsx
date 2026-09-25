@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../components/Toast';
 import { api } from '../api/client';
 import { avC, prC, stC, exportCSV } from '../utils/helpers';
+import { cn, fieldClass, labelClass } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Modal, ModalActions } from '../components/Modal';
 
 function stBorder(s) {
   return s === 'In Progress' ? '#00338D' : s === 'Resolved' ? '#0e9f6e' : s === 'On Hold' ? '#f59e0b' : s === 'Closed' ? '#6b7280' : '#e02424';
@@ -194,7 +199,7 @@ export default function Issues() {
         store: form.store,
         assignee: form.assignee,
         created: form.created ? fmtDisp(new Date(form.created)) : fmtDisp(now),
-        due: form.due ? fmtDisp(new Date(form.due)).split(',')[0] : '\u2014',
+        due: form.due ? fmtDisp(new Date(form.due)).split(',')[0] : '—',
         ov: false,
         dp: 0,
         dc: '#6b7280',
@@ -235,82 +240,82 @@ export default function Issues() {
   const boardCols = ['Open', 'In Progress', 'On Hold', 'Resolved', 'Closed'];
 
   if (loading) {
-    return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',color:'var(--text3)'}}>Loading issues...</div>;
+    return <div className="flex h-[60vh] items-center justify-center text-muted-foreground">Loading issues...</div>;
   }
 
   /* ── render ── */
   return (
     <>
       {/* Header */}
-      <div className="page-hdr">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
         <div>
-          <h2>Action Taken Tracking</h2>
-          <p>Monitor, prioritise and resolve issues across stores</p>
+          <h2 className="text-xl font-bold text-foreground">Action Taken Tracking</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">Monitor, prioritise and resolve issues across stores</p>
         </div>
-        <div className="btn-row">
-          <button className={`btn ${view === 'table' ? 'btn-primary' : 'btn-outline'} btn-sm`} onClick={() => setIssueView('table')}>&#x1F4CB; Table</button>
-          <button className={`btn ${view === 'board' ? 'btn-primary' : 'btn-outline'} btn-sm`} onClick={() => setIssueView('board')}>&#x1F4CC; Board</button>
-          <button className="btn btn-outline btn-sm" onClick={handleExport}>&#x2B07; Export</button>
-          <button className="btn btn-primary btn-sm" onClick={openNewIssue}>+ New Issue</button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button size="sm" variant={view === 'table' ? 'default' : 'outline'} onClick={() => setIssueView('table')}>&#x1F4CB; Table</Button>
+          <Button size="sm" variant={view === 'board' ? 'default' : 'outline'} onClick={() => setIssueView('board')}>&#x1F4CC; Board</Button>
+          <Button size="sm" variant="outline" onClick={handleExport}>&#x2B07; Export</Button>
+          <Button size="sm" onClick={openNewIssue}>+ New Issue</Button>
         </div>
       </div>
 
       {/* KPI Row */}
-      <div className="kpi-row c4">
-        <div className="kpi">
-          <div className="kpi-ico" style={{ background: '#f3f4f6' }}>&#x1F4CA;</div>
-          <div><div className="kpi-lbl">Total Issues</div><div className="kpi-val">{totalCount}</div></div>
+      <div className="mb-4 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
+        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
+          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#f3f4f6' }}>&#x1F4CA;</div>
+          <div><div className="mb-0.5 text-[11px] text-muted-foreground">Total Issues</div><div className="text-2xl font-bold leading-none text-foreground">{totalCount}</div></div>
         </div>
-        <div className="kpi">
-          <div className="kpi-ico" style={{ background: '#fffbeb' }}>&#x1F7E1;</div>
-          <div><div className="kpi-lbl">Open (Not Due)</div><div className="kpi-val">{openNotDue}</div></div>
+        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
+          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#fffbeb' }}>&#x1F7E1;</div>
+          <div><div className="mb-0.5 text-[11px] text-muted-foreground">Open (Not Due)</div><div className="text-2xl font-bold leading-none text-foreground">{openNotDue}</div></div>
         </div>
-        <div className="kpi">
-          <div className="kpi-ico" style={{ background: '#fde8e8' }}>&#x1F534;</div>
-          <div><div className="kpi-lbl">Open (Overdue)</div><div className="kpi-val">{overdueCount}</div></div>
+        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
+          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#fde8e8' }}>&#x1F534;</div>
+          <div><div className="mb-0.5 text-[11px] text-muted-foreground">Open (Overdue)</div><div className="text-2xl font-bold leading-none text-foreground">{overdueCount}</div></div>
         </div>
-        <div className="kpi">
-          <div className="kpi-ico" style={{ background: '#ecfdf5' }}>&#x2705;</div>
-          <div><div className="kpi-lbl">Completed</div><div className="kpi-val">{completedCount}</div></div>
+        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
+          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#ecfdf5' }}>&#x2705;</div>
+          <div><div className="mb-0.5 text-[11px] text-muted-foreground">Completed</div><div className="text-2xl font-bold leading-none text-foreground">{completedCount}</div></div>
         </div>
       </div>
 
       {/* Filter Bar */}
-      <div className="filter-bar">
-        <div className="srch" style={{ maxWidth: 250 }}>
-          <span className="srch-ic">&#x1F50D;</span>
-          <input placeholder="Search title, tags..." value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="mb-3.5 flex flex-wrap items-center gap-2">
+        <div className="relative max-w-[250px] flex-1">
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">&#x1F50D;</span>
+          <Input className="pl-8" placeholder="Search title, tags..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select className="sel" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           <option value="">Status</option>
           <option>Open</option>
           <option>In Progress</option>
           <option>On Hold</option>
           <option>Closed</option>
         </select>
-        <select className="sel" value={priFilter} onChange={e => setPriFilter(e.target.value)}>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={priFilter} onChange={e => setPriFilter(e.target.value)}>
           <option value="">Priority</option>
           <option>Critical</option>
           <option>High</option>
           <option>Medium</option>
           <option>Low</option>
         </select>
-        <select className="sel" value={storeFilter} onChange={e => setStoreFilter(e.target.value)}>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={storeFilter} onChange={e => setStoreFilter(e.target.value)}>
           <option value="">Store</option>
           {storeOpts.map(s => <option key={s}>{s}</option>)}
         </select>
-        <select className="sel" value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)}>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)}>
           <option value="">Assignee</option>
           {assigneeOpts.map(a => <option key={a}>{a}</option>)}
         </select>
-        <button className="icon-btn" onClick={clearFilters} title="Clear filters">&#x1F504;</button>
+        <button className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-card text-[13px]" onClick={clearFilters} title="Clear filters">&#x1F504;</button>
       </div>
 
       {/* Status Tabs */}
       {view === 'table' && (
-        <div style={{ display: 'flex', gap: 5, marginBottom: 10, flexWrap: 'wrap' }}>
+        <div className="mb-2.5 flex flex-wrap gap-1.5">
           {[{ label: 'All Status', val: '' }, { label: 'Open', val: 'Open' }, { label: 'In Progress', val: 'In Progress' }, { label: 'On Hold', val: 'On Hold' }, { label: 'Closed', val: 'Closed' }].map(t => (
-            <button key={t.val} className={`qtab${statusTab === t.val ? ' active' : ''}`} onClick={() => setStatusTab(t.val)}>{t.label}</button>
+            <button key={t.val} className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusTab === t.val && 'border-primary bg-primary text-primary-foreground')} onClick={() => setStatusTab(t.val)}>{t.label}</button>
           ))}
         </div>
       )}
@@ -318,191 +323,189 @@ export default function Issues() {
       {/* Table View */}
       {view === 'table' && (
         <div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 12 }}>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3">
             {tableData.length ? tableData.map(i => (
-              <div key={i.id} style={{ background: '#fff', border: '1px solid var(--border)', borderLeft: `4px solid ${stBorder(i.status)}`, borderRadius: 10, padding: '13px 14px' }}>
+              <div key={i.id} className="rounded-[10px] border border-border bg-card p-3.5" style={{ borderLeft: `4px solid ${stBorder(i.status)}` }}>
                 {/* top row: audit id + overdue + actions */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <a style={{ color: 'var(--accent)', fontWeight: 600, textDecoration: 'none', fontSize: 11.5 }}>{i.aid}</a>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {i.ov && <span style={{ background: '#fde8e8', color: '#9b1c1c', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4 }}>Overdue</span>}
-                    <button className="icon-btn" style={{ width: 22, height: 22, fontSize: 10 }} onClick={() => openEditIssue(i.id)}>&#x270F;&#xFE0F;</button>
-                    <button className="icon-btn" style={{ width: 22, height: 22, fontSize: 10, color: 'var(--red)' }} onClick={() => deleteIssue(i.id)}>&#x1F5D1;</button>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <a className="text-[11.5px] font-semibold text-primary no-underline">{i.aid}</a>
+                  <div className="flex items-center gap-1.5">
+                    {i.ov && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-800">Overdue</span>}
+                    <button className="flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border bg-card text-[10px]" onClick={() => openEditIssue(i.id)}>&#x270F;&#xFE0F;</button>
+                    <button className="flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border bg-card text-[10px] text-destructive" onClick={() => deleteIssue(i.id)}>&#x1F5D1;</button>
                   </div>
                 </div>
                 {/* title */}
-                <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)', marginBottom: 7 }}>{i.title}</div>
+                <div className="mb-1.5 text-[13.5px] font-semibold text-foreground">{i.title}</div>
                 {/* badges */}
-                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
-                  <span className={`badge ${stC(i.status)}`}>{i.status}</span>
-                  <span className={`badge ${prC(i.pri)}`}>{i.pri}</span>
+                <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                  <Badge className={stC(i.status)}>{i.status}</Badge>
+                  <Badge className={prC(i.pri)}>{i.pri}</Badge>
                 </div>
                 {/* description */}
-                <div style={{ fontSize: 11.5, color: 'var(--text3)', marginBottom: 10, lineHeight: 1.4 }}>{i.desc}</div>
+                <div className="mb-2.5 text-[11.5px] leading-snug text-muted-foreground">{i.desc}</div>
                 {/* assignee + store */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 9, borderTop: '1px solid var(--border)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div className={`av ${avC(i.assignee||'U')}`} style={{ width: 22, height: 22, fontSize: 9.5 }}>{(i.assignee||'U')[0]}</div>
-                    <span style={{ fontSize: 11.5, color: 'var(--text2)' }}>{i.assignee}</span>
+                <div className="flex items-center justify-between border-t border-border pt-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className={cn('flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-[9.5px] font-bold text-white', avC(i.assignee||'U'))}>{(i.assignee||'U')[0]}</div>
+                    <span className="text-[11.5px] text-foreground/80">{i.assignee}</span>
                   </div>
-                  <span style={{ fontSize: 11, color: 'var(--text3)' }}>{i.store}</span>
+                  <span className="text-[11px] text-muted-foreground">{i.store}</span>
                 </div>
                 {/* dates */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
-                  <span style={{ fontSize: 10.5, color: 'var(--text3)' }}>Created {i.created}</span>
-                  <span style={{ fontSize: 11, color: i.ov ? 'var(--red)' : 'var(--text3)', fontWeight: 600 }}>Due {i.due}</span>
+                <div className="mt-1.5 flex items-center justify-between">
+                  <span className="text-[10.5px] text-muted-foreground">Created {i.created}</span>
+                  <span className="text-[11px] font-semibold" style={{ color: i.ov ? '#e02424' : 'var(--text3)' }}>Due {i.due}</span>
                 </div>
               </div>
             )) : (
-              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40, color: 'var(--text3)' }}>&#x2705; No issues match your filters</div>
+              <div className="col-span-full p-10 text-center text-muted-foreground">&#x2705; No issues match your filters</div>
             )}
           </div>
-          <div className="pagination"><span>{tableData.length} items</span></div>
+          <div className="mt-3 flex justify-end text-xs text-muted-foreground"><span>{tableData.length} items</span></div>
         </div>
       )}
 
       {/* Board View */}
       {view === 'board' && (
-        <div style={{ overflowX: 'auto', paddingBottom: 6 }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', minHeight: 220 }}>
+        <div className="overflow-x-auto pb-1.5">
+          <div className="flex items-start gap-3" style={{ minHeight: 220 }}>
             {boardCols.map(col => {
               const items = filtered.filter(i => i.status === col);
               return (
-                <div key={col} style={{ flex: '0 0 250px', background: '#fafbfc', border: '1px solid var(--border)', borderRadius: 10, padding: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>{col}</span>
-                    <span style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 20, padding: '1px 8px', fontSize: 11, color: 'var(--text3)' }}>{items.length}</span>
+                <div key={col} className="rounded-[10px] border border-border bg-[#fafbfc] p-2.5" style={{ flex: '0 0 250px' }}>
+                  <div className="mb-2.5 flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground/80">{col}</span>
+                    <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[11px] text-muted-foreground">{items.length}</span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div className="flex flex-col gap-2">
                     {items.length ? items.map(i => (
-                      <div key={i.id} style={{ background: '#fff', border: '1px solid var(--border)', borderLeft: `3px solid ${colColor[col]}`, borderRadius: 8, padding: '9px 10px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 5 }}>{i.title}</div>
-                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
-                          <span className={`badge ${prC(i.pri)}`}>{i.pri}</span>
-                          {i.ov && <span className="badge br">Overdue</span>}
+                      <div key={i.id} className="rounded-lg border border-border bg-card p-2.5" style={{ borderLeft: `3px solid ${colColor[col]}` }}>
+                        <div className="mb-1 text-xs font-semibold text-foreground">{i.title}</div>
+                        <div className="mb-1.5 flex flex-wrap gap-1">
+                          <Badge className={prC(i.pri)}>{i.pri}</Badge>
+                          {i.ov && <Badge className="bg-red-50 text-red-800">Overdue</Badge>}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <div className={`av ${avC(i.assignee||'U')}`} style={{ width: 20, height: 20, fontSize: 9 }}>{(i.assignee||'U')[0]}</div>
-                            <span style={{ fontSize: 11, color: 'var(--text3)' }}>{i.store}</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <div className={cn('flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white', avC(i.assignee||'U'))}>{(i.assignee||'U')[0]}</div>
+                            <span className="text-[11px] text-muted-foreground">{i.store}</span>
                           </div>
-                          <span style={{ fontSize: 10.5, color: i.ov ? 'var(--red)' : 'var(--text3)' }}>{i.due}</span>
+                          <span className="text-[10.5px]" style={{ color: i.ov ? '#e02424' : 'var(--text3)' }}>{i.due}</span>
                         </div>
                       </div>
                     )) : (
-                      <div style={{ textAlign: 'center', padding: '14px 0', color: 'var(--text3)', fontSize: 11 }}>No issues</div>
+                      <div className="py-3.5 text-center text-[11px] text-muted-foreground">No issues</div>
                     )}
                   </div>
                 </div>
               );
             })}
           </div>
-          <div className="pagination"><span>{filtered.length} items</span></div>
+          <div className="mt-3 flex justify-end text-xs text-muted-foreground"><span>{filtered.length} items</span></div>
         </div>
       )}
 
       {/* ── Issue Modal ── */}
-      {modalOpen && (
-        <div className="modal-ov open" onClick={e => { if (e.target === e.currentTarget) setModalOpen(false) }}>
-          <div className="modal" style={{ width: 660, maxWidth: '95vw' }}>
-            {/* header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ cursor: 'pointer', color: 'var(--text3)', fontSize: 16 }} onClick={() => setModalOpen(false)}>&times;</span>
-                <span className="modal-title" style={{ marginBottom: 0 }}>{editId ? 'Edit Issue' : 'New Issue'}</span>
-              </div>
-              <button className="btn btn-primary btn-sm" onClick={saveIssue}>{editId ? 'Save Changes' : 'Save'}</button>
-            </div>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} className="w-[660px] max-w-[95vw]">
+        {/* header */}
+        <div className="mb-4.5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="cursor-pointer text-base text-muted-foreground" onClick={() => setModalOpen(false)}>&times;</span>
+            <span className="text-[15px] font-bold text-foreground">{editId ? 'Edit Issue' : 'New Issue'}</span>
+          </div>
+          <Button size="sm" onClick={saveIssue}>{editId ? 'Save Changes' : 'Save'}</Button>
+        </div>
 
-            {/* title + status (2-col) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="fg">
-                <label className="fl">Title <span style={{ color: 'var(--red)' }}>*</span></label>
-                <input className="fi" placeholder="Short summary of the issue" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-              </div>
-              <div className="fg">
-                <label className="fl">Status</label>
-                <select className="fs" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                  <option>Open</option><option>In Progress</option><option>On Hold</option><option>Resolved</option><option>Closed</option>
-                </select>
-              </div>
+        <div className="grid gap-3">
+          {/* title + status (2-col) */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Title <span className="text-destructive">*</span></label>
+              <Input placeholder="Short summary of the issue" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
             </div>
-
-            {/* description */}
-            <div className="fg">
-              <label className="fl">Description</label>
-              <textarea className="fta" placeholder="Describe the issue, steps, context..." value={form.desc} onChange={e => setForm(f => ({ ...f, desc: e.target.value }))} />
-            </div>
-
-            {/* priority + store + assignee (3-col) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              <div className="fg">
-                <label className="fl">Priority <span style={{ color: 'var(--red)' }}>*</span></label>
-                <select className="fs" value={form.pri} onChange={e => setForm(f => ({ ...f, pri: e.target.value }))}>
-                  <option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
-                </select>
-              </div>
-              <div className="fg">
-                <label className="fl">Store <span style={{ color: 'var(--red)' }}>*</span></label>
-                <select className="fs" value={form.store} onChange={e => setForm(f => ({ ...f, store: e.target.value }))}>
-                  <option value="">Select store</option>
-                  {modalStoreOpts.map(s => <option key={s}>{s}</option>)}
-                </select>
-              </div>
-              <div className="fg">
-                <label className="fl">Assignee</label>
-                <select className="fs" value={form.assignee} onChange={e => setForm(f => ({ ...f, assignee: e.target.value }))}>
-                  <option>Jitendra</option><option>Lisa</option><option>Raj</option><option>Zed</option>
-                </select>
-              </div>
-            </div>
-
-            {/* created at + due at (2-col) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="fg">
-                <label className="fl">Created At <span style={{ color: 'var(--red)' }}>*</span></label>
-                <input type="datetime-local" className="fi" value={form.created} onChange={e => setForm(f => ({ ...f, created: e.target.value }))} />
-              </div>
-              <div className="fg">
-                <label className="fl">Due At <span style={{ color: 'var(--red)' }}>*</span></label>
-                <input type="datetime-local" className="fi" value={form.due} onChange={e => setForm(f => ({ ...f, due: e.target.value }))} />
-              </div>
-            </div>
-
-            {/* audit id + tags (2-col) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="fg">
-                <label className="fl">Audit ID</label>
-                <input className="fi" placeholder="Link to Audit (optional)" value={form.aid} onChange={e => setForm(f => ({ ...f, aid: e.target.value }))} />
-              </div>
-              <div className="fg">
-                <label className="fl">Tags</label>
-                <input className="fi" placeholder="Type and press Enter to add tags" value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} />
-              </div>
-            </div>
-
-            {/* file attachments */}
-            <div className="fg">
-              <label className="fl">Attachments</label>
-              <input type="file" multiple style={{ display: 'none' }} id="iss-file-input" onChange={handleAddFiles} />
-              <button className="btn btn-outline btn-sm" onClick={() => document.getElementById('iss-file-input').click()}>&#x1F4CE; Add files</button>
-              <div style={{ marginTop: 6 }}>
-                {files.map((n, idx) => (
-                  <div key={idx} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f3f4f6', borderRadius: 6, padding: '4px 8px', fontSize: 11.5, margin: '2px 4px 2px 0' }}>
-                    &#x1F4CE; {n} <span style={{ cursor: 'pointer', color: 'var(--text3)' }} onClick={() => removeFile(idx)}>&times;</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* comments */}
-            <div className="fg">
-              <label className="fl">Comments</label>
-              <textarea className="fta" placeholder="Write a comment..." style={{ minHeight: 52 }} value={form.comment} onChange={e => setForm(f => ({ ...f, comment: e.target.value }))} />
+            <div>
+              <label className={labelClass}>Status</label>
+              <select className={fieldClass} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                <option>Open</option><option>In Progress</option><option>On Hold</option><option>Resolved</option><option>Closed</option>
+              </select>
             </div>
           </div>
+
+          {/* description */}
+          <div>
+            <label className={labelClass}>Description</label>
+            <textarea className={cn(fieldClass, 'min-h-[72px] resize-y')} placeholder="Describe the issue, steps, context..." value={form.desc} onChange={e => setForm(f => ({ ...f, desc: e.target.value }))} />
+          </div>
+
+          {/* priority + store + assignee (3-col) */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className={labelClass}>Priority <span className="text-destructive">*</span></label>
+              <select className={fieldClass} value={form.pri} onChange={e => setForm(f => ({ ...f, pri: e.target.value }))}>
+                <option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Store <span className="text-destructive">*</span></label>
+              <select className={fieldClass} value={form.store} onChange={e => setForm(f => ({ ...f, store: e.target.value }))}>
+                <option value="">Select store</option>
+                {modalStoreOpts.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Assignee</label>
+              <select className={fieldClass} value={form.assignee} onChange={e => setForm(f => ({ ...f, assignee: e.target.value }))}>
+                <option>Jitendra</option><option>Lisa</option><option>Raj</option><option>Zed</option>
+              </select>
+            </div>
+          </div>
+
+          {/* created at + due at (2-col) */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Created At <span className="text-destructive">*</span></label>
+              <Input type="datetime-local" value={form.created} onChange={e => setForm(f => ({ ...f, created: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelClass}>Due At <span className="text-destructive">*</span></label>
+              <Input type="datetime-local" value={form.due} onChange={e => setForm(f => ({ ...f, due: e.target.value }))} />
+            </div>
+          </div>
+
+          {/* audit id + tags (2-col) */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Audit ID</label>
+              <Input placeholder="Link to Audit (optional)" value={form.aid} onChange={e => setForm(f => ({ ...f, aid: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelClass}>Tags</label>
+              <Input placeholder="Type and press Enter to add tags" value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} />
+            </div>
+          </div>
+
+          {/* file attachments */}
+          <div>
+            <label className={labelClass}>Attachments</label>
+            <input type="file" multiple className="hidden" id="iss-file-input" onChange={handleAddFiles} />
+            <Button size="sm" variant="outline" onClick={() => document.getElementById('iss-file-input').click()}>&#x1F4CE; Add files</Button>
+            <div className="mt-1.5">
+              {files.map((n, idx) => (
+                <div key={idx} className="mr-1 mb-1 inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 text-[11.5px]">
+                  &#x1F4CE; {n} <span className="cursor-pointer text-muted-foreground" onClick={() => removeFile(idx)}>&times;</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* comments */}
+          <div>
+            <label className={labelClass}>Comments</label>
+            <textarea className={cn(fieldClass, 'min-h-[52px] resize-y')} placeholder="Write a comment..." value={form.comment} onChange={e => setForm(f => ({ ...f, comment: e.target.value }))} />
+          </div>
         </div>
-      )}
+      </Modal>
     </>
   );
 }

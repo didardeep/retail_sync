@@ -14,7 +14,9 @@ from ..schemas import (
     AnswerQuestionRequest, AuditApproveRequest, AuditRatingRequest,
     AuditScheduleRequest,
 )
-from ..services import compute_audit_score, next_audit_id, raise_issue_from_response
+from ..services import (
+    compute_audit_score, log_action, next_audit_id, raise_issue_from_response,
+)
 
 router = APIRouter(prefix="/api/audits", tags=["audits"])
 
@@ -92,6 +94,8 @@ def schedule_audit(
             checklist_id=audit.checklist_id).order_by(ChecklistItem.sort_order).all()
         for it in items:
             db.add(AuditResponse(audit_id=audit.id, question_id=it.question_id))
+    log_action(db, user.id, "schedule_audit", "audit", audit.id,
+               {"store_id": audit.store_id, "auditor_id": auditor_id})
     db.commit()
     return audit.to_dict()
 
@@ -150,6 +154,8 @@ def submit_audit(
     # Every failed critical question becomes an action for the store manager.
     created = [raise_issue_from_response(db, audit, r)
                for r in audit.responses if r.answer == "No" and r.question.is_critical]
+    log_action(db, user.id, "submit_audit", "audit", audit.id,
+               {"score": audit.score})
     db.commit()
     return {"audit": audit.to_dict(), "issues_raised": len([c for c in created if c])}
 
@@ -168,6 +174,8 @@ def approve_audit(
         audit.score = body.score        # AM can override the computed score
     audit.status = "Approved"
     audit.approved_by_id = user.id
+    log_action(db, user.id, "approve_audit", "audit", audit.id,
+               {"score": audit.score})
     db.commit()
     return audit.to_dict()
 

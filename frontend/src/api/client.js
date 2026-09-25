@@ -62,6 +62,8 @@ export const api = {
   observations: (q = '') => request('/observations' + q),
   createObservation: (body) => request('/observations', { method: 'POST', body }),
   updateObservation: (id, body) => request(`/observations/${id}`, { method: 'PUT', body }),
+  // Audit log
+  auditLogs: () => request('/audit-logs'),
   // Structured data endpoints
   dataImports: () => request('/data-imports'),
   cashReconciliations: (q = '') => request('/cash-reconciliations' + q),

@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../components/Toast';
 import { api } from '../api/client';
 import { avC, sBadge } from '../utils/helpers';
+import { cn, fieldClass, labelClass } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Modal, ModalActions, Drawer } from '../components/Modal';
 
 const AUDITORS = ['Rohit Sharma','Meera Patel','Sara Khan','Amit Singh','Priya Das'];
 const PER_PAGE = 8;
@@ -112,175 +118,173 @@ export default function Scheduling() {
   }
 
   function progColor(s) {
-    if (s.status === 'Completed') return 'pg';
-    if (s.status === 'Assigned') return 'pb';
-    return 'po';
+    if (s.status === 'Completed') return 'bg-emerald-500';
+    if (s.status === 'Assigned') return 'bg-primary';
+    return 'bg-amber-500';
   }
 
   if (loading) {
-    return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',color:'var(--text3)'}}>Loading schedules...</div>;
+    return <div className="flex h-[60vh] items-center justify-center text-muted-foreground">Loading schedules...</div>;
   }
 
   return (
     <>
-      <div className="kpi-row c5">
-        <div className="kpi"><div className="kpi-ico" style={{background:'#e8eefa'}}>&#x1F550;</div><div><div className="kpi-lbl">Total Audits</div><div className="kpi-val">{total}</div></div></div>
-        <div className="kpi"><div className="kpi-ico" style={{background:'#e8eefa'}}>&#x1F4C5;</div><div><div className="kpi-lbl">Scheduled</div><div className="kpi-val">{scheduled}</div></div></div>
-        <div className="kpi"><div className="kpi-ico" style={{background:'#fffbeb'}}>&#x1F464;</div><div><div className="kpi-lbl">Assigned</div><div className="kpi-val">{assigned}</div></div></div>
-        <div className="kpi"><div className="kpi-ico" style={{background:'#ecfdf5'}}>&#x2705;</div><div><div className="kpi-lbl">Completed</div><div className="kpi-val">{completed}</div></div></div>
-        <div className="kpi"><div className="kpi-ico" style={{background:'#fde8e8'}}>&#x23F0;</div><div><div className="kpi-lbl">Pending Assignment</div><div className="kpi-val">{pending}</div></div></div>
+      <div className="mb-4 grid grid-cols-5 gap-3">
+        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4"><div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#e8eefa'}}>&#x1F550;</div><div><div className="mb-0.5 text-[11px] text-muted-foreground">Total Audits</div><div className="text-2xl font-bold leading-none text-foreground">{total}</div></div></div>
+        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4"><div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#e8eefa'}}>&#x1F4C5;</div><div><div className="mb-0.5 text-[11px] text-muted-foreground">Scheduled</div><div className="text-2xl font-bold leading-none text-foreground">{scheduled}</div></div></div>
+        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4"><div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#fffbeb'}}>&#x1F464;</div><div><div className="mb-0.5 text-[11px] text-muted-foreground">Assigned</div><div className="text-2xl font-bold leading-none text-foreground">{assigned}</div></div></div>
+        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4"><div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#ecfdf5'}}>&#x2705;</div><div><div className="mb-0.5 text-[11px] text-muted-foreground">Completed</div><div className="text-2xl font-bold leading-none text-foreground">{completed}</div></div></div>
+        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4"><div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#fde8e8'}}>&#x23F0;</div><div><div className="mb-0.5 text-[11px] text-muted-foreground">Pending Assignment</div><div className="text-2xl font-bold leading-none text-foreground">{pending}</div></div></div>
       </div>
 
-      <div className="filter-bar">
-        <div className="srch"><span className="srch-ic">&#x1F50D;</span><input placeholder="Search audit or store..." value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/></div>
-        <select className="sel" value={regionF} onChange={e=>{setRegionF(e.target.value);setPage(1);}}>
+      <div className="mb-3.5 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[180px] flex-1"><span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">&#x1F50D;</span><Input className="pl-8" placeholder="Search audit or store..." value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/></div>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={regionF} onChange={e=>{setRegionF(e.target.value);setPage(1);}}>
           <option value="">Region</option>
           <option>North India</option><option>South India</option><option>East India</option><option>West India</option>
         </select>
-        <select className="sel" value={statusF} onChange={e=>{setStatusF(e.target.value);setPage(1);}}>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={statusF} onChange={e=>{setStatusF(e.target.value);setPage(1);}}>
           <option value="">Status</option>
           <option>Scheduled</option><option>Assigned</option><option>Completed</option>
         </select>
-        <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Schedule Audit</button>
+        <Button size="sm" onClick={openAdd}>+ Schedule Audit</Button>
       </div>
 
-      <div className="tbl-card">
-        <table>
-          <thead><tr><th>Audit Detail</th><th>Schedule</th><th>Auditor</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody>
+      <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow><TableHead>Audit Detail</TableHead><TableHead>Schedule</TableHead><TableHead>Auditor</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow>
+          </TableHeader>
+          <TableBody>
             {paged.map(s => (
-              <tr key={s.id}>
-                <td>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontSize:16}}>&#x1F4CB;</span>
+              <TableRow key={s.id}>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">&#x1F4CB;</span>
                     <div>
-                      <div style={{fontWeight:600,fontSize:'12.5px'}}>{s.type}</div>
-                      <div style={{fontSize:11,color:'var(--text3)'}}>{s.region}</div>
+                      <div className="text-[12.5px] font-semibold">{s.type}</div>
+                      <div className="text-[11px] text-muted-foreground">{s.region}</div>
                     </div>
                   </div>
-                </td>
-                <td>
-                  <div style={{fontWeight:600,fontSize:'12.5px'}}>{s.date}</div>
-                  <div style={{fontSize:11,color:'var(--text3)'}}>{s.time}</div>
-                </td>
-                <td>
+                </TableCell>
+                <TableCell>
+                  <div className="text-[12.5px] font-semibold">{s.date}</div>
+                  <div className="text-[11px] text-muted-foreground">{s.time}</div>
+                </TableCell>
+                <TableCell>
                   {s.auditor ? (
-                    <div style={{display:'flex',alignItems:'center',gap:6}}>
-                      <div className={`av ${avC(s.auditor)}`}>{s.auditor[0]}</div>
+                    <div className="flex items-center gap-1.5">
+                      <div className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(s.auditor))}>{s.auditor[0]}</div>
                       <div>
-                        <div style={{fontWeight:600,fontSize:'12.5px'}}>{s.auditor}</div>
-                        <div style={{fontSize:11,color:'var(--text3)'}}>{s.role}</div>
+                        <div className="text-[12.5px] font-semibold">{s.auditor}</div>
+                        <div className="text-[11px] text-muted-foreground">{s.role}</div>
                       </div>
                     </div>
-                  ) : <span className="badge bgr">Unassigned</span>}
-                </td>
-                <td>
-                  <span className={`badge ${sBadge(s.status)}`}>{s.status}</span>
-                  <div className="prog-bg" style={{marginTop:6,height:5}}>
-                    <div className={`prog-fill ${progColor(s)}`} style={{width:`${s.prog}%`,height:5}}/>
+                  ) : <Badge className="bg-muted text-muted-foreground border border-border">Unassigned</Badge>}
+                </TableCell>
+                <TableCell>
+                  <Badge className={sBadge(s.status)}>{s.status}</Badge>
+                  <div className="mt-1.5 h-[5px] overflow-hidden rounded-[3px] bg-gray-200">
+                    <div className={cn('h-full rounded-[3px]', progColor(s))} style={{width:`${s.prog}%`}}/>
                   </div>
-                </td>
-                <td>
-                  <div style={{display:'flex',gap:4}}>
-                    <button className="icon-btn" style={{width:26,height:26,fontSize:11}} onClick={()=>setDrawerId(s.id)} title="View">&#x1F441;</button>
-                    <button className="icon-btn" style={{width:26,height:26,fontSize:11}} onClick={()=>openEdit(s)} title="Edit">&#x270F;&#xFE0F;</button>
-                    <button className="icon-btn" style={{width:26,height:26,fontSize:11}} onClick={()=>del(s.id)} title="Delete">&#x1F5D1;&#xFE0F;</button>
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    <button className="flex h-[26px] w-[26px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={()=>setDrawerId(s.id)} title="View">&#x1F441;</button>
+                    <button className="flex h-[26px] w-[26px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={()=>openEdit(s)} title="Edit">&#x270F;&#xFE0F;</button>
+                    <button className="flex h-[26px] w-[26px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={()=>del(s.id)} title="Delete">&#x1F5D1;&#xFE0F;</button>
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
-      <div className="pagination">
-        <span style={{marginRight:8}}>{filtered.length} audits</span>
+      <div className="mt-3 flex items-center justify-end gap-1 text-xs text-muted-foreground">
+        <span className="mr-2">{filtered.length} audits</span>
         {Array.from({length:pages},(_,i)=>(
-          <button key={i} className={`pgbtn${page===i+1?' active':''}`} onClick={()=>setPage(i+1)}>{i+1}</button>
+          <button key={i} className={cn('flex h-[27px] w-[27px] items-center justify-center rounded-md border border-border bg-card text-xs text-foreground/80', page===i+1 && 'border-primary bg-primary text-primary-foreground')} onClick={()=>setPage(i+1)}>{i+1}</button>
         ))}
       </div>
 
       {/* Drawer */}
-      <div className={`drawer-ov${drawerItem?' open':''}`} onClick={e=>{if(e.target===e.currentTarget)setDrawerId(null);}}>
-        <div className="drawer">
-          {drawerItem && <>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-              <div style={{fontSize:'10.5px',color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.04em'}}>Audit Reference</div>
-              <span style={{cursor:'pointer',color:'var(--text3)',fontSize:15}} onClick={()=>setDrawerId(null)}>&#x2715;</span>
-            </div>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
-              <div style={{fontSize:16,fontWeight:700,color:'var(--text)'}}>{drawerItem.id}</div>
-              <span className={`badge ${sBadge(drawerItem.status)}`}>{drawerItem.status}</span>
-            </div>
-            <div style={{fontSize:13,fontWeight:600,color:'var(--text)',marginBottom:16}}>{drawerItem.type}</div>
+      <Drawer open={!!drawerItem} onClose={()=>setDrawerId(null)}>
+        {drawerItem && <>
+          <div className="mb-1 flex items-center justify-between">
+            <div className="text-[10.5px] uppercase tracking-wide text-muted-foreground">Audit Reference</div>
+            <span className="cursor-pointer text-[15px] text-muted-foreground" onClick={()=>setDrawerId(null)}>&#x2715;</span>
+          </div>
+          <div className="mb-4.5 flex items-center justify-between">
+            <div className="text-base font-bold text-foreground">{drawerItem.id}</div>
+            <Badge className={sBadge(drawerItem.status)}>{drawerItem.status}</Badge>
+          </div>
+          <div className="mb-4 text-[13px] font-semibold text-foreground">{drawerItem.type}</div>
 
-            <div className="drawer-row">
-              <div className="drawer-ic">&#x1F4CD;</div>
-              <div><div className="drawer-lbl">Store Location</div><div className="drawer-val">{drawerItem.store}</div><div className="drawer-sub">{drawerItem.storeSub}</div></div>
+          <div className="mb-4 flex items-start gap-2.5">
+            <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-md bg-accent text-[13px]">&#x1F4CD;</div>
+            <div><div className="mb-0.5 text-[10.5px] uppercase tracking-wide text-muted-foreground">Store Location</div><div className="text-[12.5px] font-semibold text-foreground">{drawerItem.store}</div><div className="text-[11.5px] text-muted-foreground">{drawerItem.storeSub}</div></div>
+          </div>
+          <div className="mb-4 flex items-start gap-2.5">
+            <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-md bg-accent text-[13px]">&#x1F4C5;</div>
+            <div><div className="mb-0.5 text-[10.5px] uppercase tracking-wide text-muted-foreground">Scheduled Execution</div><div className="text-[12.5px] font-semibold text-foreground">{drawerItem.date}</div><div className="text-[11.5px] text-muted-foreground">{drawerItem.time}</div></div>
+          </div>
+
+          <div className="mb-2 text-[10.5px] uppercase tracking-wide text-muted-foreground">Assigned Personnel</div>
+          {drawerItem.auditor ? (
+            <div className="mb-4.5 flex items-center gap-2">
+              <div className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(drawerItem.auditor))}>{drawerItem.auditor[0]}</div>
+              <div><div className="text-[12.5px] font-semibold">{drawerItem.auditor}</div><div className="text-[11px] text-muted-foreground">{drawerItem.role}</div></div>
             </div>
-            <div className="drawer-row">
-              <div className="drawer-ic">&#x1F4C5;</div>
-              <div><div className="drawer-lbl">Scheduled Execution</div><div className="drawer-val">{drawerItem.date}</div><div className="drawer-sub">{drawerItem.time}</div></div>
-            </div>
+          ) : <div className="mb-4.5"><Badge className="bg-muted text-muted-foreground border border-border">Unassigned</Badge></div>}
 
-            <div className="drawer-lbl" style={{marginBottom:8}}>Assigned Personnel</div>
-            {drawerItem.auditor ? (
-              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:18}}>
-                <div className={`av ${avC(drawerItem.auditor)}`}>{drawerItem.auditor[0]}</div>
-                <div><div style={{fontWeight:600,fontSize:'12.5px'}}>{drawerItem.auditor}</div><div style={{fontSize:11,color:'var(--text3)'}}>{drawerItem.role}</div></div>
-              </div>
-            ) : <div style={{marginBottom:18}}><span className="badge bgr">Unassigned</span></div>}
+          <div className="mb-1.5 text-[10.5px] uppercase tracking-wide text-muted-foreground">Completion Progress</div>
+          <div className="mb-4.5 h-1.5 overflow-hidden rounded-[3px] bg-gray-200"><div className={cn('h-full rounded-[3px]', progColor(drawerItem))} style={{width:`${drawerItem.prog}%`}}/></div>
 
-            <div className="drawer-lbl" style={{marginBottom:6}}>Completion Progress</div>
-            <div className="prog-bg" style={{marginBottom:18}}><div className={`prog-fill ${progColor(drawerItem)}`} style={{width:`${drawerItem.prog}%`,height:6}}/></div>
+          <div className="mb-1.5 text-[10.5px] uppercase tracking-wide text-muted-foreground">Audit Notes &amp; Objectives</div>
+          <textarea value={drawerItem.notes||''} readOnly rows={3} className="mb-5 w-full rounded-lg border border-border px-2.5 py-2 font-[inherit] text-[12.5px] text-foreground/80 resize-y"/>
 
-            <div className="drawer-lbl" style={{marginBottom:6}}>Audit Notes &amp; Objectives</div>
-            <textarea value={drawerItem.notes||''} readOnly rows={3} style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px',fontSize:'12.5px',color:'var(--text2)',resize:'vertical',fontFamily:'inherit',marginBottom:20}}/>
-
-            <div style={{display:'flex',gap:8}}>
-              <button className="btn btn-primary" style={{flex:1}} onClick={()=>openEdit(drawerItem)}>&#x270E; Edit Audit</button>
-              <button className="btn btn-outline" style={{color:'var(--red)',borderColor:'var(--red-soft)'}} onClick={()=>del(drawerItem.id)}>&#x1F5D1; Delete</button>
-            </div>
-          </>}
-        </div>
-      </div>
+          <div className="flex gap-2">
+            <Button className="flex-1" onClick={()=>openEdit(drawerItem)}>&#x270E; Edit Audit</Button>
+            <Button variant="outline" className="border-red-200 text-destructive" onClick={()=>del(drawerItem.id)}>&#x1F5D1; Delete</Button>
+          </div>
+        </>}
+      </Drawer>
 
       {/* Modal */}
-      <div className={`modal-ov${modal?' open':''}`} onClick={e=>{if(e.target===e.currentTarget)setModal(false);}}>
-        <div className="modal" style={{width:620}}>
-          <div className="modal-title">{editId ? 'Edit Audit' : 'Schedule New Audit'}</div>
-          <div className="modal-grid">
-            <div className="fg"><label className="fl">Audit Title <span style={{color:'var(--red)'}}>*</span></label><input className="fi" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="e.g. Q3 Compliance Audit"/></div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-              <div className="fg"><label className="fl">Store <span style={{color:'var(--red)'}}>*</span></label>
-                <select className="fs" value={form.store} onChange={e=>setForm({...form,store:e.target.value})}>
-                  <option value="">Select store</option>
-                  {stores.map(s=><option key={s.id} value={`${s.name} \u2013 Retail`}>{s.name} \u2013 {s.city}</option>)}
-                </select>
-              </div>
-              <div className="fg"><label className="fl">Date &amp; Time <span style={{color:'var(--red)'}}>*</span></label><input type="datetime-local" className="fi" value={form.dt} onChange={e=>setForm({...form,dt:e.target.value})}/></div>
+      <Modal open={modal} onClose={()=>setModal(false)} className="w-[620px]">
+        <div className="mb-4 text-[15px] font-bold text-foreground">{editId ? 'Edit Audit' : 'Schedule New Audit'}</div>
+        <div className="grid gap-3">
+          <div><label className={labelClass}>Audit Title <span className="text-destructive">*</span></label><Input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="e.g. Q3 Compliance Audit"/></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={labelClass}>Store <span className="text-destructive">*</span></label>
+              <select className={fieldClass} value={form.store} onChange={e=>setForm({...form,store:e.target.value})}>
+                <option value="">Select store</option>
+                {stores.map(s=><option key={s.id} value={`${s.name} – Retail`}>{s.name} – {s.city}</option>)}
+              </select>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-              <div className="fg"><label className="fl">Auditor</label>
-                <select className="fs" value={form.auditor} onChange={e=>setForm({...form,auditor:e.target.value})}>
-                  <option value="">Unassigned</option>
-                  {AUDITORS.map(a=><option key={a}>{a}</option>)}
-                </select>
-              </div>
-              <div className="fg"><label className="fl">Status</label>
-                <select className="fs" value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>
-                  <option>Scheduled</option><option>Assigned</option><option>In Progress</option><option>Completed</option>
-                </select>
-              </div>
+            <div><label className={labelClass}>Date &amp; Time <span className="text-destructive">*</span></label><Input type="datetime-local" value={form.dt} onChange={e=>setForm({...form,dt:e.target.value})}/></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={labelClass}>Auditor</label>
+              <select className={fieldClass} value={form.auditor} onChange={e=>setForm({...form,auditor:e.target.value})}>
+                <option value="">Unassigned</option>
+                {AUDITORS.map(a=><option key={a}>{a}</option>)}
+              </select>
             </div>
-            <div className="fg"><label className="fl">Notes</label><textarea className="fta" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Add any relevant notes..." style={{minHeight:90}}/></div>
+            <div><label className={labelClass}>Status</label>
+              <select className={fieldClass} value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>
+                <option>Scheduled</option><option>Assigned</option><option>In Progress</option><option>Completed</option>
+              </select>
+            </div>
           </div>
-          <div className="modal-actions">
-            <button className="btn btn-outline" onClick={()=>setModal(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={save}>{editId ? 'Save Changes' : 'Schedule'}</button>
-          </div>
+          <div><label className={labelClass}>Notes</label><textarea className={cn(fieldClass, 'min-h-[90px] resize-y')} value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Add any relevant notes..."/></div>
         </div>
-      </div>
+        <ModalActions>
+          <Button variant="outline" onClick={()=>setModal(false)}>Cancel</Button>
+          <Button onClick={save}>{editId ? 'Save Changes' : 'Schedule'}</Button>
+        </ModalActions>
+      </Modal>
     </>
   );
 }

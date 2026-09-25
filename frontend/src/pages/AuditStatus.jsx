@@ -1,6 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { api } from '../api/client';
 import { avC, sBadge, sColor, prC, stC, seedRand } from '../utils/helpers';
+import { cn, fieldClass } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { Modal, ModalActions } from '../components/Modal';
 
 const OBS_POOL = [
   { title: 'GSTIN certificate not displayed at store', desc: 'Mandatory regulatory compliance issue.', pri: 'Critical' },
@@ -149,257 +155,215 @@ export default function AuditStatus() {
   }, [detailAudit, issues, questions]);
 
   if (loading) {
-    return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',color:'var(--text3)'}}>Loading audit data...</div>;
+    return <div className="flex h-[60vh] items-center justify-center text-muted-foreground">Loading audit data...</div>;
   }
 
   /* ── render ── */
   return (
     <>
       {/* ── Filter bar ── */}
-      <div className="filter-bar">
-        <div className="srch" style={{ maxWidth: 260 }}>
-          <span className="srch-ic">&#x1F50D;</span>
-          <input
-            placeholder="Search by ID, store or auditor..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+      <div className="mb-3.5 flex flex-wrap items-center gap-2">
+        <div className="relative max-w-[260px] flex-1">
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">&#x1F50D;</span>
+          <Input className="pl-8" placeholder="Search by ID, store or auditor..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select className="sel" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           <option value="">Status</option>
           <option>In Progress</option>
           <option>Planned</option>
           <option>Overdue</option>
           <option>Completed</option>
         </select>
-        <select className="sel" value={regionFilter} onChange={e => setRegionFilter(e.target.value)}>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={regionFilter} onChange={e => setRegionFilter(e.target.value)}>
           <option value="">Region</option>
           <option>North India</option>
           <option>South India</option>
           <option>East India</option>
           <option>West India</option>
         </select>
-        <select className="sel" value={auditorFilter} onChange={e => setAuditorFilter(e.target.value)}>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={auditorFilter} onChange={e => setAuditorFilter(e.target.value)}>
           <option value="">Auditor</option>
           {auditorOptions.map(n => <option key={n}>{n}</option>)}
         </select>
-        <input type="date" className="sel" value={startDate} onChange={e => setStartDate(e.target.value)} />
-        <input type="date" className="sel" value={endDate} onChange={e => setEndDate(e.target.value)} />
-        <button className="icon-btn" onClick={clearFilters} title="Clear filters">&#x1F504;</button>
+        <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={startDate} onChange={e => setStartDate(e.target.value)} />
+        <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={endDate} onChange={e => setEndDate(e.target.value)} />
+        <button className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-card text-[13px]" onClick={clearFilters} title="Clear filters">&#x1F504;</button>
       </div>
 
       {/* ── Table ── */}
-      <div className="tbl-card">
-        <table>
-          <thead>
-            <tr>
-              <th><input type="checkbox" readOnly /></th>
-              <th>Audit ID</th>
-              <th>Store</th>
-              <th>Scheduled &#x21C5;</th>
-              <th>Status &#x25BC;</th>
-              <th>Score</th>
-              <th>Issues</th>
-              <th>Auditor</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead><input type="checkbox" readOnly /></TableHead>
+              <TableHead>Audit ID</TableHead>
+              <TableHead>Store</TableHead>
+              <TableHead>Scheduled &#x21C5;</TableHead>
+              <TableHead>Status &#x25BC;</TableHead>
+              <TableHead>Score</TableHead>
+              <TableHead>Issues</TableHead>
+              <TableHead>Auditor</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {filtered.length > 0 ? filtered.map(a => {
               const issCount = issues.filter(i => i.audit_id === a.id).length;
               const schedDisplay = a.scheduled_at ? new Date(a.scheduled_at).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'}) + ', ' + new Date(a.scheduled_at).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'}) : (a.sched || '—');
               return (
-              <tr key={a.id} style={{ cursor: 'pointer' }} onClick={() => setDetailAudit(a)}>
-                <td onClick={e => e.stopPropagation()}><input type="checkbox" /></td>
-                <td>
-                  <a style={{ color: 'var(--accent)', fontWeight: 600, textDecoration: 'none' }}>{a.id}</a>
-                </td>
-                <td>
-                  <div style={{ fontWeight: 500 }}>{a.store}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>{a.city}</div>
-                </td>
-                <td>
-                  <span style={{ fontSize: 11, color: 'var(--text3)' }}>&#x1F550;</span> {schedDisplay}
-                </td>
-                <td><span className={`badge ${sBadge(a.status)}`}>{a.status}</span></td>
-                <td>
+              <TableRow key={a.id} className="cursor-pointer" onClick={() => setDetailAudit(a)}>
+                <TableCell onClick={e => e.stopPropagation()}><input type="checkbox" /></TableCell>
+                <TableCell><a className="font-semibold text-primary no-underline">{a.id}</a></TableCell>
+                <TableCell>
+                  <div className="font-medium">{a.store}</div>
+                  <div className="text-[11px] text-muted-foreground">{a.city}</div>
+                </TableCell>
+                <TableCell>
+                  <span className="text-[11px] text-muted-foreground">&#x1F550;</span> {schedDisplay}
+                </TableCell>
+                <TableCell><Badge className={sBadge(a.status)}>{a.status}</Badge></TableCell>
+                <TableCell>
                   {a.score != null ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        width: 34, height: 34, borderRadius: '50%',
-                        border: `2px solid ${sColor(a.score)}`,
-                        fontSize: '10.5px', fontWeight: 700, color: sColor(a.score),
-                      }}>{a.score}%</span>
-                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>{a.score}/100</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-full text-[10.5px] font-bold" style={{ border: `2px solid ${sColor(a.score)}`, color: sColor(a.score) }}>{a.score}%</span>
+                      <span className="text-[11px] text-muted-foreground">{a.score}/100</span>
                     </div>
                   ) : (
-                    <span style={{ color: 'var(--text3)' }}>&mdash;</span>
+                    <span className="text-muted-foreground">&mdash;</span>
                   )}
-                </td>
-                <td style={{ fontWeight: 500 }}>
-                  {(a.status === 'Completed' || a.status === 'Approved') ? issCount : '\u2014'}
-                </td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <div className={`av ${avC(a.auditor || 'U')}`}>{(a.auditor||'U')[0]}</div>
-                    <span style={{ fontSize: 12 }}>{a.auditor || 'Unassigned'}</span>
+                </TableCell>
+                <TableCell className="font-medium">
+                  {(a.status === 'Completed' || a.status === 'Approved') ? issCount : '—'}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1.5">
+                    <div className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(a.auditor || 'U'))}>{(a.auditor||'U')[0]}</div>
+                    <span className="text-xs">{a.auditor || 'Unassigned'}</span>
                   </div>
-                </td>
-                <td onClick={e => e.stopPropagation()}>
-                  <div style={{ display: 'flex', gap: 3 }}>
-                    <button className="icon-btn" style={{ width: 25, height: 25, fontSize: 11 }} onClick={() => setDetailAudit(a)}>&#x1F441;</button>
-                    <button className="icon-btn" style={{ width: 25, height: 25, fontSize: 11 }}>&#x270F;&#xFE0F;</button>
-                    <button className="icon-btn" style={{ width: 25, height: 25, fontSize: 11 }}>&hellip;</button>
+                </TableCell>
+                <TableCell onClick={e => e.stopPropagation()}>
+                  <div className="flex gap-1">
+                    <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={() => setDetailAudit(a)}>&#x1F441;</button>
+                    <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px]">&#x270F;&#xFE0F;</button>
+                    <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px]">&hellip;</button>
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}) : (
-              <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--text3)' }}>No audits match your filters</td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={9} className="p-10 text-center text-muted-foreground">No audits match your filters</TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
-      <div className="pagination"><span>{filtered.length} items</span></div>
+      <div className="mt-3 flex justify-end text-xs text-muted-foreground"><span>{filtered.length} items</span></div>
 
       {/* ── Audit Detail Modal ── */}
       {detailAudit && detailData && (
-        <div className="modal-ov open" onClick={e => { if (e.target === e.currentTarget) setDetailAudit(null); }}>
-          <div className="modal" style={{ width: 700, maxWidth: '95vw' }}>
-            {/* header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div className="modal-title" style={{ marginBottom: 0 }}>{detailAudit.id} &middot; {detailAudit.store}</div>
-              <span style={{ cursor: 'pointer', color: 'var(--text3)', fontSize: 16 }} onClick={() => setDetailAudit(null)}>&times;</span>
-            </div>
+        <Modal open={!!detailAudit} onClose={() => setDetailAudit(null)} className="w-[700px] max-w-[95vw]">
+          {/* header */}
+          <div className="mb-3.5 flex items-center justify-between">
+            <div className="text-[15px] font-bold text-foreground">{detailAudit.id} &middot; {detailAudit.store}</div>
+            <span className="cursor-pointer text-base text-muted-foreground" onClick={() => setDetailAudit(null)}>&times;</span>
+          </div>
 
-            {/* 3-col header grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, fontSize: 12, marginBottom: 16 }}>
-              <div>
-                <div style={{ color: 'var(--text3)', marginBottom: 2 }}>Store</div>
-                <b style={{ color: 'var(--text2)' }}>{detailAudit.store}, {detailAudit.city}</b>
-              </div>
-              <div>
-                <div style={{ color: 'var(--text3)', marginBottom: 2 }}>Scheduled</div>
-                <b style={{ color: 'var(--text2)' }}>{detailAudit.scheduled_at?.substring(0,10) || detailAudit.sched}</b>
-              </div>
-              <div>
-                <div style={{ color: 'var(--text3)', marginBottom: 2 }}>Status</div>
-                <span className={`badge ${sBadge(detailAudit.status)}`}>{detailAudit.status}</span>
-              </div>
-              <div>
-                <div style={{ color: 'var(--text3)', marginBottom: 2 }}>Auditor</div>
-                <b style={{ color: 'var(--text2)' }}>{detailAudit.auditor || 'Unassigned'}</b>
-              </div>
-              <div>
-                <div style={{ color: 'var(--text3)', marginBottom: 2 }}>Issues Raised</div>
-                <b style={{ color: 'var(--text2)' }}>{issues.filter(i => i.audit_id === detailAudit.id).length}</b>
-              </div>
-              <div>
-                <div style={{ color: 'var(--text3)', marginBottom: 2 }}>Score</div>
-                <div>
-                  {detailAudit.score != null ? (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      width: 36, height: 36, borderRadius: '50%',
-                      border: `2px solid ${sColor(detailAudit.score)}`,
-                      fontSize: 11, fontWeight: 700, color: sColor(detailAudit.score),
-                    }}>{detailAudit.score}%</span>
-                  ) : (
-                    <span style={{ color: 'var(--text3)' }}>Pending</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Audit Questions Answered */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>Audit Questions Answered</div>
-              <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-                {detailData.answered.length > 0 ? (
-                  <>
-                    {detailData.answered.map((q, idx) => (
-                      <div key={idx} style={{
-                        display: 'grid', gridTemplateColumns: '14px 1fr 150px 60px',
-                        alignItems: 'center', gap: 10, padding: '9px 12px',
-                        borderBottom: '1px solid var(--border)',
-                      }}>
-                        <span style={{
-                          width: 9, height: 9, borderRadius: '50%',
-                          background: q.ans === 'Yes' ? '#0e9f6e' : '#e02424', flexShrink: 0,
-                        }} />
-                        <span style={{ fontSize: '12.5px', color: 'var(--text2)' }}>{q.text}</span>
-                        <span className="chip" style={{ justifySelf: 'start' }}>{q.sp}</span>
-                        <span className={`badge ${q.ans === 'Yes' ? 'bg' : 'br'}`} style={{ justifySelf: 'end' }}>{q.ans}</span>
-                      </div>
-                    ))}
-                    <div style={{ padding: '9px 12px', fontSize: 12, color: 'var(--text3)' }}>(Showing a sample of questions)</div>
-                  </>
-                ) : (
-                  <div style={{ textAlign: 'center', padding: 20, color: 'var(--text3)', fontSize: 12 }}>No questions answered yet.</div>
-                )}
-              </div>
-            </div>
-
-            {/* Observations */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>Observations</div>
-              <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-                {detailData.findings.length > 0 ? detailData.findings.map((i, idx) => (
-                  <div key={idx} style={{
-                    padding: '10px 12px',
-                    borderBottom: idx < detailData.findings.length - 1 ? '1px solid var(--border)' : 'none',
-                  }}>
-                    <div style={{
-                      display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-                      gap: 16, marginBottom: 4,
-                    }}>
-                      <span style={{
-                        fontSize: '12.5px', fontWeight: 600, color: 'var(--text)',
-                        flex: 1, minWidth: 0, textAlign: 'left', paddingRight: 8,
-                      }}>{i.title}</span>
-                      <div style={{ display: 'flex', gap: 5, flexShrink: 0, justifyContent: 'flex-end' }}>
-                        <span className={`badge ${prC(i.pri)}`} style={{ whiteSpace: 'nowrap' }}>{i.pri}</span>
-                        <span className={`badge ${stC(i.status)}`} style={{ whiteSpace: 'nowrap' }}>{i.status}</span>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text3)', lineHeight: 1.4 }}>{i.desc}</div>
-                  </div>
-                )) : (
-                  <div style={{ textAlign: 'center', padding: 20, color: 'var(--text3)', fontSize: 12 }}>No observations recorded for this audit.</div>
-                )}
-              </div>
-            </div>
-
-            {/* Auditor & Store Comments */}
+          {/* 3-col header grid */}
+          <div className="mb-4 grid grid-cols-3 gap-2.5 text-xs">
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>Auditor &amp; Store Comments</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{
-                  alignSelf: 'flex-end', maxWidth: '75%',
-                  background: 'var(--accent)', color: '#fff',
-                  padding: '8px 12px', borderRadius: '12px 12px 2px 12px', fontSize: '12.5px',
-                }}>
-                  {detailData.cSet[0]}
-                  <div style={{ fontSize: 10, opacity: 0.75, marginTop: 3 }}>{detailAudit.auditor || 'Auditor'}</div>
-                </div>
-                <div style={{
-                  alignSelf: 'flex-start', maxWidth: '75%',
-                  background: '#f3f4f6', color: 'var(--text2)',
-                  padding: '8px 12px', borderRadius: '12px 12px 12px 2px', fontSize: '12.5px',
-                }}>
-                  {detailData.cSet[1]}
-                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>Store Manager</div>
-                </div>
-              </div>
+              <div className="mb-0.5 text-muted-foreground">Store</div>
+              <b className="text-foreground/80">{detailAudit.store}, {detailAudit.city}</b>
             </div>
-
-            <div className="modal-actions">
-              <button className="btn btn-outline" onClick={() => setDetailAudit(null)}>Close</button>
+            <div>
+              <div className="mb-0.5 text-muted-foreground">Scheduled</div>
+              <b className="text-foreground/80">{detailAudit.scheduled_at?.substring(0,10) || detailAudit.sched}</b>
+            </div>
+            <div>
+              <div className="mb-0.5 text-muted-foreground">Status</div>
+              <Badge className={sBadge(detailAudit.status)}>{detailAudit.status}</Badge>
+            </div>
+            <div>
+              <div className="mb-0.5 text-muted-foreground">Auditor</div>
+              <b className="text-foreground/80">{detailAudit.auditor || 'Unassigned'}</b>
+            </div>
+            <div>
+              <div className="mb-0.5 text-muted-foreground">Issues Raised</div>
+              <b className="text-foreground/80">{issues.filter(i => i.audit_id === detailAudit.id).length}</b>
+            </div>
+            <div>
+              <div className="mb-0.5 text-muted-foreground">Score</div>
+              <div>
+                {detailAudit.score != null ? (
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[11px] font-bold" style={{ border: `2px solid ${sColor(detailAudit.score)}`, color: sColor(detailAudit.score) }}>{detailAudit.score}%</span>
+                ) : (
+                  <span className="text-muted-foreground">Pending</span>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+
+          {/* Audit Questions Answered */}
+          <div className="mb-4">
+            <div className="mb-2 text-[13px] font-semibold text-foreground">Audit Questions Answered</div>
+            <div className="overflow-hidden rounded-lg border border-border">
+              {detailData.answered.length > 0 ? (
+                <>
+                  {detailData.answered.map((q, idx) => (
+                    <div key={idx} className="grid grid-cols-[14px_1fr_150px_60px] items-center gap-2.5 border-b border-border px-3 py-2.5 last:border-0">
+                      <span className="h-[9px] w-[9px] shrink-0 rounded-full" style={{ background: q.ans === 'Yes' ? '#0e9f6e' : '#e02424' }} />
+                      <span className="text-[12.5px] text-foreground/80">{q.text}</span>
+                      <span className="justify-self-start rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10.5px] font-medium text-gray-700">{q.sp}</span>
+                      <Badge className={cn('justify-self-end', q.ans === 'Yes' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-800')}>{q.ans}</Badge>
+                    </div>
+                  ))}
+                  <div className="px-3 py-2.5 text-xs text-muted-foreground">(Showing a sample of questions)</div>
+                </>
+              ) : (
+                <div className="p-5 text-center text-xs text-muted-foreground">No questions answered yet.</div>
+              )}
+            </div>
+          </div>
+
+          {/* Observations */}
+          <div className="mb-4">
+            <div className="mb-2 text-[13px] font-semibold text-foreground">Observations</div>
+            <div className="overflow-hidden rounded-lg border border-border">
+              {detailData.findings.length > 0 ? detailData.findings.map((i, idx) => (
+                <div key={idx} className="border-b border-border px-3 py-2.5 last:border-0">
+                  <div className="mb-1 flex items-start justify-between gap-4">
+                    <span className="min-w-0 flex-1 pr-2 text-left text-[12.5px] font-semibold text-foreground">{i.title}</span>
+                    <div className="flex shrink-0 justify-end gap-1.5">
+                      <Badge className={cn('whitespace-nowrap', prC(i.pri))}>{i.pri}</Badge>
+                      <Badge className={cn('whitespace-nowrap', stC(i.status))}>{i.status}</Badge>
+                    </div>
+                  </div>
+                  <div className="text-[11.5px] leading-snug text-muted-foreground">{i.desc}</div>
+                </div>
+              )) : (
+                <div className="p-5 text-center text-xs text-muted-foreground">No observations recorded for this audit.</div>
+              )}
+            </div>
+          </div>
+
+          {/* Auditor & Store Comments */}
+          <div>
+            <div className="mb-2 text-[13px] font-semibold text-foreground">Auditor &amp; Store Comments</div>
+            <div className="flex flex-col gap-2">
+              <div className="max-w-[75%] self-end rounded-[12px_12px_2px_12px] bg-primary px-3 py-2 text-[12.5px] text-primary-foreground">
+                {detailData.cSet[0]}
+                <div className="mt-0.5 text-[10px] opacity-75">{detailAudit.auditor || 'Auditor'}</div>
+              </div>
+              <div className="max-w-[75%] self-start rounded-[12px_12px_12px_2px] bg-gray-100 px-3 py-2 text-[12.5px] text-foreground/80">
+                {detailData.cSet[1]}
+                <div className="mt-0.5 text-[10px] text-muted-foreground">Store Manager</div>
+              </div>
+            </div>
+          </div>
+
+          <ModalActions>
+            <Button variant="outline" onClick={() => setDetailAudit(null)}>Close</Button>
+          </ModalActions>
+        </Modal>
       )}
     </>
   );
