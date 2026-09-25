@@ -2,15 +2,22 @@ import { useState, useEffect } from 'react'
 import { Line } from 'react-chartjs-2'
 import { api } from '../api/client'
 import { sColor, pbClass, exportCSV } from '../utils/helpers'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Modal, ModalActions } from '../components/Modal'
 
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4']
+const SCORE_GRID = 'grid-cols-[2fr_1fr_1.5fr_1.5fr_1.5fr_1.5fr_70px]'
 
 function deltaDisplay(curr, prev) {
   if (prev === undefined || prev === null || prev === 0) return ''
   const d = curr - prev
-  if (d > 0) return <span className="db-up">+{d}</span>
-  if (d < 0) return <span className="db-dn">{d}</span>
-  return <span className="db-fl">0</span>
+  if (d > 0) return <span className="rounded-[5px] bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">+{d}</span>
+  if (d < 0) return <span className="rounded-[5px] bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">{d}</span>
+  return <span className="rounded-[5px] bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500">0</span>
 }
 
 export default function StoreAuditScores() {
@@ -102,49 +109,49 @@ export default function StoreAuditScores() {
   }
 
   if (loading) {
-    return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',color:'var(--text3)'}}>Loading store scores...</div>
+    return <div className="flex h-[60vh] items-center justify-center text-muted-foreground">Loading store scores...</div>
   }
 
   /* ── render ── */
   return (
     <>
       {/* Header */}
-      <div className="page-hdr">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
         <div>
-          <h2>Store Audit Scores</h2>
-          <p>Quarterly score analysis</p>
+          <h2 className="text-xl font-bold text-foreground">Store Audit Scores</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">Quarterly score analysis</p>
         </div>
-        <div className="btn-row">
-          <button className="btn btn-outline btn-sm" onClick={handleExport}>&#x2B07; Export CSV</button>
+        <div className="flex items-center gap-1.5">
+          <Button size="sm" variant="outline" onClick={handleExport}>&#x2B07; Export CSV</Button>
         </div>
       </div>
 
       {/* Filter bar */}
-      <div className="filter-bar" style={{ justifyContent: 'space-between' }}>
-        <div className="srch" style={{ maxWidth: 260 }}>
-          <span className="srch-ic">&#x1F50D;</span>
-          <input placeholder="Search stores..." value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
+        <div className="relative max-w-[260px] flex-1">
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">&#x1F50D;</span>
+          <Input className="pl-8" placeholder="Search stores..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button className={`qtab${statusFilter === 'all' ? ' active' : ''}`} onClick={() => setStatusFilter('all')}>All</button>
-            <button className={`qtab${statusFilter === 'open' ? ' active' : ''}`} onClick={() => setStatusFilter('open')}>Operating</button>
-            <button className={`qtab${statusFilter === 'closed' ? ' active' : ''}`} onClick={() => setStatusFilter('closed')}>Dehired</button>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === 'all' && 'border-primary bg-primary text-primary-foreground')} onClick={() => setStatusFilter('all')}>All</button>
+            <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === 'open' && 'border-primary bg-primary text-primary-foreground')} onClick={() => setStatusFilter('open')}>Operating</button>
+            <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === 'closed' && 'border-primary bg-primary text-primary-foreground')} onClick={() => setStatusFilter('closed')}>Dehired</button>
           </div>
-          <button className="icon-btn" onClick={handleRefresh}>&#x1F504;</button>
+          <button className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-card text-[13px]" onClick={handleRefresh}>&#x1F504;</button>
         </div>
       </div>
 
       {/* Score table */}
-      <div className="tbl-card" style={{ '--score-cols': 4 }}>
+      <div className="overflow-hidden rounded-[10px] border border-border bg-card">
         {/* Header row */}
-        <div className="score-bar-row" style={{ background: '#fafafa', borderBottom: '1px solid var(--border)' }}>
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text3)' }}>Store Details</span>
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text3)' }}>Status</span>
+        <div className={cn('grid items-center gap-2.5 border-b border-border bg-gray-50 px-3 py-2.5', SCORE_GRID)}>
+          <span className="text-[11.5px] font-semibold text-muted-foreground">Store Details</span>
+          <span className="text-[11.5px] font-semibold text-muted-foreground">Status</span>
           {QUARTERS.map(q => (
-            <span key={q} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text3)' }}>&#x1F4C5; {q} Score</span>
+            <span key={q} className="text-[11.5px] font-semibold text-muted-foreground">&#x1F4C5; {q} Score</span>
           ))}
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text3)' }}>Actions</span>
+          <span className="text-[11.5px] font-semibold text-muted-foreground">Actions</span>
         </div>
 
         {/* Data rows */}
@@ -152,22 +159,21 @@ export default function StoreAuditScores() {
           return (
             <div
               key={s.id}
-              className="score-bar-row"
-              style={{ cursor: 'pointer' }}
+              className={cn('grid cursor-pointer items-center gap-2.5 border-b border-border px-3 py-2.5 last:border-0 hover:bg-[#fafbff]', SCORE_GRID)}
               onClick={() => setDetailStore(s)}
             >
               {/* Store details */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <img src="store-logo.jpg" alt="" style={{ width: 26, height: 26, borderRadius: 6 }} onError={e => { e.target.style.display = 'none' }} />
+              <div className="flex items-center gap-2">
+                <img src="store-logo.jpg" alt="" className="h-[26px] w-[26px] rounded-md" onError={e => { e.target.style.display = 'none' }} />
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 12.5 }}>{s.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>{s.city}</div>
+                  <div className="text-[12.5px] font-semibold">{s.name}</div>
+                  <div className="text-[11px] text-muted-foreground">{s.city}</div>
                 </div>
               </div>
 
               {/* Status */}
               <div>
-                <span className={`badge ${s.status === 'Operating' ? 'bg' : 'bgr'}`}>{s.status}</span>
+                <Badge className={s.status === 'Operating' ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground border border-border'}>{s.status}</Badge>
               </div>
 
               {/* Score columns */}
@@ -176,12 +182,12 @@ export default function StoreAuditScores() {
                 const prevScore = idx > 0 ? getScore(s, QUARTERS[idx - 1]) : null
                 return (
                   <div key={q}>
-                    <div style={{ marginBottom: 4 }}>
-                      <span className="sn" style={{ color: sColor(score) }}>{score}</span>
+                    <div className="mb-1">
+                      <span className="text-base font-bold" style={{ color: sColor(score) }}>{score}</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div className="prog-bg" style={{ width: 150 }}>
-                        <div className={`prog-fill ${pbClass(score)}`} style={{ width: `${score}%`, height: 6 }} />
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-1.5 w-[150px] overflow-hidden rounded-[3px] bg-gray-200">
+                        <div className={cn('h-full rounded-[3px]', pbClass(score))} style={{ width: `${score}%` }} />
                       </div>
                       {deltaDisplay(score, prevScore)}
                     </div>
@@ -190,108 +196,106 @@ export default function StoreAuditScores() {
               })}
 
               {/* Actions */}
-              <button className="icon-btn" style={{ width: 26, height: 26, fontSize: 11 }} onClick={e => { e.stopPropagation(); setDetailStore(s) }}>&#x1F441;</button>
+              <button className="flex h-[26px] w-[26px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={e => { e.stopPropagation(); setDetailStore(s) }}>&#x1F441;</button>
             </div>
           )
         })}
 
         {filtered.length === 0 && (
-          <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>No stores found.</div>
+          <div className="p-6 text-center text-[13px] text-muted-foreground">No stores found.</div>
         )}
       </div>
 
       {/* Pagination */}
-      <div className="pagination">
+      <div className="mt-3 flex justify-end text-xs text-muted-foreground">
         <span>{filtered.length} stores</span>
       </div>
 
       {/* ── Store Detail Modal ── */}
       {detailStore && (
-        <div className="modal-ov open" onClick={e => { if (e.target === e.currentTarget) setDetailStore(null) }}>
-          <div className="modal" style={{ width: 540, padding: 0, overflow: 'hidden', maxHeight: '88vh', overflowY: 'auto' }}>
-            {/* Modal header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{detailStore.name}, {detailStore.city}</span>
-              <button className="icon-btn" style={{ width: 26, height: 26, border: 'none', fontSize: 13 }} onClick={() => setDetailStore(null)}>&times;</button>
-            </div>
+        <Modal open={!!detailStore} onClose={() => setDetailStore(null)} className="w-[540px] p-0" >
+          {/* Modal header */}
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <span className="text-[15px] font-bold text-foreground">{detailStore.name}, {detailStore.city}</span>
+            <button className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-[13px]" onClick={() => setDetailStore(null)}>&times;</button>
+          </div>
 
-            {/* Info grid */}
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px' }}>
-                <div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text3)', marginBottom: 2 }}>Store ID</div>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{detailStore.id}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text3)', marginBottom: 2 }}>Region</div>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{detailStore.region}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text3)', marginBottom: 2 }}>Format</div>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{detailStore.format}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text3)', marginBottom: 2 }}>Type of Store</div>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{detailStore.type}</div>
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <div style={{ fontSize: 10.5, color: 'var(--text3)', marginBottom: 2 }}>Manager</div>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{detailStore.manager}</div>
-                </div>
+          {/* Info grid */}
+          <div className="border-b border-border px-5 py-4">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+              <div>
+                <div className="mb-0.5 text-[10.5px] text-muted-foreground">Store ID</div>
+                <div className="text-[12.5px] font-semibold text-foreground">{detailStore.id}</div>
               </div>
-            </div>
-
-            {/* Score History chart */}
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>Quarterly Score Trend</div>
-              <div className="ch-wrap" style={{ height: 180 }}>
-                <Line data={chartData(detailStore)} options={chartOpts} />
+              <div>
+                <div className="mb-0.5 text-[10.5px] text-muted-foreground">Region</div>
+                <div className="text-[12.5px] font-semibold text-foreground">{detailStore.region}</div>
               </div>
-            </div>
-
-            {/* Recent Audits */}
-            <div style={{ padding: '16px 20px' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>Recent Audits</div>
-              {storeAudits(detailStore.name).length > 0 ? (
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Audit ID</th>
-                      <th>Date</th>
-                      <th>Score</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {storeAudits(detailStore.name).map(a => (
-                      <tr key={a.id}>
-                        <td style={{ fontWeight: 600 }}>{a.id}</td>
-                        <td>{a.scheduled_at?.substring(0,10) || a.sched}</td>
-                        <td>
-                          {a.score !== null && a.score !== undefined ? (
-                            <span style={{ fontWeight: 700, color: sColor(a.score) }}>{a.score}%</span>
-                          ) : (
-                            <span style={{ color: 'var(--text3)' }}>&mdash;</span>
-                          )}
-                        </td>
-                        <td>
-                          <button className="btn btn-outline btn-sm">View Report</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div style={{ fontSize: 12, color: 'var(--text3)' }}>No audits found for this store.</div>
-              )}
-            </div>
-
-            {/* Close button */}
-            <div className="modal-actions" style={{ padding: '4px 20px 20px' }}>
-              <button className="btn btn-outline btn-sm" onClick={() => setDetailStore(null)}>Close</button>
+              <div>
+                <div className="mb-0.5 text-[10.5px] text-muted-foreground">Format</div>
+                <div className="text-[12.5px] font-semibold text-foreground">{detailStore.format}</div>
+              </div>
+              <div>
+                <div className="mb-0.5 text-[10.5px] text-muted-foreground">Type of Store</div>
+                <div className="text-[12.5px] font-semibold text-foreground">{detailStore.type}</div>
+              </div>
+              <div className="col-span-2">
+                <div className="mb-0.5 text-[10.5px] text-muted-foreground">Manager</div>
+                <div className="text-[12.5px] font-semibold text-foreground">{detailStore.manager}</div>
+              </div>
             </div>
           </div>
-        </div>
+
+          {/* Score History chart */}
+          <div className="border-b border-border px-5 py-4">
+            <div className="mb-3 text-[13px] font-semibold text-foreground">Quarterly Score Trend</div>
+            <div className="relative w-full" style={{ height: 180 }}>
+              <Line data={chartData(detailStore)} options={chartOpts} />
+            </div>
+          </div>
+
+          {/* Recent Audits */}
+          <div className="px-5 py-4">
+            <div className="mb-3 text-[13px] font-semibold text-foreground">Recent Audits</div>
+            {storeAudits(detailStore.name).length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Audit ID</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Score</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {storeAudits(detailStore.name).map(a => (
+                    <TableRow key={a.id}>
+                      <TableCell className="font-semibold">{a.id}</TableCell>
+                      <TableCell>{a.scheduled_at?.substring(0,10) || a.sched}</TableCell>
+                      <TableCell>
+                        {a.score !== null && a.score !== undefined ? (
+                          <span className="font-bold" style={{ color: sColor(a.score) }}>{a.score}%</span>
+                        ) : (
+                          <span className="text-muted-foreground">&mdash;</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Button size="sm" variant="outline">View Report</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-xs text-muted-foreground">No audits found for this store.</div>
+            )}
+          </div>
+
+          {/* Close button */}
+          <ModalActions>
+            <Button size="sm" variant="outline" onClick={() => setDetailStore(null)}>Close</Button>
+          </ModalActions>
+        </Modal>
       )}
     </>
   )
