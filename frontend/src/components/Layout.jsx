@@ -1,7 +1,7 @@
+import { useState, useRef, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { canAccess } from '@/lib/rolesMap';
 
 const TITLES = {
@@ -41,6 +41,18 @@ export default function Layout({ user, onLogout, children }) {
   const title = TITLES[loc.pathname] || 'Store Audit and Analysis';
   const initial = (user?.name || user?.email || 'U')[0].toUpperCase();
   const nav = NAV.filter(([, page]) => canAccess(user?.role, page));
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef(null);
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+        setSettingsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -77,22 +89,32 @@ export default function Layout({ user, onLogout, children }) {
             </NavLink>
           ))}
         </nav>
-        <div className="mt-auto p-3.5 pt-2.5">
-          <Button
-            onClick={onLogout}
-            variant="outline"
-            className="w-full border-white/35 bg-transparent text-xs text-white hover:bg-white/10 hover:text-white"
-          >
-            Sign out
-          </Button>
-        </div>
       </aside>
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="flex h-[50px] shrink-0 items-center justify-between border-b border-border bg-card px-[22px]">
           <div className="text-sm font-semibold text-foreground">{title}</div>
           <div className="flex items-center gap-2.5">
             <button className="flex h-[30px] w-[30px] items-center justify-center rounded-[7px] border border-border bg-card text-[13px]" title="Notifications">&#x1F514;</button>
-            <button className="flex h-[30px] w-[30px] items-center justify-center rounded-[7px] border border-border bg-card text-[13px]" title="Settings">&#x2699;&#xFE0F;</button>
+            <div className="relative" ref={settingsRef}>
+              <button
+                className="flex h-[30px] w-[30px] items-center justify-center rounded-[7px] border border-border bg-card text-[13px]"
+                title="Settings"
+                onClick={() => setSettingsOpen(o => !o)}
+              >
+                &#x2699;&#xFE0F;
+              </button>
+              {settingsOpen && (
+                <div className="absolute right-0 top-[36px] z-50 min-w-[140px] overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+                  <button
+                    onClick={() => { setSettingsOpen(false); onLogout(); }}
+                    className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-[12.5px] text-foreground hover:bg-muted/50"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-[14px] w-[14px] shrink-0 text-muted-foreground"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-[#00338D] to-[#0080DB] text-[11px] font-bold text-white">
               {initial}
             </div>
