@@ -143,9 +143,9 @@ export default function StoreAuditScores() {
       </div>
 
       {/* Score table */}
-      <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+      <div className="overflow-x-auto rounded-[10px] border border-border bg-card">
         {/* Header row */}
-        <div className={cn('grid items-center gap-2.5 border-b border-border bg-gray-50 px-3 py-2.5', SCORE_GRID)}>
+        <div className={cn('grid min-w-[820px] items-center gap-2.5 border-b border-border bg-gray-50 px-3 py-2.5', SCORE_GRID)}>
           <span className="text-[11.5px] font-semibold text-muted-foreground">Store Details</span>
           <span className="text-[11.5px] font-semibold text-muted-foreground">Status</span>
           {QUARTERS.map(q => (
@@ -159,7 +159,7 @@ export default function StoreAuditScores() {
           return (
             <div
               key={s.id}
-              className={cn('grid cursor-pointer items-center gap-2.5 border-b border-border px-3 py-2.5 last:border-0 hover:bg-[#fafbff]', SCORE_GRID)}
+              className={cn('grid min-w-[820px] cursor-pointer items-center gap-2.5 border-b border-border px-3 py-2.5 last:border-0 hover:bg-[#fafbff]', SCORE_GRID)}
               onClick={() => setDetailStore(s)}
             >
               {/* Store details */}

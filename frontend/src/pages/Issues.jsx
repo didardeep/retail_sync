@@ -419,7 +419,7 @@ export default function Issues() {
 
         <div className="grid gap-3">
           {/* title + status (2-col) */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass}>Title <span className="text-destructive">*</span></label>
               <Input placeholder="Short summary of the issue" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
@@ -439,7 +439,7 @@ export default function Issues() {
           </div>
 
           {/* priority + store + assignee (3-col) */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <label className={labelClass}>Priority <span className="text-destructive">*</span></label>
               <select className={fieldClass} value={form.pri} onChange={e => setForm(f => ({ ...f, pri: e.target.value }))}>
@@ -462,7 +462,7 @@ export default function Issues() {
           </div>
 
           {/* created at + due at (2-col) */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass}>Created At <span className="text-destructive">*</span></label>
               <Input type="datetime-local" value={form.created} onChange={e => setForm(f => ({ ...f, created: e.target.value }))} />
@@ -474,7 +474,7 @@ export default function Issues() {
           </div>
 
           {/* audit id + tags (2-col) */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass}>Audit ID</label>
               <Input placeholder="Link to Audit (optional)" value={form.aid} onChange={e => setForm(f => ({ ...f, aid: e.target.value }))} />

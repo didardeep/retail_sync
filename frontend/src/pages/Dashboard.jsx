@@ -220,7 +220,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPIs */}
-      <div className="mb-3 grid grid-cols-3 gap-3">
+      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
           <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#e8eefa'}}>&#x1F4CB;</div>
           <div><div className="mb-0.5 text-[11px] text-muted-foreground">Planned</div><div className="text-2xl font-bold leading-none text-foreground">{plannedCount}</div></div>
@@ -236,7 +236,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 1: Trend + Risk */}
-      <div className="mb-3 grid grid-cols-[2fr_1fr] gap-3">
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Performance Trends<span className="text-[11px] font-normal text-muted-foreground">Benchmark: 90%</span></div>
           <div className="relative h-[190px] w-full"><Line data={trendData} options={trendOpts}/></div>
@@ -260,7 +260,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 2: Store bars + Region */}
-      <div className="mb-3 grid grid-cols-[2fr_1fr] gap-3">
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 text-[13px] font-semibold text-foreground">Store-wise Compliance Score (%)</div>
           <div className="relative h-[190px] w-full"><Bar data={storeBarData} options={storeBarOpts}/></div>
@@ -286,7 +286,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 3: Format + Distribution */}
-      <div className="mb-3 grid grid-cols-[2fr_1fr] gap-3">
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 text-[13px] font-semibold text-foreground">Store Format Performance (Avg. Score)</div>
           <div className="flex gap-4.5">
@@ -323,7 +323,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 4: Scorecards + Observations */}
-      <div className="mb-3 grid grid-cols-2 gap-3">
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 text-[13px] font-semibold text-foreground">Store Scorecards</div>
           <div className="flex gap-4.5">
@@ -369,7 +369,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 5: Recent Issues */}
-      <div className="mb-3 grid grid-cols-2 gap-3">
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Recent Communications<span className="cursor-pointer text-[11px] font-normal text-muted-foreground" onClick={() => navigate('/email')}>View all &rarr;</span></div>
           <div className="p-5 text-center text-xs text-muted-foreground">No communications yet</div>
