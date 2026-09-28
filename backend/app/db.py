@@ -7,13 +7,11 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env")
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///retail_sync.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is not set. Configure it in backend/.env")
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
-    future=True,
-)
+engine = create_engine(DATABASE_URL, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, future=True)
 Base = declarative_base()
 
