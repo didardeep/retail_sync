@@ -6,6 +6,7 @@ from ..auth import get_current_user, require_roles
 from ..db import get_db
 from ..models import ROLE_AUDIT_MANAGER, ROLE_AUDITOR, Question, User
 from ..schemas import QuestionApprove, QuestionCreate, QuestionEdit
+from ..services import log_action
 
 router = APIRouter(prefix="/api/questions", tags=["questions"])
 
@@ -63,6 +64,8 @@ def approve_question(
         raise HTTPException(status_code=404, detail={"error": "not found"})
     q.approval_status = body.decision
     q.approved_by_id = user.id
+    log_action(db, user.id, "approve_question", "question", q.id,
+               {"decision": body.decision, "code": q.code})
     db.commit()
     return q.to_dict()
 

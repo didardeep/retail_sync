@@ -7,6 +7,7 @@ from ..auth import get_current_user, require_roles
 from ..db import get_db
 from ..models import ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, Issue, User
 from ..schemas import IssueCreate, IssueUpdate
+from ..services import log_action
 
 router = APIRouter(prefix="/api/issues", tags=["issues"])
 
@@ -76,5 +77,8 @@ def update_issue(
         i.due_date = dt.date.fromisoformat(d["due_date"])
     if i.status == "Closed" and not i.closed_at:
         i.closed_at = dt.datetime.utcnow()
+    if "status" in d:
+        log_action(db, user.id, "update_issue_status", "issue", i.id,
+                   {"status": i.status})
     db.commit()
     return i.to_dict()

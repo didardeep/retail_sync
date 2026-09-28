@@ -1,9 +1,9 @@
-"""Scoring and issue-raising logic, kept out of the route layer."""
+"""Scoring, issue-raising, and audit-logging logic, kept out of the route layer."""
 import datetime as dt
 
 from sqlalchemy import func
 
-from .models import Audit, Issue
+from .models import Audit, AuditLog, Issue
 
 # How each answer contributes to the weighted score.
 ANSWER_VALUE = {"Yes": 1.0, "Partial": 0.5, "No": 0.0}
@@ -54,3 +54,12 @@ def raise_issue_from_response(session, audit: Audit, response) -> Issue | None:
     )
     session.add(issue)
     return issue
+
+
+def log_action(session, user_id, action, entity_type, entity_id=None, details=None):
+    """Write a single audit log entry. Call after the main DB operation
+    succeeds; caller is responsible for session.commit()."""
+    session.add(AuditLog(
+        user_id=user_id, action=action, entity_type=entity_type,
+        entity_id=entity_id, details=details or {},
+    ))

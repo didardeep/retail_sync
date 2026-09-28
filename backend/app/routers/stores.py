@@ -5,6 +5,7 @@ from ..auth import get_current_user, require_roles
 from ..db import get_db
 from ..models import ROLE_AUDIT_MANAGER, ROLE_STORE_MANAGER, Store, User
 from ..schemas import StoreCreate, StoreUpdate
+from ..services import log_action
 
 router = APIRouter(prefix="/api/stores", tags=["stores"])
 
@@ -45,6 +46,7 @@ def create_store(
         address=d.get("address"), meta=d.get("meta", {}),
     )
     db.add(s)
+    log_action(db, user.id, "create_store", "store", s.id, {"name": s.name})
     db.commit()
     return s.to_dict()
 
@@ -63,5 +65,6 @@ def update_store(
     for field, attr in _FIELD_MAP:
         if field in d:
             setattr(s, attr, d[field])
+    log_action(db, user.id, "update_store", "store", s.id, {"fields": list(d.keys())})
     db.commit()
     return s.to_dict()

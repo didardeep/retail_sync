@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react'
 import { useToast } from '../components/Toast'
 import { api } from '../api/client'
 import { wColor, qTypeLabel } from '../utils/helpers'
+import { cn, fieldClass, labelClass } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Modal, ModalTitle, ModalActions } from '../components/Modal'
 
 function normalizeQ(q) {
   return {
@@ -190,206 +195,203 @@ export default function Questions() {
   }
 
   if (loading) {
-    return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',color:'var(--text3)'}}>Loading questions...</div>
+    return <div className="flex h-[60vh] items-center justify-center text-muted-foreground">Loading questions...</div>
   }
+
+  const Toggle = ({ on, onClick }) => (
+    <div
+      className={cn('relative h-[17px] w-8 shrink-0 cursor-pointer rounded-full transition-colors', on ? 'bg-primary' : 'bg-gray-300')}
+      onClick={onClick}
+    >
+      <div className={cn('absolute top-[1.5px] h-3.5 w-3.5 rounded-full bg-white shadow transition-all', on ? 'left-4' : 'left-0.5')} />
+    </div>
+  )
 
   /* ═══════════════════════ RENDER ═══════════════════════ */
   return (
     <>
       {/* ── page header ── */}
-      <div className="page-hdr">
-        <div><h2>Audit Questions</h2></div>
-        <button className="btn btn-primary btn-sm" onClick={openAddQuestion}>+ New Question</button>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
+        <div><h2 className="text-xl font-bold text-foreground">Audit Questions</h2></div>
+        <Button size="sm" onClick={openAddQuestion}>+ New Question</Button>
       </div>
 
       {/* ── two-panel layout ── */}
-      <div className="aq-layout">
+      <div className="flex gap-3.5">
         {/* ── left sidebar ── */}
-        <div className="aq-sb">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, fontSize: '12px', fontWeight: 600, color: 'var(--text2)' }}>
+        <div className="w-[196px] shrink-0">
+          <div className="mb-2 flex items-center justify-between text-xs font-semibold text-foreground/80">
             Process
-            <button className="btn btn-outline btn-sm" onClick={() => { setProcName(''); setShowProcModal(true) }}>Add</button>
+            <Button size="sm" variant="outline" onClick={() => { setProcName(''); setShowProcModal(true) }}>Add</Button>
           </div>
           <div>
             <div
-              className={`aq-pi${activeProc === 'All Overview' ? ' active' : ''}`}
+              className={cn('mb-0.5 flex cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-[12.5px] text-foreground/80 hover:bg-muted', activeProc === 'All Overview' && 'bg-accent font-semibold text-primary hover:bg-accent')}
               onClick={() => setActiveProc('All Overview')}
             >
               <span>All Overview</span>
-              <span className="aq-pc">{questions.length}</span>
+              <span className="rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{questions.length}</span>
             </div>
             {processes.map(p => (
               <div
                 key={p}
-                className={`aq-pi${activeProc === p ? ' active' : ''}`}
+                className={cn('mb-0.5 flex cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-[12.5px] text-foreground/80 hover:bg-muted', activeProc === p && 'bg-accent font-semibold text-primary hover:bg-accent')}
                 onClick={() => setActiveProc(p)}
               >
                 <span>{p}</span>
-                <span className="aq-pc">{procCounts[p] || 0}</span>
+                <span className="rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{procCounts[p] || 0}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* ── right main area ── */}
-        <div className="aq-main">
-          <div className="filter-bar">
-            <div className="srch">
-              <span className="srch-ic">{'\uD83D\uDD0D'}</span>
-              <input placeholder="Search questions..." value={search} onChange={e => setSearch(e.target.value)} />
+        <div className="flex-1">
+          <div className="mb-3.5 flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[180px] flex-1">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{'🔍'}</span>
+              <Input className="pl-8" placeholder="Search questions..." value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-            <select className="sel" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+            <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
               <option value="">Type</option>
               {types.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
 
-          <div className="tbl-card">
-            <div className="aq-gh">
-              <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text3)' }}>Audit Question</span>
-              <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text3)' }}>Process</span>
-              <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text3)' }}>Sub-Process</span>
-              <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text3)' }}>Weight</span>
-              <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text3)' }}>Status</span>
-              <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text3)' }}>Actions</span>
+          <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+            <div className="grid grid-cols-[1fr_150px_155px_55px_75px_75px] gap-2 border-b border-border bg-gray-50 px-2.5 py-2">
+              <span className="text-[11.5px] font-semibold text-muted-foreground">Audit Question</span>
+              <span className="text-[11.5px] font-semibold text-muted-foreground">Process</span>
+              <span className="text-[11.5px] font-semibold text-muted-foreground">Sub-Process</span>
+              <span className="text-[11.5px] font-semibold text-muted-foreground">Weight</span>
+              <span className="text-[11.5px] font-semibold text-muted-foreground">Status</span>
+              <span className="text-[11.5px] font-semibold text-muted-foreground">Actions</span>
             </div>
 
             <div>
               {filtered.length ? filtered.map(item => (
-                <div className="aq-gr" key={item.id} style={{ flexDirection: 'column' }}>
-                  <div style={{ display: 'flex' }}>
+                <div className="flex flex-col border-b border-border last:border-0 hover:bg-[#fafbff]" key={item.id}>
+                  <div className="flex">
                     {item.crit
-                      ? <div style={{ width: 3, background: '#e02424', flexShrink: 0, borderRadius: '2px 0 0 2px' }} />
-                      : <div style={{ width: 3 }} />
+                      ? <div className="w-[3px] shrink-0 rounded-l-sm bg-red-600" />
+                      : <div className="w-[3px]" />
                     }
-                    <div className="aq-grc">
+                    <div className="grid flex-1 grid-cols-[1fr_150px_155px_55px_75px_75px] items-center gap-2 px-2.5 py-2">
                       <div>
-                        <div style={{ fontSize: '12.5px', color: 'var(--text)', lineHeight: 1.4, marginBottom: 3 }}>{item.text}</div>
-                        <div style={{ fontSize: '10.5px', color: 'var(--text3)', marginBottom: 3, fontWeight: 500 }}>
-                          <span style={{ color: 'var(--text2)', fontWeight: 600 }}>Type:</span> {qTypeLabel(item.at)}
+                        <div className="mb-0.5 text-[12.5px] leading-snug text-foreground">{item.text}</div>
+                        <div className="mb-0.5 text-[10.5px] font-medium text-muted-foreground">
+                          <span className="font-semibold text-foreground/80">Type:</span> {qTypeLabel(item.at)}
                         </div>
-                        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                          {(item.tags || []).map(t => <span className="chip" key={t}>{t}</span>)}
+                        <div className="flex flex-wrap gap-1">
+                          {(item.tags || []).map(t => <span className="rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10.5px] font-medium text-gray-700" key={t}>{t}</span>)}
                         </div>
                       </div>
-                      <span className="badge bb" style={{ fontSize: '10px', whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.3, display: 'inline-block', padding: '4px 8px' }}>{item.proc}</span>
-                      <span style={{ fontSize: '12px', color: 'var(--text3)' }}>{item.sp}</span>
+                      <Badge className="bg-sky-50 text-center text-[10px] font-medium leading-tight text-sky-700" style={{whiteSpace:'normal'}}>{item.proc}</Badge>
+                      <span className="text-xs text-muted-foreground">{item.sp}</span>
                       <div>
-                        <div className="wdot" style={{ background: wColor(item.w) }}>{item.w}</div>
+                        <div className="flex h-[19px] w-[19px] items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: wColor(item.w) }}>{item.w}</div>
                       </div>
-                      <div className={`toggle${item.on ? ' on' : ''}`} onClick={() => toggleQ(item.id)} />
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="icon-btn" style={{ width: 25, height: 25, fontSize: '11px' }} onClick={() => openEditQuestion(item.id)}>{'\u270F\uFE0F'}</button>
-                        <button className="icon-btn" style={{ width: 25, height: 25, fontSize: '11px', color: 'var(--red)' }} onClick={() => deleteQ(item.id)}>{'\uD83D\uDDD1\uFE0F'}</button>
+                      <Toggle on={item.on} onClick={() => toggleQ(item.id)} />
+                      <div className="flex gap-1">
+                        <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={() => openEditQuestion(item.id)}>{'✏️'}</button>
+                        <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px] text-destructive" onClick={() => deleteQ(item.id)}>{'🗑️'}</button>
                       </div>
                     </div>
                   </div>
                 </div>
               )) : (
-                <div style={{ textAlign: 'center', padding: 40, color: 'var(--text3)' }}>{'\uD83D\uDCCB'} No questions found</div>
+                <div className="p-10 text-center text-muted-foreground">{'📋'} No questions found</div>
               )}
             </div>
           </div>
 
-          <div className="pagination"><span>{filtered.length} questions</span></div>
+          <div className="mt-3 flex justify-end text-xs text-muted-foreground"><span>{filtered.length} questions</span></div>
         </div>
       </div>
 
       {/* ═══════════ QUESTION MODAL ═══════════ */}
-      {showQModal && (
-        <div className="modal-ov" style={{ display: 'flex' }} onClick={e => { if (e.target === e.currentTarget) setShowQModal(false) }}>
-          <div className="modal" style={{ width: 620 }}>
-            <div className="modal-title">{editId ? 'Edit Audit Question' : 'New Audit Question'}</div>
-            <div className="modal-grid">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="fg">
-                  <label className="fl">Process <span style={{ color: 'var(--red)' }}>*</span></label>
-                  <select className="fs" value={qForm.proc} onChange={e => handleProcSelectChange(e.target.value)}>
-                    {processes.map(p => <option key={p} value={p}>{p}</option>)}
-                    <option value="--new--">+ Add New Process</option>
-                  </select>
-                </div>
-                <div className="fg">
-                  <label className="fl">Sub-Process</label>
-                  <input className="fi" placeholder="e.g. Cash sales & Recon" value={qForm.sp} onChange={e => setQForm(f => ({ ...f, sp: e.target.value }))} />
-                </div>
-              </div>
-
-              <div className="fg">
-                <label className="fl">Question <span style={{ color: 'var(--red)' }}>*</span></label>
-                <textarea className="fta" placeholder="Whether..." value={qForm.text} onChange={e => setQForm(f => ({ ...f, text: e.target.value }))} />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 12, alignItems: 'flex-end' }}>
-                <div className="fg">
-                  <label className="fl">Question Type</label>
-                  <select className="fs" value={qForm.at} onChange={e => handleRTSelectChange(e.target.value)}>
-                    {responseTypes.map(rt => <option key={rt} value={rt}>{rt}</option>)}
-                    <option value="--new--">+ Add New Type</option>
-                  </select>
-                </div>
-                <div className="fg">
-                  <label className="fl">Weights</label>
-                  <input type="number" className="fi" min="1" max="5" value={qForm.w} onChange={e => setQForm(f => ({ ...f, w: e.target.value }))} />
-                </div>
-                <div className="fg" style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 8 }}>
-                  <label className="fl" style={{ margin: 0 }}>Critical Risk</label>
-                  <div className={`toggle${qForm.crit ? ' on' : ''}`} onClick={() => setQForm(f => ({ ...f, crit: !f.crit }))} />
-                </div>
-              </div>
-
-              <div className="fg">
-                <label className="fl">Guidance</label>
-                <textarea className="fta" placeholder="Provide guidance for the auditor..." value={qForm.g} onChange={e => setQForm(f => ({ ...f, g: e.target.value }))} />
-              </div>
-
-              <div className="fg">
-                <label className="fl">Tags (comma separated)</label>
-                <input className="fi" placeholder="cash, reconciliation" value={qForm.tags} onChange={e => setQForm(f => ({ ...f, tags: e.target.value }))} />
-              </div>
+      <Modal open={showQModal} onClose={() => setShowQModal(false)} className="w-[620px]">
+        <ModalTitle>{editId ? 'Edit Audit Question' : 'New Audit Question'}</ModalTitle>
+        <div className="grid gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Process <span className="text-destructive">*</span></label>
+              <select className={fieldClass} value={qForm.proc} onChange={e => handleProcSelectChange(e.target.value)}>
+                {processes.map(p => <option key={p} value={p}>{p}</option>)}
+                <option value="--new--">+ Add New Process</option>
+              </select>
             </div>
-
-            <div className="modal-actions">
-              <button className="btn btn-outline" onClick={() => setShowQModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={saveQuestion}>{editId ? 'Save Changes' : 'Add Question'}</button>
+            <div>
+              <label className={labelClass}>Sub-Process</label>
+              <Input placeholder="e.g. Cash sales & Recon" value={qForm.sp} onChange={e => setQForm(f => ({ ...f, sp: e.target.value }))} />
             </div>
           </div>
+
+          <div>
+            <label className={labelClass}>Question <span className="text-destructive">*</span></label>
+            <textarea className={cn(fieldClass, 'min-h-[72px] resize-y')} placeholder="Whether..." value={qForm.text} onChange={e => setQForm(f => ({ ...f, text: e.target.value }))} />
+          </div>
+
+          <div className="grid grid-cols-[2fr_1fr_1fr] items-end gap-3">
+            <div>
+              <label className={labelClass}>Question Type</label>
+              <select className={fieldClass} value={qForm.at} onChange={e => handleRTSelectChange(e.target.value)}>
+                {responseTypes.map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                <option value="--new--">+ Add New Type</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Weights</label>
+              <Input type="number" min="1" max="5" value={qForm.w} onChange={e => setQForm(f => ({ ...f, w: e.target.value }))} />
+            </div>
+            <div className="flex items-center gap-2 pb-2">
+              <label className={cn(labelClass, 'mb-0')}>Critical Risk</label>
+              <Toggle on={qForm.crit} onClick={() => setQForm(f => ({ ...f, crit: !f.crit }))} />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelClass}>Guidance</label>
+            <textarea className={cn(fieldClass, 'min-h-[72px] resize-y')} placeholder="Provide guidance for the auditor..." value={qForm.g} onChange={e => setQForm(f => ({ ...f, g: e.target.value }))} />
+          </div>
+
+          <div>
+            <label className={labelClass}>Tags (comma separated)</label>
+            <Input placeholder="cash, reconciliation" value={qForm.tags} onChange={e => setQForm(f => ({ ...f, tags: e.target.value }))} />
+          </div>
         </div>
-      )}
+
+        <ModalActions>
+          <Button variant="outline" onClick={() => setShowQModal(false)}>Cancel</Button>
+          <Button onClick={saveQuestion}>{editId ? 'Save Changes' : 'Add Question'}</Button>
+        </ModalActions>
+      </Modal>
 
       {/* ═══════════ PROCESS MODAL ═══════════ */}
-      {showProcModal && (
-        <div className="modal-ov" style={{ display: 'flex' }} onClick={e => { if (e.target === e.currentTarget) setShowProcModal(false) }}>
-          <div className="modal" style={{ width: 320 }}>
-            <div className="modal-title">Add Process Category</div>
-            <div className="fg">
-              <label className="fl">Category Name</label>
-              <input className="fi" placeholder="e.g. Inventory Management" value={procName} onChange={e => setProcName(e.target.value)} />
-            </div>
-            <div className="modal-actions">
-              <button className="btn btn-outline" onClick={() => setShowProcModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={saveProc}>Add</button>
-            </div>
-          </div>
+      <Modal open={showProcModal} onClose={() => setShowProcModal(false)} className="w-[320px]">
+        <ModalTitle>Add Process Category</ModalTitle>
+        <div>
+          <label className={labelClass}>Category Name</label>
+          <Input placeholder="e.g. Inventory Management" value={procName} onChange={e => setProcName(e.target.value)} />
         </div>
-      )}
+        <ModalActions>
+          <Button variant="outline" onClick={() => setShowProcModal(false)}>Cancel</Button>
+          <Button onClick={saveProc}>Add</Button>
+        </ModalActions>
+      </Modal>
 
       {/* ═══════════ RESPONSE TYPE MODAL ═══════════ */}
-      {showRTModal && (
-        <div className="modal-ov" style={{ display: 'flex' }} onClick={e => { if (e.target === e.currentTarget) setShowRTModal(false) }}>
-          <div className="modal" style={{ width: 320 }}>
-            <div className="modal-title">Add Response Type</div>
-            <div className="fg">
-              <label className="fl">Type Name</label>
-              <input className="fi" placeholder="e.g. Barcode Scan" value={rtName} onChange={e => setRTName(e.target.value)} />
-            </div>
-            <div className="modal-actions">
-              <button className="btn btn-outline" onClick={() => setShowRTModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={saveRespType}>Add</button>
-            </div>
-          </div>
+      <Modal open={showRTModal} onClose={() => setShowRTModal(false)} className="w-[320px]">
+        <ModalTitle>Add Response Type</ModalTitle>
+        <div>
+          <label className={labelClass}>Type Name</label>
+          <Input placeholder="e.g. Barcode Scan" value={rtName} onChange={e => setRTName(e.target.value)} />
         </div>
-      )}
+        <ModalActions>
+          <Button variant="outline" onClick={() => setShowRTModal(false)}>Cancel</Button>
+          <Button onClick={saveRespType}>Add</Button>
+        </ModalActions>
+      </Modal>
     </>
   )
 }

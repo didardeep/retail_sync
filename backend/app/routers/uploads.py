@@ -11,6 +11,7 @@ from ..models import (
     ROLE_AUDIT_MANAGER, CashDepositPickup, CashReconciliation, DataImport,
     ExpiredInventory, Store, StoreScore, User,
 )
+from ..services import log_action
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
@@ -77,6 +78,8 @@ async def upload_file(
         db.flush()
 
         count = _import_rows(db, di, section, data_rows)
+        log_action(db, user.id, "upload_file", "data_import", di.id,
+                   {"file_name": file.filename, "section": section, "records": count})
         db.commit()
 
         return {

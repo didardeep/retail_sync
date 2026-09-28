@@ -1,4 +1,19 @@
-const avCols = ['aa','ab','ac','ad','ae','af'];
+// Tailwind class strings, one constant per "badge color" the app used to
+// express as a CSS class suffix (bg/bo/bb/br/by/bgr/bpu). Centralising the
+// mapping here means every page that already calls sBadge/prC/stC picks up
+// the Tailwind styling automatically once its call site swaps a <span
+// className="badge ..."> for <Badge className={...}>.
+export const BADGE = {
+  green: 'bg-emerald-50 text-emerald-700',
+  orange: 'bg-orange-50 text-orange-800',
+  blue: 'bg-sky-50 text-sky-700',
+  red: 'bg-red-50 text-red-800',
+  yellow: 'bg-yellow-50 text-yellow-900',
+  gray: 'bg-muted text-muted-foreground border border-border',
+  purple: 'bg-violet-100 text-violet-700',
+};
+
+const avCols = ['bg-indigo-500', 'bg-emerald-500', 'bg-amber-500', 'bg-red-500', 'bg-violet-500', 'bg-cyan-500'];
 export function avC(name) {
   if (!name) return avCols[0];
   return avCols[Math.abs([...name].reduce((a,c) => a + c.charCodeAt(0), 0)) % avCols.length];
@@ -6,17 +21,17 @@ export function avC(name) {
 export function wColor(w) { return w >= 5 ? '#e02424' : w >= 4 ? '#f59e0b' : '#0e9f6e'; }
 export function sColor(v) { return v >= 80 ? '#0e9f6e' : v >= 60 ? '#f59e0b' : '#e02424'; }
 export function sBadge(s) {
-  if (s === 'In Progress' || s === 'Ongoing') return 'bb';
-  if (s === 'Planned' || s === 'Assigned') return 'bgr';
-  if (s === 'Overdue') return 'br';
-  if (s === 'Completed' || s === 'Approved') return 'bg';
-  if (s === 'Scheduled') return 'bpu';
-  return 'bgr';
+  if (s === 'In Progress' || s === 'Ongoing') return BADGE.blue;
+  if (s === 'Planned' || s === 'Assigned') return BADGE.gray;
+  if (s === 'Overdue') return BADGE.red;
+  if (s === 'Completed' || s === 'Approved') return BADGE.green;
+  if (s === 'Scheduled') return BADGE.purple;
+  return BADGE.gray;
 }
-export function pbClass(v) { return v >= 80 ? 'pg' : v >= 60 ? 'po' : 'pr'; }
-export function prC(p) { return p === 'Critical' ? 'br' : p === 'High' ? 'bo' : p === 'Medium' ? 'by' : 'bgr'; }
+export function pbClass(v) { return v >= 80 ? 'bg-emerald-500' : v >= 60 ? 'bg-amber-500' : 'bg-red-500'; }
+export function prC(p) { return p === 'Critical' ? BADGE.red : p === 'High' ? BADGE.orange : p === 'Medium' ? BADGE.yellow : BADGE.gray; }
 export function stC(s) {
-  return s === 'In Progress' ? 'bb' : s === 'Resolved' ? 'bg' : s === 'On Hold' ? 'by' : s === 'Closed' ? 'bgr' : 'br';
+  return s === 'In Progress' ? BADGE.blue : s === 'Resolved' ? BADGE.green : s === 'On Hold' ? BADGE.yellow : s === 'Closed' ? BADGE.gray : BADGE.red;
 }
 export function qTypeLabel(at) {
   const a = (at || '').toLowerCase();
