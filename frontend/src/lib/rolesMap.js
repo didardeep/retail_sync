@@ -17,7 +17,7 @@
 export const ROLE_PAGES = {
   AUDIT_MANAGER: null,
   AUDITOR: ['audits', 'questions', 'email'],
-  STORE_MANAGER: ['issues', 'audits', 'email'],
+  STORE_MANAGER: ['my-store', 'checklist', 'compliance', 'issues', 'audits', 'email'],
 }
 
 // 'audit-log' is deliberately absent from AUDITOR/STORE_MANAGER's lists above

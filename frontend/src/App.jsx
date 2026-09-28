@@ -17,6 +17,9 @@ import Questions from './pages/Questions'
 import Stores from './pages/Stores'
 import Email from './pages/Email'
 import AuditLog from './pages/AuditLog'
+import StoreDashboard from './pages/StoreDashboard'
+import StoreChecklist from './pages/StoreChecklist'
+import StoreCompliance from './pages/StoreCompliance'
 
 export default function App() {
   const [session, setSession] = useState(loadSession())
@@ -58,6 +61,9 @@ export default function App() {
             <Route path="/stores" element={guarded('stores', <Stores />)} />
             <Route path="/email" element={guarded('email', <Email />)} />
             <Route path="/audit-log" element={guarded('audit-log', <AuditLog />)} />
+            <Route path="/my-store" element={guarded('my-store', <StoreDashboard />)} />
+            <Route path="/checklist" element={guarded('checklist', <StoreChecklist />)} />
+            <Route path="/compliance" element={guarded('compliance', <StoreCompliance />)} />
             <Route path="*" element={<Navigate to={`/${firstAllowedPage(role)}`} replace />} />
           </Routes>
         </Layout>

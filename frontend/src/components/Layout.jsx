@@ -5,27 +5,35 @@ import { Button } from '@/components/ui/button';
 import { canAccess } from '@/lib/rolesMap';
 
 const TITLES = {
-  '/dashboard': 'Dashboard & Analytics',
-  '/scores': 'Store Audit Scores',
-  '/issues': 'Action Taken Tracking',
-  '/audits': 'Audit Status',
+  '/dashboard':  'Dashboard & Analytics',
+  '/scores':     'Store Audit Scores',
+  '/issues':     'Action Taken Tracking',
+  '/audits':     'Audit Status',
   '/scheduling': 'Audit Scheduling',
-  '/questions': 'Audit Questions',
-  '/stores': 'Store Management',
-  '/email': 'Email Communications',
-  '/audit-log': 'Audit Log',
+  '/questions':  'Audit Questions',
+  '/stores':     'Store Management',
+  '/email':      'Email Communications',
+  '/audit-log':  'Audit Log',
+  // Store Manager
+  '/my-store':   'My Store',
+  '/checklist':  'Audit Checklist',
+  '/compliance': 'Compliance Metrics',
 };
 
 const NAV = [
-  ['/dashboard', 'dashboard', 'Dashboard & Analytics', <svg key="d" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="6" width="4" height="15"/><rect x="17" y="2" width="4" height="19"/></svg>],
-  ['/scores', 'scores', 'Store Audit Scores', <svg key="sc" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3,17 9,11 13,15 21,5"/></svg>],
-  ['/issues', 'issues', 'Action Taken Tracking', <svg key="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L22 20H2Z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16.5" r=".5" fill="currentColor"/></svg>],
-  ['/audits', 'audits', 'Audit Status', <svg key="as" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><polyline points="8,12 11,15 16,9"/></svg>],
-  ['/scheduling', 'scheduling', 'Audit Scheduling', <svg key="sh" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="17" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>],
-  ['/questions', 'questions', 'Audit Questions', <svg key="q" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="3" width="16" height="18" rx="1"/><polyline points="8,9 10,11 14,7"/><line x1="8" y1="15" x2="16" y2="15"/></svg>],
-  ['/stores', 'stores', 'Store Management', <svg key="st" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="1"/><path d="M16 21V7a4 4 0 00-8 0v14"/></svg>],
-  ['/email', 'email', 'Email Communications', <svg key="e" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="14" rx="1"/><polyline points="3,7 12,13 21,7"/></svg>],
-  ['/audit-log', 'audit-log', 'Audit Log', <svg key="al" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12h6M9 16h6M9 8h6"/><rect x="4" y="3" width="16" height="18" rx="1"/></svg>],
+  ['/dashboard',  'dashboard',  'Dashboard & Analytics',  <svg key="d"  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="6" width="4" height="15"/><rect x="17" y="2" width="4" height="19"/></svg>],
+  ['/scores',     'scores',     'Store Audit Scores',      <svg key="sc" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3,17 9,11 13,15 21,5"/></svg>],
+  ['/issues',     'issues',     'Action Taken Tracking',   <svg key="i"  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L22 20H2Z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16.5" r=".5" fill="currentColor"/></svg>],
+  ['/audits',     'audits',     'Audit Status',            <svg key="as" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><polyline points="8,12 11,15 16,9"/></svg>],
+  ['/scheduling', 'scheduling', 'Audit Scheduling',        <svg key="sh" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="17" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>],
+  ['/questions',  'questions',  'Audit Questions',         <svg key="q"  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="3" width="16" height="18" rx="1"/><polyline points="8,9 10,11 14,7"/><line x1="8" y1="15" x2="16" y2="15"/></svg>],
+  ['/stores',     'stores',     'Store Management',        <svg key="st" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="1"/><path d="M16 21V7a4 4 0 00-8 0v14"/></svg>],
+  ['/email',      'email',      'Email Communications',    <svg key="e"  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="14" rx="1"/><polyline points="3,7 12,13 21,7"/></svg>],
+  ['/audit-log',  'audit-log',  'Audit Log',               <svg key="al" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12h6M9 16h6M9 8h6"/><rect x="4" y="3" width="16" height="18" rx="1"/></svg>],
+  // Store Manager exclusive
+  ['/my-store',   'my-store',   'My Store',                <svg key="ms" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>],
+  ['/checklist',  'checklist',  'Audit Checklist',         <svg key="cl" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="3" width="16" height="18" rx="1"/><polyline points="8,9 10,11 14,7"/><polyline points="8,13 10,15 14,11"/><line x1="8" y1="17" x2="16" y2="17"/></svg>],
+  ['/compliance', 'compliance', 'Compliance Metrics',      <svg key="cm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>],
 ];
 
 export default function Layout({ user, onLogout, children }) {
