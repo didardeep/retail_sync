@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from .db import init_db
 from .routers import (
-    audit_log, audits, auth, availability, checklists, dashboard, data,
+    audit_log, audits, auth, availability, checklists, chat, dashboard, data,
     issues, observations, questions, stores, uploads,
 )
 
@@ -31,6 +31,7 @@ for router in (
     auth.router, stores.router, questions.router, checklists.router,
     audits.router, availability.router, issues.router, observations.router,
     data.router, dashboard.router, uploads.router, audit_log.router,
+    chat.router,
 ):
     app.include_router(router)
 

@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
 import { canAccess } from '@/lib/rolesMap';
+import ChatAssistant from './ChatAssistant';
 
 const TITLES = {
   '/dashboard':  'Dashboard & Analytics',
@@ -122,6 +123,7 @@ export default function Layout({ user, onLogout, children }) {
         </div>
         <div className="flex-1 overflow-y-auto px-[22px] pb-10 pt-[18px]">{children}</div>
       </div>
+      <ChatAssistant user={user} />
     </div>
   );
 }

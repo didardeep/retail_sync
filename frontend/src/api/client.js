@@ -74,6 +74,9 @@ export const api = {
   createStore: (body) => request('/stores', { method: 'POST', body }),
   updateStore: (id, body) => request(`/stores/${id}`, { method: 'PUT', body }),
   createIssue: (body) => request('/issues', { method: 'POST', body }),
+  // AI Chat
+  chat: (messages, conversation_id) =>
+    request('/chat', { method: 'POST', body: { messages, conversation_id } }),
   // File upload
   uploadFile: async (file, section) => {
     const session = loadSession()

@@ -443,6 +443,28 @@ class Observation(Base):
 
 
 # --------------------------------------------------------------------------
+# Chat turns — AI assistant conversation log
+# --------------------------------------------------------------------------
+class ChatTurn(Base):
+    """One user↔assistant exchange, logged for analytics."""
+    __tablename__ = "chat_turns"
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    conversation_id = Column(String(12), nullable=False, index=True)
+    turn_index = Column(Integer, default=0)
+    user_id = Column(String(12), ForeignKey("users.id"))
+    question = Column(Text)
+    reply = Column(Text)
+    tools_used = Column(JSON, default=list)
+    latency_ms = Column(Integer)
+    iterations = Column(Integer, default=0)
+    error = Column(Text)
+    created_at = Column(DateTime, default=dt.datetime.utcnow)
+
+    user = relationship("User", foreign_keys=[user_id])
+
+
+# --------------------------------------------------------------------------
 # Issues / actions
 # --------------------------------------------------------------------------
 class Issue(Base):
