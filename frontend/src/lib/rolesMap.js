@@ -15,7 +15,7 @@
 //     audits.store_manager_rating is STORE_MANAGER-only)
 //   - "email" has no backend endpoint (UI-only demo page) -- open to all roles
 export const ROLE_PAGES = {
-  AUDIT_MANAGER: null,
+  AUDIT_MANAGER: ['dashboard', 'scores', 'issues', 'audits', 'scheduling', 'questions', 'stores', 'email'],
   AUDITOR: ['audits', 'questions', 'email'],
   STORE_MANAGER: ['my-store', 'checklist', 'compliance', 'issues', 'audits', 'email'],
 }
@@ -25,13 +25,10 @@ export const ROLE_PAGES = {
 
 export function canAccess(role, page) {
   const allowed = ROLE_PAGES[role]
-  if (allowed === null) return true
   if (!allowed) return false
   return allowed.includes(page)
 }
 
 export function firstAllowedPage(role) {
-  const allowed = ROLE_PAGES[role]
-  if (allowed === null) return 'dashboard'
-  return allowed?.[0] || 'email'
+  return ROLE_PAGES[role]?.[0] || 'email'
 }
