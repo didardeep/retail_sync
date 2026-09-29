@@ -243,3 +243,51 @@ class StoreScoreOut(ORMBase):
     q2: float | None
     q3: float | None
     q4: float | None
+
+
+# --------------------------------------------------------------------------
+# Chat / AI Assistant
+# --------------------------------------------------------------------------
+class ChatMessage(ORMBase):
+    role: str   # "user" or "assistant"
+    content: str
+
+
+class ChatRequest(ORMBase):
+    messages: list[ChatMessage]
+    conversation_id: str | None = None
+
+
+class ChartSpec(ORMBase):
+    type: str               # bar | line | pie
+    title: str
+    x_key: str
+    y_label: str = ""
+    series: list[dict[str, Any]] = Field(default_factory=list)
+    data: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class TableSpec(ORMBase):
+    title: str
+    columns: list[str]
+    rows: list[list[Any]]
+
+
+class CardsSpec(ORMBase):
+    title: str
+    items: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class DetailsSpec(ORMBase):
+    title: str
+    items: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ChatResponse(ORMBase):
+    reply: str
+    charts: list[ChartSpec] = Field(default_factory=list)
+    tables: list[TableSpec] = Field(default_factory=list)
+    cards: list[CardsSpec] = Field(default_factory=list)
+    details: list[DetailsSpec] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
+    conversation_id: str = ""
