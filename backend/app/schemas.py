@@ -291,3 +291,27 @@ class ChatResponse(ORMBase):
     details: list[DetailsSpec] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)
     conversation_id: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Admin — user management
+# ---------------------------------------------------------------------------
+
+class UserCreate(ORMBase):
+    name: str
+    email: str
+    password: str
+    role: str                         # AUDIT_MANAGER | AUDITOR | STORE_MANAGER
+    designation: str | None = None
+    region: str | None = None
+    store_id: str | None = None       # STORE_MANAGER only — assigns as store manager
+
+
+class UserUpdate(ORMBase):
+    name: str | None = None
+    email: str | None = None
+    designation: str | None = None
+    region: str | None = None
+    store_id: str | None = None       # reassign store for STORE_MANAGER
+    active: bool | None = None
+    password: str | None = None       # optional password reset

@@ -15,6 +15,7 @@
 //     audits.store_manager_rating is STORE_MANAGER-only)
 //   - "email" has no backend endpoint (UI-only demo page) -- open to all roles
 export const ROLE_PAGES = {
+  ADMIN: ['dashboard', 'scores', 'issues', 'audits', 'scheduling', 'questions', 'stores', 'email', 'my-store', 'checklist', 'compliance', 'user-management'],
   AUDIT_MANAGER: ['dashboard', 'scores', 'issues', 'audits', 'scheduling', 'questions', 'stores', 'email'],
   AUDITOR: ['audits', 'questions', 'email'],
   STORE_MANAGER: ['my-store', 'checklist', 'compliance', 'issues', 'audits', 'email'],

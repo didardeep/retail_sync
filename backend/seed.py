@@ -16,7 +16,7 @@ from pathlib import Path
 from app.auth import hash_password
 from app.db import Base, SessionLocal, engine, init_db
 from app.models import (
-    ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
     Audit, AuditResponse, AuditorAvailability, CashReconciliation,
     CashDepositPickup, Checklist, ChecklistItem, DataImport,
     ExpiredInventory, Issue, Observation, Question, Store, StoreScore, User,
@@ -71,6 +71,11 @@ def seed():
         s.flush()
         users[(role, name)] = u
         return u
+
+    super_admin = User(name="Admin", email="admin@retail-chain.com",
+                       role=ROLE_ADMIN, designation="System Administrator",
+                       password_hash=hash_password(DEFAULT_PASSWORD))
+    s.add(super_admin)
 
     admin = User(name="Audit Manager", email="am@retail-chain.com",
                  role=ROLE_AUDIT_MANAGER, designation="Audit Manager",

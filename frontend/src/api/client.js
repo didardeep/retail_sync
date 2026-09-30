@@ -74,6 +74,10 @@ export const api = {
   createStore: (body) => request('/stores', { method: 'POST', body }),
   updateStore: (id, body) => request(`/stores/${id}`, { method: 'PUT', body }),
   createIssue: (body) => request('/issues', { method: 'POST', body }),
+  // Admin — user management
+  listUsers: (role) => request('/admin/users' + (role ? `?role=${role}` : '')),
+  createUser: (body) => request('/admin/users', { method: 'POST', body }),
+  updateUser: (id, body) => request(`/admin/users/${id}`, { method: 'PATCH', body }),
   // AI Chat
   chat: (messages, conversation_id) =>
     request('/chat', { method: 'POST', body: { messages, conversation_id } }),

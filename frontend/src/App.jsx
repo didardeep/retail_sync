@@ -20,6 +20,7 @@ import AuditLog from './pages/AuditLog'
 import StoreDashboard from './pages/StoreDashboard'
 import StoreChecklist from './pages/StoreChecklist'
 import StoreCompliance from './pages/StoreCompliance'
+import UserManagement from './pages/UserManagement'
 
 export default function App() {
   const [session, setSession] = useState(loadSession())
@@ -64,6 +65,7 @@ export default function App() {
             <Route path="/my-store" element={guarded('my-store', <StoreDashboard />)} />
             <Route path="/checklist" element={guarded('checklist', <StoreChecklist />)} />
             <Route path="/compliance" element={guarded('compliance', <StoreCompliance />)} />
+            <Route path="/user-management" element={guarded('user-management', <UserManagement />)} />
             <Route path="*" element={<Navigate to={`/${firstAllowedPage(role)}`} replace />} />
           </Routes>
         </Layout>

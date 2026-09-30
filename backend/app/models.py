@@ -28,10 +28,11 @@ def _uid() -> str:
 # --------------------------------------------------------------------------
 # Roles
 # --------------------------------------------------------------------------
+ROLE_ADMIN = "ADMIN"
 ROLE_AUDIT_MANAGER = "AUDIT_MANAGER"
 ROLE_AUDITOR = "AUDITOR"
 ROLE_STORE_MANAGER = "STORE_MANAGER"
-ROLES = (ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER)
+ROLES = (ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER)
 
 
 # --------------------------------------------------------------------------
