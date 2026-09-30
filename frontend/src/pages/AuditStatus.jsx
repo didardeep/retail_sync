@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { api } from '../api/client';
 import { avC, sBadge, sColor, prC, stC, seedRand } from '../utils/helpers';
 import { cn, fieldClass } from '@/lib/utils';
@@ -33,25 +33,76 @@ export default function AuditStatus() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [detailAudit, setDetailAudit] = useState(null);
+  const [editAudit, setEditAudit]     = useState(null);
+  const [editForm, setEditForm]       = useState({});
+  const [editSaving, setEditSaving]   = useState(false);
+  const [dropdown, setDropdown]       = useState(null); // audit id with open dropdown
+  const dropdownRef = useRef(null);
 
   // API data
-  const [audits, setAudits] = useState([]);
-  const [issues, setIssues] = useState([]);
+  const [audits, setAudits]       = useState([]);
+  const [issues, setIssues]       = useState([]);
   const [questions, setQuestions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [auditors, setAuditors]   = useState([]);
+  const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
     Promise.all([
       api.audits().catch(() => []),
       api.issues().catch(() => []),
       api.questions().catch(() => []),
-    ]).then(([a, i, q]) => {
+      api.users('AUDITOR').catch(() => []),
+    ]).then(([a, i, q, u]) => {
       setAudits(a || []);
       setIssues(i || []);
       setQuestions(q || []);
+      setAuditors(u || []);
       setLoading(false);
     });
   }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handler(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setDropdown(null);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  function openEdit(a) {
+    setEditAudit(a);
+    setEditForm({
+      status: a.status || 'Planned',
+      scheduled_at: a.scheduled_at ? a.scheduled_at.substring(0, 16) : '',
+      auditor_id: a.auditor_id || '',
+    });
+  }
+
+  async function saveEdit() {
+    setEditSaving(true);
+    try {
+      await api.updateAudit(editAudit.id, editForm);
+      const fresh = await api.audits().catch(() => []);
+      setAudits(fresh || []);
+      setEditAudit(null);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function quickStatus(a, status) {
+    setDropdown(null);
+    try {
+      await api.updateAudit(a.id, { status });
+      const fresh = await api.audits().catch(() => []);
+      setAudits(fresh || []);
+    } catch (e) {
+      alert(e.message);
+    }
+  }
 
   /* auditor dropdown values from data */
   const auditorOptions = useMemo(
@@ -243,9 +294,20 @@ export default function AuditStatus() {
                 </TableCell>
                 <TableCell onClick={e => e.stopPropagation()}>
                   <div className="flex gap-1">
-                    <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={() => setDetailAudit(a)}>&#x1F441;</button>
-                    <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px]">&#x270F;&#xFE0F;</button>
-                    <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px]">&hellip;</button>
+                    <button title="Preview" className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px] hover:bg-muted/50" onClick={() => setDetailAudit(a)}>&#x1F441;</button>
+                    <button title="Edit" className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px] hover:bg-muted/50" onClick={() => openEdit(a)}>&#x270F;&#xFE0F;</button>
+                    <div className="relative" ref={dropdown === a.id ? dropdownRef : null}>
+                      <button title="More actions" className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px] hover:bg-muted/50" onClick={() => setDropdown(d => d === a.id ? null : a.id)}>&hellip;</button>
+                      {dropdown === a.id && (
+                        <div className="absolute right-0 top-[28px] z-50 min-w-[160px] overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+                          {['Planned','In Progress','Completed','Overdue'].filter(s => s !== a.status).map(s => (
+                            <button key={s} onClick={() => quickStatus(a, s)} className="flex w-full items-center px-3 py-2 text-left text-[12px] text-foreground hover:bg-muted/50">
+                              Mark as {s}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </TableCell>
               </TableRow>
@@ -258,6 +320,49 @@ export default function AuditStatus() {
         </Table>
       </div>
       <div className="mt-3 flex justify-end text-xs text-muted-foreground"><span>{filtered.length} items</span></div>
+
+      {/* ── Edit Audit Modal ── */}
+      {editAudit && (
+        <Modal open={!!editAudit} onClose={() => setEditAudit(null)} className="w-[440px]">
+          <div className="mb-4 text-[15px] font-bold text-foreground">Edit Audit — {editAudit.id}</div>
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Status</label>
+              <select
+                value={editForm.status}
+                onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus:border-primary"
+              >
+                {['Planned','In Progress','Completed','Overdue','Approved'].map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Scheduled Date &amp; Time</label>
+              <input
+                type="datetime-local"
+                value={editForm.scheduled_at}
+                onChange={e => setEditForm(f => ({ ...f, scheduled_at: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Auditor</label>
+              <select
+                value={editForm.auditor_id}
+                onChange={e => setEditForm(f => ({ ...f, auditor_id: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus:border-primary"
+              >
+                <option value="">— Unassigned —</option>
+                {auditors.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <ModalActions>
+            <Button variant="outline" onClick={() => setEditAudit(null)}>Cancel</Button>
+            <Button onClick={saveEdit} disabled={editSaving}>{editSaving ? 'Saving…' : 'Save Changes'}</Button>
+          </ModalActions>
+        </Modal>
+      )}
 
       {/* ── Audit Detail Modal ── */}
       {detailAudit && detailData && (

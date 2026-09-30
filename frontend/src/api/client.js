@@ -51,6 +51,7 @@ export const api = {
   answer: (auditId, respId, body) =>
     request(`/audits/${auditId}/responses/${respId}`, { method: 'PUT', body }),
   submitAudit: (id) => request(`/audits/${id}/submit`, { method: 'POST' }),
+  updateAudit: (id, body) => request(`/audits/${id}`, { method: 'PATCH', body }),
   approveAudit: (id, body = {}) =>
     request(`/audits/${id}/approve`, { method: 'POST', body }),
   rateAudit: (id, body) => request(`/audits/${id}/rating`, { method: 'POST', body }),

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user, require_roles
 from ..db import get_db
 from ..models import (
-    ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
     Audit, AuditResponse, AuditorAvailability, ChecklistItem, Store, User,
 )
 from ..schemas import (
@@ -158,6 +158,30 @@ def submit_audit(
                {"score": audit.score})
     db.commit()
     return {"audit": audit.to_dict(), "issues_raised": len([c for c in created if c])}
+
+
+@router.patch("/{aid}")
+def update_audit(
+    aid: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
+):
+    audit = db.get(Audit, aid)
+    if not audit:
+        raise HTTPException(status_code=404, detail={"error": "audit not found"})
+    allowed_fields = {"status", "scheduled_at", "auditor_id"}
+    for field in allowed_fields & body.keys():
+        if field == "scheduled_at" and body[field]:
+            try:
+                setattr(audit, field, dt.datetime.fromisoformat(body[field]))
+            except ValueError:
+                raise HTTPException(status_code=422, detail={"error": "invalid scheduled_at"})
+        else:
+            setattr(audit, field, body[field] or None)
+    log_action(db, user.id, "update_audit", "audit", audit.id, body)
+    db.commit()
+    return audit.to_dict()
 
 
 @router.post("/{aid}/approve")
