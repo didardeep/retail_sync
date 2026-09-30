@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Modal, ModalActions } from '../components/Modal'
 
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4']
-const SCORE_GRID = 'grid-cols-[2fr_1fr_1.5fr_1.5fr_1.5fr_1.5fr_70px]'
+const SCORE_GRID = 'grid-cols-[2fr_100px_1fr_1fr_1fr_1fr_44px]'
 
 function deltaDisplay(curr, prev) {
   if (prev === undefined || prev === null || prev === 0) return ''
@@ -195,7 +195,7 @@ export default function StoreAuditScores() {
                       <span className="text-base font-bold" style={{ color: sColor(score) }}>{score}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <div className="h-1.5 w-[150px] overflow-hidden rounded-[3px] bg-gray-200">
+                      <div className="h-1.5 w-full max-w-[110px] overflow-hidden rounded-[3px] bg-gray-200">
                         <div className={cn('h-full rounded-[3px]', pbClass(score))} style={{ width: `${score}%` }} />
                       </div>
                       {deltaDisplay(score, prevScore)}
