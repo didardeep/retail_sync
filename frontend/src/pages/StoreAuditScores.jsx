@@ -173,7 +173,16 @@ export default function StoreAuditScores() {
 
               {/* Status */}
               <div>
-                <Badge className={s.status === 'Operating' ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground border border-border'}>{s.status}</Badge>
+                {(() => {
+                  const st = s.status || 'Operating'
+                  return (
+                    <Badge className={st === 'Operating'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-red-50 text-red-600 border border-red-200'}>
+                      {st}
+                    </Badge>
+                  )
+                })()}
               </div>
 
               {/* Score columns */}

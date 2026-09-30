@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
-import { canAccess } from '@/lib/rolesMap';
+import { ROLE_PAGES } from '@/lib/rolesMap';
 import ChatAssistant from './ChatAssistant';
 
 const TITLES = {
@@ -43,7 +43,8 @@ export default function Layout({ user, onLogout, children }) {
   const loc = useLocation();
   const title = TITLES[loc.pathname] || 'Store Audit and Analysis';
   const initial = (user?.name || user?.email || 'U')[0].toUpperCase();
-  const nav = NAV.filter(([, page]) => canAccess(user?.role, page));
+  const allowedPages = ROLE_PAGES[user?.role] || [];
+  const nav = allowedPages.map(page => NAV.find(([, p]) => p === page)).filter(Boolean);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef(null);
 
