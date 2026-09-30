@@ -145,13 +145,13 @@ export default function StoreAuditScores() {
       {/* Score table */}
       <div className="overflow-hidden rounded-[10px] border border-border bg-card">
         {/* Header row */}
-        <div className={cn('grid items-center gap-2.5 border-b border-border bg-gray-50 px-3 py-2.5', SCORE_GRID)}>
+        <div className={cn('grid items-center gap-4 border-b border-border bg-gray-50 px-4 py-3', SCORE_GRID)}>
           <span className="text-[11.5px] font-semibold text-muted-foreground">Store Details</span>
-          <span className="text-[11.5px] font-semibold text-muted-foreground">Status</span>
+          <span className="text-center text-[11.5px] font-semibold text-muted-foreground">Status</span>
           {QUARTERS.map(q => (
-            <span key={q} className="text-[11.5px] font-semibold text-muted-foreground">&#x1F4C5; {q} Score</span>
+            <span key={q} className="text-center text-[11.5px] font-semibold text-muted-foreground">&#x1F4C5; {q} Score</span>
           ))}
-          <span className="text-[11.5px] font-semibold text-muted-foreground">Actions</span>
+          <span className="text-center text-[11.5px] font-semibold text-muted-foreground">Actions</span>
         </div>
 
         {/* Data rows */}
@@ -159,7 +159,7 @@ export default function StoreAuditScores() {
           return (
             <div
               key={s.id}
-              className={cn('grid cursor-pointer items-center gap-2.5 border-b border-border px-3 py-2.5 last:border-0 hover:bg-[#fafbff]', SCORE_GRID)}
+              className={cn('grid cursor-pointer items-center gap-4 border-b border-border px-4 py-3 last:border-0 hover:bg-[#fafbff]', SCORE_GRID)}
               onClick={() => setDetailStore(s)}
             >
               {/* Store details */}
@@ -172,7 +172,7 @@ export default function StoreAuditScores() {
               </div>
 
               {/* Status */}
-              <div>
+              <div className="flex justify-center">
                 {(() => {
                   const st = s.status || 'Operating'
                   return (
@@ -190,12 +190,12 @@ export default function StoreAuditScores() {
                 const score = getScore(s, q)
                 const prevScore = idx > 0 ? getScore(s, QUARTERS[idx - 1]) : null
                 return (
-                  <div key={q}>
+                  <div key={q} className="flex flex-col items-center">
                     <div className="mb-1">
                       <span className="text-base font-bold" style={{ color: sColor(score) }}>{score}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <div className="h-1.5 w-full max-w-[110px] overflow-hidden rounded-[3px] bg-gray-200">
+                      <div className="h-1.5 w-[80px] overflow-hidden rounded-[3px] bg-gray-200">
                         <div className={cn('h-full rounded-[3px]', pbClass(score))} style={{ width: `${score}%` }} />
                       </div>
                       {deltaDisplay(score, prevScore)}
@@ -205,7 +205,9 @@ export default function StoreAuditScores() {
               })}
 
               {/* Actions */}
-              <button className="flex h-[26px] w-[26px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={e => { e.stopPropagation(); setDetailStore(s) }}>&#x1F441;</button>
+              <div className="flex justify-center">
+                <button className="flex h-[26px] w-[26px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={e => { e.stopPropagation(); setDetailStore(s) }}>&#x1F441;</button>
+              </div>
             </div>
           )
         })}
