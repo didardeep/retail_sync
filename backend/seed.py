@@ -19,7 +19,7 @@ from seed_sop_demo import seed_sop_demo
 from app.auth import hash_password
 from app.db import SessionLocal, init_db, reset_db
 from app.models import (
-    ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
     Audit, AuditResponse, AuditorAvailability, CashReconciliation,
     CashDepositPickup, Checklist, ChecklistItem, DataImport,
     ExpiredInventory, Issue, Observation, Question, Store, StoreScore, User,
@@ -51,6 +51,13 @@ def parse_dt(text: str):
 
 def seed():
     s = SessionLocal()
+
+    # Guard: if users already exist this DB is already seeded.
+    if s.query(User).count() > 0:
+        print("Database already seeded. Run with --reset to rebuild from scratch.")
+        s.close()
+        return
+
     data = load_seed()
 
     # ---- users -----------------------------------------------------------
@@ -74,6 +81,12 @@ def seed():
         s.flush()
         users[(role, name)] = u
         return u
+
+    superadmin = User(name="Admin", email="admin@retail-chain.com",
+                      role=ROLE_ADMIN, designation="System Administrator",
+                      password_hash=hash_password(DEFAULT_PASSWORD))
+    s.add(superadmin)
+    s.flush()
 
     admin = User(name="Audit Manager", email="am@retail-chain.com",
                  role=ROLE_AUDIT_MANAGER, designation="Audit Manager",
@@ -338,6 +351,7 @@ def seed():
           f"{ei_count} expired inventory, {ss_count} store scores, {ob_count} observations")
     print(f"  Issues: {len(data.get('issues', []))}")
     print(f"\nLogins (password: {DEFAULT_PASSWORD})")
+    print("  Admin         : admin@retail-chain.com")
     print("  Audit Manager : am@retail-chain.com")
     for role, label in ((ROLE_AUDITOR, "Auditor      "),
                         (ROLE_STORE_MANAGER, "Store Manager")):

@@ -55,11 +55,26 @@ def init_db():
 
 def reset_db():
     """Drop every table, including Alembic's version table, so the next
-    init_db() rebuilds the whole schema from the migrations."""
+    init_db() rebuilds the whole schema from the migrations.
+
+    PostgreSQL: drops and recreates the public schema with CASCADE so all FK
+    dependencies are removed in one shot — no ordering issues.
+    SQLite: disables FK enforcement, drops via metadata, then re-enables.
+    """
     from . import models  # noqa: F401  (register mappers; models imports Base from here)
-    Base.metadata.drop_all(bind=engine)
-    with engine.begin() as conn:
-        conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+    if DATABASE_URL.startswith("postgresql"):
+        with engine.begin() as conn:
+            conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+            conn.execute(text("CREATE SCHEMA public"))
+            conn.execute(text("GRANT ALL ON SCHEMA public TO PUBLIC"))
+    else:
+        # SQLite: turn off FK enforcement so any table order works.
+        with engine.begin() as conn:
+            conn.execute(text("PRAGMA foreign_keys = OFF"))
+        Base.metadata.drop_all(bind=engine)
+        with engine.begin() as conn:
+            conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+            conn.execute(text("PRAGMA foreign_keys = ON"))
 
 
 def get_db():

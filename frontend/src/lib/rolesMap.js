@@ -18,6 +18,7 @@
 //   - AUDITOR's first page is sop-audits, so auditors land on /sop-audits
 //   - "email" has no backend endpoint (UI-only demo page) -- open to all roles
 export const ROLE_PAGES = {
+  ADMIN: null,            // sees everything, same as AUDIT_MANAGER for nav
   AUDIT_MANAGER: null,
   AUDITOR: ['sop-audits', 'audits', 'questions', 'email'],
   STORE_MANAGER: ['issues', 'audits', 'sop-audits', 'email'],
