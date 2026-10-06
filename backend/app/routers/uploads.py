@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from ..auth import require_roles
 from ..db import get_db
 from ..models import (
-    ROLE_AUDIT_MANAGER, CashDepositPickup, CashReconciliation, DataImport,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, CashDepositPickup, CashReconciliation, DataImport,
     ExpiredInventory, Observation, Store, StoreScore, User,
 )
 from ..services import log_action
@@ -33,7 +33,7 @@ async def upload_file(
     file: UploadFile = File(...),
     section: str = Form(""),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     section = section.strip()
     if section not in SECTION_MAP:

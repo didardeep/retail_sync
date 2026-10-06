@@ -4,8 +4,9 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user, require_roles
 from ..db import get_db
 from ..models import (
-    ROLE_AUDIT_MANAGER, CashDepositPickup, CashReconciliation, DataImport,
-    ExpiredInventory, StoreScore, User,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_STORE_MANAGER,
+    CashDepositPickup, CashReconciliation, DataImport,
+    ExpiredInventory, Store, StoreScore, User,
 )
 from ..schemas import (
     CashDepositPickupOut, CashReconciliationOut, DataImportOut,
@@ -15,10 +16,16 @@ from ..schemas import (
 router = APIRouter(prefix="/api", tags=["data"])
 
 
+def _sm_store_ids(db: Session, user: User) -> list[str]:
+    """Return all store IDs managed by a Store Manager."""
+    stores = db.query(Store).filter(Store.manager_id == user.id).all()
+    return [s.id for s in stores]
+
+
 @router.get("/data-imports", response_model=list[DataImportOut])
 def list_data_imports(
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     rows = db.query(DataImport).order_by(DataImport.imported_at.desc()).all()
     return [{
@@ -36,7 +43,10 @@ def list_cash_reconciliations(
     user: User = Depends(get_current_user),
 ):
     q = db.query(CashReconciliation)
-    if store_id:
+    if user.role == ROLE_STORE_MANAGER:
+        ids = _sm_store_ids(db, user)
+        q = q.filter(CashReconciliation.store_id.in_(ids))
+    elif store_id:
         q = q.filter(CashReconciliation.store_id == store_id)
     return [{
         "id": cr.id, "store_id": cr.store_id,
@@ -60,7 +70,10 @@ def list_cash_deposit_pickups(
     user: User = Depends(get_current_user),
 ):
     q = db.query(CashDepositPickup)
-    if store_id:
+    if user.role == ROLE_STORE_MANAGER:
+        ids = _sm_store_ids(db, user)
+        q = q.filter(CashDepositPickup.store_id.in_(ids))
+    elif store_id:
         q = q.filter(CashDepositPickup.store_id == store_id)
     return [{
         "id": cd.id, "store_id": cd.store_id,
@@ -81,7 +94,10 @@ def list_expired_inventory(
     user: User = Depends(get_current_user),
 ):
     q = db.query(ExpiredInventory)
-    if store_id:
+    if user.role == ROLE_STORE_MANAGER:
+        ids = _sm_store_ids(db, user)
+        q = q.filter(ExpiredInventory.store_id.in_(ids))
+    elif store_id:
         q = q.filter(ExpiredInventory.store_id == store_id)
     return [{
         "id": ei.id, "store_id": ei.store_id,
@@ -100,7 +116,10 @@ def list_store_scores(
     user: User = Depends(get_current_user),
 ):
     q = db.query(StoreScore)
-    if store_id:
+    if user.role == ROLE_STORE_MANAGER:
+        ids = _sm_store_ids(db, user)
+        q = q.filter(StoreScore.store_id.in_(ids))
+    elif store_id:
         q = q.filter(StoreScore.store_id == store_id)
     return [{
         "id": ss.id, "store_id": ss.store_id,

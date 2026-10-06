@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user, require_roles
 from ..db import get_db
-from ..models import ROLE_AUDIT_MANAGER, ROLE_STORE_MANAGER, Store, User
+from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_STORE_MANAGER, Store, User
 from ..schemas import StoreCreate, StoreUpdate
 from ..services import log_action
 
@@ -35,7 +35,7 @@ def list_stores(
 def create_store(
     body: StoreCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     d = body.model_dump()
     s = Store(
@@ -56,7 +56,7 @@ def update_store(
     sid: str,
     body: StoreUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     s = db.get(Store, sid)
     if not s:

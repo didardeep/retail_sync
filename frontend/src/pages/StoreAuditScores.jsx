@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Line } from 'react-chartjs-2'
 import { api } from '../api/client'
 import { sColor, pbClass, exportCSV } from '../utils/helpers'
@@ -21,6 +22,7 @@ function deltaDisplay(curr, prev) {
 }
 
 export default function StoreAuditScores() {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [detailStore, setDetailStore] = useState(null)
@@ -291,7 +293,7 @@ export default function StoreAuditScores() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button size="sm" variant="outline">View Report</Button>
+                        <Button size="sm" variant="outline" onClick={() => navigate(`/audits/${a.id}`)}>View Report</Button>
                       </TableCell>
                     </TableRow>
                   ))}

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import require_roles
 from ..db import get_db
-from ..models import ROLE_AUDIT_MANAGER, Audit, Issue, Store, StoreScore, User
+from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, Audit, Issue, Store, StoreScore, User
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api", tags=["dashboard"])
 @router.get("/dashboard")
 def dashboard(
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     audits = db.query(Audit).all()
     issues = db.query(Issue).all()
@@ -52,7 +52,7 @@ def dashboard(
 def list_users(
     role: str | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     q = db.query(User)
     if role:
