@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { api } from '../api/client';
+import { api, loadSession } from '../api/client';
+import { useUrlFilters } from '@/lib/useUrlFilters';
+import StorePicker from '@/components/StorePicker';
 import { sColor, sBadge, prC, stC, pbClass } from '../utils/helpers';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,12 +11,15 @@ import { cn } from '@/lib/utils';
 const QUARTERS = ['q1', 'q2', 'q3', 'q4'];
 
 export default function StoreDashboard() {
-  const [store, setStore] = useState(null);
-  const [audits, setAudits] = useState([]);
-  const [issues, setIssues] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [allAudits, setAudits] = useState([]);
+  const [allIssues, setIssues] = useState([]);
   const [scores, setScores] = useState([]);
   const [selectedQ, setSelectedQ] = useState('q4');
   const [loading, setLoading] = useState(true);
+  const role = loadSession()?.user?.role;
+  const canPick = role === 'ADMIN' || role === 'AUDIT_MANAGER';
+  const { filters, setFilter } = useUrlFilters(['store']);
 
   useEffect(() => {
     Promise.all([
@@ -23,7 +28,7 @@ export default function StoreDashboard() {
       api.issues().catch(() => []),
       api.storeScores().catch(() => []),
     ]).then(([st, au, is, sc]) => {
-      setStore((st || [])[0] || null);
+      setStores(st || []);
       setAudits(au || []);
       setIssues(is || []);
       setScores(sc || []);
@@ -31,11 +36,33 @@ export default function StoreDashboard() {
     });
   }, []);
 
+  // Admin / manager: the picked store (default first). Store manager: first
+  // (their own) store, as before.
+  const store = useMemo(() => {
+    if (canPick && filters.store) {
+      const hit = stores.find(s => s.id === filters.store);
+      if (hit) return hit;
+    }
+    return stores[0] || null;
+  }, [stores, canPick, filters.store]);
+
+  const storeAudits = useMemo(
+    () => (canPick && store ? allAudits.filter(a => a.store_id === store.id) : allAudits),
+    [allAudits, store, canPick]
+  );
+  const storeIssues = useMemo(
+    () => (canPick && store ? allIssues.filter(i => i.store_id === store.id) : allIssues),
+    [allIssues, store, canPick]
+  );
+
   const storeScore = useMemo(() => {
     if (!store) return null;
-    const sc = scores.find(s => s.store_id === store.id || s.store === store.name);
+    const sc = scores.find(s => s.store_id === store.id);
     return sc ? (sc[selectedQ] ?? sc.q4 ?? null) : null;
   }, [store, scores, selectedQ]);
+
+  const audits = storeAudits;
+  const issues = storeIssues;
 
   const completedAudits = useMemo(
     () => audits.filter(a => a.status === 'Completed' || a.status === 'Approved'),
@@ -53,7 +80,7 @@ export default function StoreDashboard() {
 
   const scoreHistory = useMemo(() => {
     if (!store) return [];
-    const sc = scores.find(s => s.store_id === store.id || s.store === store.name);
+    const sc = scores.find(s => s.store_id === store.id);
     if (!sc) return [];
     return QUARTERS.map(q => ({ q: q.toUpperCase(), val: sc[q] ?? 0 }));
   }, [store, scores]);
@@ -83,7 +110,10 @@ export default function StoreDashboard() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {canPick && (
+            <StorePicker stores={stores} value={store.id} onChange={v => setFilter('store', v)} />
+          )}
           {QUARTERS.map(q => (
             <Button
               key={q}

@@ -1,27 +1,34 @@
 import { useState, useEffect, useMemo } from 'react';
-import { api } from '../api/client';
+import { api, loadSession } from '../api/client';
+import { storeDataApi } from '../api/storeData';
+import { useUrlFilters } from '@/lib/useUrlFilters';
+import StorePicker from '@/components/StorePicker';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
 const TABS = [
-  { id: 'cash', label: '💰 Cash Reconciliation' },
-  { id: 'deposits', label: '🏦 Deposit Pickups' },
-  { id: 'inventory', label: '📦 Expired Inventory' },
+  { id: 'cash', label: 'Cash Reconciliation' },
+  { id: 'deposits', label: 'Deposit Pickups' },
+  { id: 'inventory', label: 'Expired Inventory' },
 ];
 
-function statusBadge(s) {
-  if (!s) return 'bg-muted text-muted-foreground';
-  const sl = s.toLowerCase();
-  if (sl.includes('match') || sl.includes('reconciled') || sl.includes('collected') || sl.includes('clear') || sl.includes('ok')) return 'bg-emerald-50 text-emerald-700';
-  if (sl.includes('pending') || sl.includes('partial')) return 'bg-yellow-50 text-yellow-900';
-  if (sl.includes('mismatch') || sl.includes('miss') || sl.includes('overdue') || sl.includes('discard') || sl.includes('expired')) return 'bg-red-50 text-red-800';
-  return 'bg-muted text-muted-foreground';
-}
+const EMPTY = '-';
+
+const num = (v) => (v == null || v === '' ? null : Number(v));
+const inr = (v) => (num(v) == null ? EMPTY : `₹${num(v).toLocaleString('en-IN')}`);
+const isZero = (v) => Math.abs(num(v) || 0) < 0.005;
+const diffClass = (v) => (isZero(v) ? 'font-semibold text-emerald-600' : 'font-semibold text-red-600');
 
 export default function StoreCompliance() {
+  const role = loadSession()?.user?.role;
+  const canPick = role === 'ADMIN' || role === 'AUDIT_MANAGER';
+  const { filters, setFilter } = useUrlFilters(['store']);
+  const storeId = canPick ? filters.store : '';
+
   const [tab, setTab] = useState('cash');
+  const [stores, setStores] = useState([]);
   const [cash, setCash] = useState([]);
   const [deposits, setDeposits] = useState([]);
   const [inventory, setInventory] = useState([]);
@@ -29,92 +36,77 @@ export default function StoreCompliance() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    api.stores().then(s => setStores(s || [])).catch(() => setStores([]));
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
     Promise.all([
-      api.cashReconciliations().catch(() => []),
-      api.cashDepositPickups().catch(() => []),
-      api.expiredInventory().catch(() => []),
+      storeDataApi.cashReconciliations(storeId).catch(() => []),
+      storeDataApi.cashDepositPickups(storeId).catch(() => []),
+      storeDataApi.expiredInventory(storeId).catch(() => []),
     ]).then(([c, d, i]) => {
       setCash(c || []);
       setDeposits(d || []);
       setInventory(i || []);
       setLoading(false);
     });
-  }, []);
+  }, [storeId]);
+
+  const storeName = useMemo(() => {
+    const m = new Map(stores.map(s => [s.id, s.name]));
+    return (id) => m.get(id) || id || EMPTY;
+  }, [stores]);
 
   const kpis = useMemo(() => {
-    const totalDeposits = deposits.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
-    const pending = deposits.filter(d => {
-      const st = (d.status || '').toLowerCase();
-      return st.includes('pending') || st.includes('scheduled');
-    }).length;
-    const mismatches = cash.filter(c => {
-      const st = (c.status || '').toLowerCase();
-      return st.includes('mismatch') || st.includes('miss');
-    }).length;
-    const expired = inventory.length;
-    return { totalDeposits, pending, mismatches, expired };
+    const totalDeposits = deposits.reduce((s, d) => s + (num(d.cash_deposited) || 0), 0);
+    const delayed = deposits.filter(d => !d.cms_pickup_date || (d.handover_delay_days || 0) > 0).length;
+    const mismatches = cash.filter(c => !isZero(c.difference)).length;
+    return { totalDeposits, delayed, mismatches, expired: inventory.length };
   }, [cash, deposits, inventory]);
 
-  const q = search.toLowerCase();
+  const q = search.trim().toLowerCase();
 
   const filteredCash = useMemo(() => cash.filter(r =>
-    !q ||
-    (r.date || '').toLowerCase().includes(q) ||
-    (r.store || '').toLowerCase().includes(q) ||
-    (r.status || '').toLowerCase().includes(q)
-  ), [cash, q]);
+    !q || [storeName(r.store_id), r.store_id, r.remarks].some(v => String(v ?? '').toLowerCase().includes(q))
+  ), [cash, q, storeName]);
 
   const filteredDeposits = useMemo(() => deposits.filter(r =>
-    !q ||
-    (r.date || '').toLowerCase().includes(q) ||
-    (r.store || '').toLowerCase().includes(q) ||
-    (r.status || '').toLowerCase().includes(q)
-  ), [deposits, q]);
+    !q || [storeName(r.store_id), r.store_id, r.remarks, r.sales_date].some(v => String(v ?? '').toLowerCase().includes(q))
+  ), [deposits, q, storeName]);
 
   const filteredInventory = useMemo(() => inventory.filter(r =>
-    !q ||
-    (r.product || '').toLowerCase().includes(q) ||
-    (r.sku || '').toLowerCase().includes(q) ||
-    (r.category || '').toLowerCase().includes(q) ||
-    (r.store || '').toLowerCase().includes(q)
-  ), [inventory, q]);
+    !q || [storeName(r.store_id), r.store_id, r.article_code, r.article_description].some(v => String(v ?? '').toLowerCase().includes(q))
+  ), [inventory, q, storeName]);
 
-  if (loading) {
-    return <div className="flex h-[60vh] items-center justify-center text-muted-foreground">Loading compliance data...</div>;
-  }
+  const kpiTiles = [
+    { label: 'Cash Records', value: cash.length, bg: '#e8eefa', icon: 'CR' },
+    { label: 'Total Deposits', value: inr(kpis.totalDeposits), bg: '#def7ec', icon: 'DP' },
+    { label: 'Delayed Pickups', value: kpis.delayed, bg: '#feecdc', icon: 'DL' },
+    { label: 'Cash Mismatches', value: kpis.mismatches, bg: '#fde8e8', icon: 'MM' },
+    { label: 'Expired Items', value: kpis.expired, bg: '#fde8e8', icon: 'EX' },
+  ];
 
   return (
     <>
+      {canPick && (
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-[12px] text-muted-foreground">Store</span>
+          <StorePicker stores={stores} value={storeId} onChange={v => setFilter('store', v)} allowAll />
+        </div>
+      )}
+
       {/* KPI row */}
-      <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
-          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#e8eefa' }}>💰</div>
-          <div>
-            <div className="mb-0.5 text-[11px] text-muted-foreground">Cash Records</div>
-            <div className="text-2xl font-bold leading-none text-foreground">{cash.length}</div>
+      <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {kpiTiles.map(t => (
+          <div key={t.label} className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
+            <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-[10px] font-bold text-foreground/70" style={{ background: t.bg }}>{t.icon}</div>
+            <div>
+              <div className="mb-0.5 text-[11px] text-muted-foreground">{t.label}</div>
+              <div className="text-xl font-bold leading-none text-foreground">{t.value}</div>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
-          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#def7ec' }}>🏦</div>
-          <div>
-            <div className="mb-0.5 text-[11px] text-muted-foreground">Total Deposits</div>
-            <div className="text-2xl font-bold leading-none text-foreground">₹{(kpis.totalDeposits / 1000).toFixed(0)}K</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
-          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#feecdc' }}>⏳</div>
-          <div>
-            <div className="mb-0.5 text-[11px] text-muted-foreground">Pending Pickups</div>
-            <div className="text-2xl font-bold leading-none text-foreground">{kpis.pending}</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
-          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#fde8e8' }}>📦</div>
-          <div>
-            <div className="mb-0.5 text-[11px] text-muted-foreground">Expired Items</div>
-            <div className="text-2xl font-bold leading-none text-foreground">{kpis.expired}</div>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Tabs + search */}
@@ -135,122 +127,127 @@ export default function StoreCompliance() {
             </button>
           ))}
         </div>
-        <div className="relative max-w-[240px] flex-1">
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">🔍</span>
+        <div className="relative max-w-[260px] flex-1">
           <Input
-            className="pl-8"
-            placeholder="Search..."
+            placeholder="Search store, article, remarks..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-[10px] border border-border bg-card">
-        {tab === 'cash' && (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Store</TableHead>
-                <TableHead>Expected (₹)</TableHead>
-                <TableHead>Actual (₹)</TableHead>
-                <TableHead>Variance (₹)</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Remarks</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCash.length > 0 ? filteredCash.map((r, i) => (
-                <TableRow key={r.id || i}>
-                  <TableCell className="text-xs">{r.date || r.reconciliation_date || '—'}</TableCell>
-                  <TableCell>{r.store || r.store_name || '—'}</TableCell>
-                  <TableCell className="font-medium">{r.expected_amount != null ? `₹${Number(r.expected_amount).toLocaleString()}` : '—'}</TableCell>
-                  <TableCell className="font-medium">{r.actual_amount != null ? `₹${Number(r.actual_amount).toLocaleString()}` : '—'}</TableCell>
-                  <TableCell>
-                    {r.variance != null ? (
-                      <span className={r.variance < 0 ? 'text-red-600 font-semibold' : 'text-emerald-600 font-semibold'}>
-                        {r.variance < 0 ? '' : '+'}{Number(r.variance).toLocaleString()}
-                      </span>
-                    ) : '—'}
-                  </TableCell>
-                  <TableCell><Badge className={statusBadge(r.status)}>{r.status || '—'}</Badge></TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{r.remarks || r.notes || '—'}</TableCell>
-                </TableRow>
-              )) : (
+      {loading ? (
+        <div className="flex h-[40vh] items-center justify-center text-muted-foreground">Loading compliance data...</div>
+      ) : (
+        <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+          {tab === 'cash' && (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="p-10 text-center text-muted-foreground">No cash reconciliation records found.</TableCell>
+                  <TableHead>Store</TableHead>
+                  <TableHead>Physical cash</TableHead>
+                  <TableHead>Book cash</TableHead>
+                  <TableHead>Difference</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Remarks</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        )}
+              </TableHeader>
+              <TableBody>
+                {filteredCash.length > 0 ? filteredCash.map((r, i) => (
+                  <TableRow key={r.id || i}>
+                    <TableCell>{storeName(r.store_id)}</TableCell>
+                    <TableCell className="font-medium">{inr(r.physical_cash_total)}</TableCell>
+                    <TableCell className="font-medium">{inr(r.book_cash_total)}</TableCell>
+                    <TableCell className={diffClass(r.difference)}>{inr(r.difference)}</TableCell>
+                    <TableCell>
+                      <Badge className={isZero(r.difference) ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-800'}>
+                        {isZero(r.difference) ? 'Matched' : 'Mismatch'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{r.remarks || EMPTY}</TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="p-10 text-center text-muted-foreground">No cash reconciliation records found.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
 
-        {tab === 'deposits' && (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Store</TableHead>
-                <TableHead>Amount (₹)</TableHead>
-                <TableHead>Pickup By</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Remarks</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredDeposits.length > 0 ? filteredDeposits.map((r, i) => (
-                <TableRow key={r.id || i}>
-                  <TableCell className="text-xs">{r.date || r.pickup_date || '—'}</TableCell>
-                  <TableCell>{r.store || r.store_name || '—'}</TableCell>
-                  <TableCell className="font-medium">{r.amount != null ? `₹${Number(r.amount).toLocaleString()}` : '—'}</TableCell>
-                  <TableCell className="text-xs">{r.pickup_by || r.agent || '—'}</TableCell>
-                  <TableCell><Badge className={statusBadge(r.status)}>{r.status || '—'}</Badge></TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{r.remarks || r.notes || '—'}</TableCell>
-                </TableRow>
-              )) : (
+          {tab === 'deposits' && (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={6} className="p-10 text-center text-muted-foreground">No deposit pickup records found.</TableCell>
+                  <TableHead>Store</TableHead>
+                  <TableHead>Sales date</TableHead>
+                  <TableHead>Cash sales</TableHead>
+                  <TableHead>Deposited</TableHead>
+                  <TableHead>Difference</TableHead>
+                  <TableHead>CMS pickup date</TableHead>
+                  <TableHead>Delay (days)</TableHead>
+                  <TableHead>Remarks</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        )}
+              </TableHeader>
+              <TableBody>
+                {filteredDeposits.length > 0 ? filteredDeposits.map((r, i) => (
+                  <TableRow key={r.id || i}>
+                    <TableCell>{storeName(r.store_id)}</TableCell>
+                    <TableCell className="text-xs">{r.sales_date || EMPTY}</TableCell>
+                    <TableCell className="font-medium">{inr(r.cash_sales)}</TableCell>
+                    <TableCell className="font-medium">{inr(r.cash_deposited)}</TableCell>
+                    <TableCell className={diffClass(r.difference)}>{inr(r.difference)}</TableCell>
+                    <TableCell className="text-xs">{r.cms_pickup_date || EMPTY}</TableCell>
+                    <TableCell className={(r.handover_delay_days || 0) > 0 ? 'font-semibold text-red-600' : ''}>
+                      {r.handover_delay_days ?? EMPTY}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{r.remarks || EMPTY}</TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={8} className="p-10 text-center text-muted-foreground">No deposit pickup records found.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
 
-        {tab === 'inventory' && (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Qty</TableHead>
-                <TableHead>Expiry Date</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredInventory.length > 0 ? filteredInventory.map((r, i) => (
-                <TableRow key={r.id || i}>
-                  <TableCell className="font-medium">{r.product || r.product_name || '—'}</TableCell>
-                  <TableCell className="font-mono text-xs">{r.sku || '—'}</TableCell>
-                  <TableCell>{r.category || '—'}</TableCell>
-                  <TableCell>{r.quantity != null ? r.quantity : (r.qty != null ? r.qty : '—')}</TableCell>
-                  <TableCell className="text-xs">{r.expiry_date || r.expiry || '—'}</TableCell>
-                  <TableCell><Badge className={statusBadge(r.status || 'Expired')}>{r.status || 'Expired'}</Badge></TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{r.action || r.recommended_action || 'Discard / Return'}</TableCell>
-                </TableRow>
-              )) : (
+          {tab === 'inventory' && (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="p-10 text-center text-muted-foreground">No expired inventory records found.</TableCell>
+                  <TableHead>Store</TableHead>
+                  <TableHead>Article code</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Expiry date</TableHead>
+                  <TableHead>Quantity</TableHead>
+                  <TableHead>MRP</TableHead>
+                  <TableHead>Value</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        )}
-      </div>
+              </TableHeader>
+              <TableBody>
+                {filteredInventory.length > 0 ? filteredInventory.map((r, i) => (
+                  <TableRow key={r.id || i}>
+                    <TableCell>{storeName(r.store_id)}</TableCell>
+                    <TableCell className="font-mono text-xs">{r.article_code || EMPTY}</TableCell>
+                    <TableCell className="font-medium">{r.article_description || EMPTY}</TableCell>
+                    <TableCell className="text-xs">{r.expiry_date || EMPTY}</TableCell>
+                    <TableCell>{r.quantity ?? EMPTY}</TableCell>
+                    <TableCell>{inr(r.mrp)}</TableCell>
+                    <TableCell className="font-medium">
+                      {num(r.quantity) != null && num(r.mrp) != null ? inr(num(r.quantity) * num(r.mrp)) : EMPTY}
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="p-10 text-center text-muted-foreground">No expired inventory records found.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      )}
 
       <div className="mt-3 flex justify-end text-xs text-muted-foreground">
         {tab === 'cash' && <span>{filteredCash.length} records</span>}

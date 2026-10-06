@@ -38,6 +38,8 @@ def create_store(
     user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     d = body.model_dump()
+    if db.get(Store, d["id"]):
+        raise HTTPException(status_code=409, detail={"error": "store id already exists"})
     s = Store(
         id=d["id"], name=d["name"], city=d.get("city"), region=d.get("region"),
         store_format=d.get("format"), store_type=d.get("type"),

@@ -45,3 +45,11 @@ test('titles resolve for nested and detail routes', () => {
   assert.equal(titleFor('/my-store'), 'My Store');
   assert.equal(titleFor('/nowhere'), 'Store Audit and Analysis');
 });
+
+test('user management is for ADMIN only (the user API refuses everyone else)', () => {
+  assert.equal(canAccess('ADMIN', 'user-management'), true);
+  for (const role of ['AUDIT_MANAGER', 'AUDITOR', 'STORE_MANAGER']) {
+    assert.equal(canAccess(role, 'user-management'), false, role);
+  }
+  assert.equal(canAccess('AUDIT_MANAGER', 'stores'), true);
+});

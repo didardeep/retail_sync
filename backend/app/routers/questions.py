@@ -95,5 +95,23 @@ def edit_question(
         meta=d.get("meta", old.meta),
     )
     db.add(new)
+    log_action(db, user.id, "edit_question", "question", new.id,
+               {"code": new.code, "version": new.version, "fields": list(d.keys())})
     db.commit()
     return new.to_dict()
+
+
+@router.delete("/{qid}")
+def deactivate_question(
+    qid: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
+):
+    """Soft delete: the question is switched off, never removed, so old audits keep it."""
+    q = db.get(Question, qid)
+    if not q:
+        raise HTTPException(status_code=404, detail={"error": "not found"})
+    q.active = False
+    log_action(db, user.id, "deactivate_question", "question", q.id, {"code": q.code})
+    db.commit()
+    return q.to_dict()

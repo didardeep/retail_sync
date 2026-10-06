@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useToast } from '../components/Toast'
 import { api, loadSession } from '../api/client'
+import { questionsApi } from '../api/questionsApi'
 import { canAccess } from '@/lib/rolesMap'
 import { wColor, qTypeLabel } from '../utils/helpers'
 import { cn, fieldClass, labelClass } from '@/lib/utils'
@@ -23,12 +24,15 @@ function normalizeQ(q) {
     crit: !!q.is_critical,
     on: q.active !== false,
     tags: (q.meta?.tags) || [],
-    g: q.guidance || '',
+    meta: q.meta || {},
+    status: q.approval_status || 'APPROVED',
   }
 }
 
 function QuestionBank() {
   const toast = useToast()
+  const role = loadSession()?.user?.role
+  const isManager = role === 'ADMIN' || role === 'AUDIT_MANAGER'
 
   const [questions, setQuestions] = useState([])
   const [processes, setProcesses] = useState([])
@@ -43,9 +47,10 @@ function QuestionBank() {
   /* ── question modal state ── */
   const [showQModal, setShowQModal] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [qForm, setQForm] = useState({ proc: '', sp: '', text: '', at: '', w: 3, crit: false, g: '', tags: '' })
+  const [qForm, setQForm] = useState({ proc: '', sp: '', text: '', at: '', w: 3, crit: false, tags: '' })
 
   /* ── process modal state ── */
+  const [saving, setSaving] = useState(false)
   const [showProcModal, setShowProcModal] = useState(false)
   const [procName, setProcName] = useState('')
 
@@ -82,7 +87,7 @@ function QuestionBank() {
   /* ────────────────── question modal helpers ────────────────── */
   function openAddQuestion() {
     setEditId(null)
-    setQForm({ proc: processes[0] || '', sp: '', text: '', at: responseTypes[0] || '', w: 3, crit: false, g: '', tags: '' })
+    setQForm({ proc: processes[0] || '', sp: '', text: '', at: responseTypes[0] || '', w: 3, crit: false, tags: '' })
     setShowQModal(true)
   }
 
@@ -97,93 +102,98 @@ function QuestionBank() {
       at: item.at,
       w: item.w,
       crit: !!item.crit,
-      g: item.g || '',
       tags: (item.tags || []).join(', '),
     })
     setShowQModal(true)
   }
 
+  function replaceRow(id, saved) {
+    setQuestions(prev => prev.map(q => q.id === id ? normalizeQ(saved) : q))
+  }
+
   function saveQuestion() {
+    if (saving) return
     if (!qForm.text.trim() || !qForm.proc) {
-      alert('Please fill in mandatory fields (Process and Question)')
+      toast.error('Please fill in mandatory fields (Process and Question)')
       return
     }
     const parsedTags = qForm.tags.split(',').map(t => t.trim()).filter(Boolean)
-    if (editId) {
-      setQuestions(prev => prev.map(q => q.id === editId ? {
-        ...q,
-        text: qForm.text.trim(),
-        proc: qForm.proc,
-        at: qForm.at,
-        sp: qForm.sp,
-        w: parseInt(qForm.w) || 3,
-        g: qForm.g,
-        tags: parsedTags,
-        crit: qForm.crit,
-      } : q))
-      toast('Question updated')
-    } else {
-      const body = {
-        text: qForm.text.trim(),
-        process: qForm.proc,
-        sub_process: qForm.sp,
-        audit_type: qForm.at,
-        weight: parseInt(qForm.w) || 3,
-        is_critical: qForm.crit,
-        meta: { tags: parsedTags },
-      }
-      api.createQuestion(body).then(newQ => {
-        setQuestions(prev => [...prev, normalizeQ(newQ)])
-      }).catch(() => {
-        const newId = 'Q' + String(questions.length + 1).padStart(3, '0')
-        setQuestions(prev => [...prev, {
-          id: newId, text: qForm.text.trim(), at: qForm.at,
-          proc: qForm.proc, sp: qForm.sp, w: parseInt(qForm.w) || 3,
-          g: qForm.g, tags: parsedTags, crit: qForm.crit, on: true,
-        }])
-      })
-      toast('Question added')
+    const body = {
+      text: qForm.text.trim(),
+      process: qForm.proc,
+      sub_process: qForm.sp,
+      audit_type: qForm.at,
+      weight: parseInt(qForm.w) || 3,
+      is_critical: qForm.crit,
     }
-    setShowQModal(false)
-    setEditId(null)
+    setSaving(true)
+    let call
+    if (editId) {
+      const old = questions.find(q => q.id === editId)
+      call = questionsApi.edit(editId, { ...body, meta: { ...(old?.meta || {}), tags: parsedTags } })
+    } else {
+      call = questionsApi.create({ ...body, meta: { tags: parsedTags } })
+    }
+    call.then(saved => {
+      if (editId) replaceRow(editId, saved)
+      else setQuestions(prev => [...prev, normalizeQ(saved)])
+      toast(editId ? 'Question updated (new version saved)' : (saved.approval_status === 'PENDING' ? 'Question submitted for approval' : 'Question added'))
+      setShowQModal(false)
+      setEditId(null)
+    }).catch(e => {
+      toast.error(e.message || 'Could not save the question')
+    }).finally(() => setSaving(false))
   }
 
-  /* ────────────────── process modal helpers ────────────────── */
+  /* ────────────────── process / type pickers ────────────────── */
+  // Process and type are plain values on a question, so these popups only set
+  // the value for the question being edited. Nothing is saved until the question is.
   function saveProc() {
     const n = procName.trim()
-    if (!n || processes.includes(n)) { alert('Invalid or duplicate name'); return }
-    setProcesses(prev => [...prev, n])
+    if (!n) { toast.error('Enter a name'); return }
+    if (!processes.includes(n)) setProcesses(prev => [...prev, n])
+    setQForm(f => ({ ...f, proc: n }))
     setProcName('')
     setShowProcModal(false)
-    toast('Process added')
   }
 
-  /* ────────────────── response-type modal helpers ────────────────── */
   function saveRespType() {
     const n = rtName.trim()
-    if (!n || responseTypes.includes(n)) { alert('Invalid or duplicate name'); return }
-    setResponseTypes(prev => [...prev, n])
+    if (!n) { toast.error('Enter a name'); return }
+    if (!responseTypes.includes(n)) setResponseTypes(prev => [...prev, n])
+    setQForm(f => ({ ...f, at: n }))
     setRTName('')
     setShowRTModal(false)
-    toast('Question type added')
   }
 
-  /* ────────────────── toggle / delete ────────────────── */
+  /* ────────────────── toggle / deactivate / approve ────────────────── */
   function toggleQ(id) {
-    setQuestions(prev => prev.map(q => q.id === id ? { ...q, on: !q.on } : q))
+    if (!isManager) return
+    const item = questions.find(q => q.id === id)
+    if (!item) return
+    questionsApi.edit(id, { active: !item.on })
+      .then(saved => replaceRow(id, saved))
+      .catch(e => toast.error(e.message || 'Could not change the question'))
   }
 
   function deleteQ(id) {
-    if (!confirm('Delete question?')) return
-    setQuestions(prev => prev.filter(q => q.id !== id))
-    toast('Deleted')
+    if (!window.confirm('Delete this question? It is switched off, not erased, so past audits keep it.')) return
+    questionsApi.deactivate(id)
+      .then(saved => { replaceRow(id, saved); toast('Question deleted (inactive)') })
+      .catch(e => toast.error(e.message || 'Could not delete the question'))
+  }
+
+  function decide(id, decision) {
+    questionsApi.approve(id, decision)
+      .then(saved => { replaceRow(id, saved); toast(decision === 'APPROVED' ? 'Question approved' : 'Question rejected') })
+      .catch(e => toast.error(e.message || 'Could not record the decision'))
   }
 
   /* ────────────────── process select change in modal ────────────────── */
   function handleProcSelectChange(val) {
     if (val === '--new--') {
+      setProcName('')
       setShowProcModal(true)
-      setQForm(f => ({ ...f, proc: processes[0] || '' }))
     } else {
       setQForm(f => ({ ...f, proc: val }))
     }
@@ -191,8 +201,8 @@ function QuestionBank() {
 
   function handleRTSelectChange(val) {
     if (val === '--new--') {
+      setRTName('')
       setShowRTModal(true)
-      setQForm(f => ({ ...f, at: responseTypes[0] || '' }))
     } else {
       setQForm(f => ({ ...f, at: val }))
     }
@@ -226,7 +236,6 @@ function QuestionBank() {
         <div className="w-[196px] shrink-0">
           <div className="mb-2 flex items-center justify-between text-xs font-semibold text-foreground/80">
             Process
-            <Button size="sm" variant="outline" onClick={() => { setProcName(''); setShowProcModal(true) }}>Add</Button>
           </div>
           <div>
             <div
@@ -263,7 +272,7 @@ function QuestionBank() {
           </div>
 
           <div className="overflow-x-auto rounded-[10px] border border-border bg-card">
-            <div className="min-w-[700px] grid grid-cols-[1fr_150px_155px_55px_75px_75px] gap-2 border-b border-border bg-gray-50 px-2.5 py-2">
+            <div className="min-w-[700px] grid grid-cols-[1fr_150px_155px_55px_75px_110px] gap-2 border-b border-border bg-gray-50 px-2.5 py-2">
               <span className="text-[11.5px] font-semibold text-muted-foreground">Audit Question</span>
               <span className="text-[11.5px] font-semibold text-muted-foreground">Process</span>
               <span className="text-[11.5px] font-semibold text-muted-foreground">Sub-Process</span>
@@ -280,11 +289,12 @@ function QuestionBank() {
                       ? <div className="w-[3px] shrink-0 rounded-l-sm bg-red-600" />
                       : <div className="w-[3px]" />
                     }
-                    <div className="grid flex-1 grid-cols-[1fr_150px_155px_55px_75px_75px] items-center gap-2 px-2.5 py-2">
+                    <div className="grid flex-1 grid-cols-[1fr_150px_155px_55px_75px_110px] items-center gap-2 px-2.5 py-2">
                       <div>
                         <div className="mb-0.5 text-[12.5px] leading-snug text-foreground">{item.text}</div>
                         <div className="mb-0.5 text-[10.5px] font-medium text-muted-foreground">
                           <span className="font-semibold text-foreground/80">Type:</span> {qTypeLabel(item.at)}
+                          {isManager && <Badge className={cn('ml-2 text-[10px]', item.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' : item.status === 'REJECTED' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700')}>{item.status === 'APPROVED' ? 'Approved' : item.status === 'REJECTED' ? 'Rejected' : 'Pending'}</Badge>}
                         </div>
                         <div className="flex flex-wrap gap-1">
                           {(item.tags || []).map(t => <span className="rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10.5px] font-medium text-gray-700" key={t}>{t}</span>)}
@@ -296,10 +306,18 @@ function QuestionBank() {
                         <div className="flex h-[19px] w-[19px] items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: wColor(item.w) }}>{item.w}</div>
                       </div>
                       <Toggle on={item.on} onClick={() => toggleQ(item.id)} />
-                      <div className="flex gap-1">
-                        <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={() => openEditQuestion(item.id)}>{'✏️'}</button>
-                        <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px] text-destructive" onClick={() => deleteQ(item.id)}>{'🗑️'}</button>
-                      </div>
+                      {isManager ? (
+                        <div className="flex flex-wrap gap-1">
+                          <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={() => openEditQuestion(item.id)}>{'✏️'}</button>
+                          <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px] text-destructive" onClick={() => deleteQ(item.id)}>{'🗑️'}</button>
+                          {item.status === 'PENDING' && (
+                            <>
+                              <button className="h-[25px] rounded-md border border-border bg-card px-1.5 text-[11px] text-emerald-700" onClick={() => decide(item.id, 'APPROVED')}>Approve</button>
+                              <button className="h-[25px] rounded-md border border-border bg-card px-1.5 text-[11px] text-destructive" onClick={() => decide(item.id, 'REJECTED')}>Reject</button>
+                            </>
+                          )}
+                        </div>
+                      ) : <div />}
                     </div>
                   </div>
                 </div>
@@ -355,11 +373,6 @@ function QuestionBank() {
           </div>
 
           <div>
-            <label className={labelClass}>Guidance</label>
-            <textarea className={cn(fieldClass, 'min-h-[72px] resize-y')} placeholder="Provide guidance for the auditor..." value={qForm.g} onChange={e => setQForm(f => ({ ...f, g: e.target.value }))} />
-          </div>
-
-          <div>
             <label className={labelClass}>Tags (comma separated)</label>
             <Input placeholder="cash, reconciliation" value={qForm.tags} onChange={e => setQForm(f => ({ ...f, tags: e.target.value }))} />
           </div>
@@ -367,33 +380,33 @@ function QuestionBank() {
 
         <ModalActions>
           <Button variant="outline" onClick={() => setShowQModal(false)}>Cancel</Button>
-          <Button onClick={saveQuestion}>{editId ? 'Save Changes' : 'Add Question'}</Button>
+          <Button onClick={saveQuestion} disabled={saving}>{editId ? 'Save Changes' : 'Add Question'}</Button>
         </ModalActions>
       </Modal>
 
       {/* ═══════════ PROCESS MODAL ═══════════ */}
       <Modal open={showProcModal} onClose={() => setShowProcModal(false)} className="w-[320px]">
-        <ModalTitle>Add Process Category</ModalTitle>
+        <ModalTitle>Set Process</ModalTitle>
         <div>
-          <label className={labelClass}>Category Name</label>
+          <label className={labelClass}>Process name (applies to this question)</label>
           <Input placeholder="e.g. Inventory Management" value={procName} onChange={e => setProcName(e.target.value)} />
         </div>
         <ModalActions>
           <Button variant="outline" onClick={() => setShowProcModal(false)}>Cancel</Button>
-          <Button onClick={saveProc}>Add</Button>
+          <Button onClick={saveProc}>Use</Button>
         </ModalActions>
       </Modal>
 
       {/* ═══════════ RESPONSE TYPE MODAL ═══════════ */}
       <Modal open={showRTModal} onClose={() => setShowRTModal(false)} className="w-[320px]">
-        <ModalTitle>Add Response Type</ModalTitle>
+        <ModalTitle>Set Question Type</ModalTitle>
         <div>
-          <label className={labelClass}>Type Name</label>
+          <label className={labelClass}>Type name (applies to this question)</label>
           <Input placeholder="e.g. Barcode Scan" value={rtName} onChange={e => setRTName(e.target.value)} />
         </div>
         <ModalActions>
           <Button variant="outline" onClick={() => setShowRTModal(false)}>Cancel</Button>
-          <Button onClick={saveRespType}>Add</Button>
+          <Button onClick={saveRespType}>Use</Button>
         </ModalActions>
       </Modal>
     </>

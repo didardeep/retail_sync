@@ -65,22 +65,20 @@ function OverviewDashboard() {
 
   // chart data
   const avgScore = dashData?.avg_score ?? 0;
-  const trendScores = stores.length
-    ? (() => {
-        const months = ['Oct','Nov','Dec','Jan','Feb','Mar'];
-        const baseScore = avgScore || 80;
-        return months.map((_, i) => Math.round(baseScore - 6 + i * 1.5));
-      })()
-    : [82,84,85,87,88,89];
+  // Real trend: average of every store's stored quarterly score (stores with no score are skipped).
+  const trendScores = ['Q1', 'Q2', 'Q3', 'Q4'].map(q => {
+    const vals = Object.values(scoreMap).map(sc => sc[q.toLowerCase()]).filter(v => v != null && v > 0);
+    return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+  });
 
   const trendData = {
-    labels: ['Oct','Nov','Dec','Jan','Feb','Mar'],
+    labels: ['Q1','Q2','Q3','Q4'],
     datasets: [
       { label:'Current', data:trendScores, borderColor:'#00338D', backgroundColor:'rgba(0,51,141,.08)', borderWidth:2.5, tension:.4, pointRadius:3, fill:true },
-      { label:'Benchmark', data:[90,90,90,90,90,90], borderColor:'#9ca3af', borderDash:[5,5], borderWidth:1.5, pointRadius:0, fill:false }
+      { label:'Benchmark', data:[90,90,90,90], borderColor:'#9ca3af', borderDash:[5,5], borderWidth:1.5, pointRadius:0, fill:false }
     ]
   };
-  const trendOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}}, scales:{y:{min:75,max:95,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}} };
+  const trendOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}}, scales:{y:{min:50,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}} };
 
   // Risk distribution from observations
   const highCount = observations.filter(o => o.risk === 'Critical' || o.risk === 'High').length;
@@ -223,7 +221,7 @@ function OverviewDashboard() {
           {['q1','q2','q3','q4'].map(q => (
             <Button key={q} size="sm" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
           ))}
-          <Button size="sm" onClick={() => setPbiOpen(true)}>&#x1F4CA; Power BI</Button>
+          <Button size="sm" onClick={() => setPbiOpen(true)}>Power BI (sample preview)</Button>
         </div>
       </div>
 
@@ -246,7 +244,7 @@ function OverviewDashboard() {
       {/* Row 1: Trend + Risk */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Performance Trends<span className="text-[11px] font-normal text-muted-foreground">Benchmark: 90%</span></div>
+          <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Average store score by quarter<span className="text-[11px] font-normal text-muted-foreground">Benchmark: 90%</span></div>
           <div className="relative h-[190px] w-full"><Line data={trendData} options={trendOpts}/></div>
         </div>
         <div className="rounded-[10px] border border-border bg-card p-4">
@@ -378,10 +376,6 @@ function OverviewDashboard() {
 
       {/* Row 5: Recent Issues */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Recent Communications<span className="cursor-pointer text-[11px] font-normal text-muted-foreground" onClick={() => navigate('/email')}>View all &rarr;</span></div>
-          <div className="p-5 text-center text-xs text-muted-foreground">No communications yet</div>
-        </div>
         <div className="self-start rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Recent Issues<span className="cursor-pointer text-[11px] font-normal text-muted-foreground" onClick={() => navigate('/issues')}>View all &rarr;</span></div>
           {recentIssues.length ? recentIssues.map((i, idx) => (
@@ -432,6 +426,7 @@ function OverviewDashboard() {
             </div>
             <div style={{flex:1,minWidth:0,background:'#f4f5f9',display:'flex',flexDirection:'column'}}>
               <div style={{padding:'6px 14px 0',display:'flex',justifyContent:'flex-end',flexShrink:0}}>
+                <span style={{marginRight:'auto',fontSize:11,fontWeight:600,color:'#b45309'}}>SAMPLE DATA - illustrative preview, not connected to Power BI or your stores</span>
                 <span style={{cursor:'pointer',color:'var(--text3)',fontSize:15}} onClick={() => setPbiOpen(false)}>&#x2715;</span>
               </div>
               <div style={{padding:'0 16px 8px',flex:1,minHeight:0,display:'flex',flexDirection:'column'}}>
