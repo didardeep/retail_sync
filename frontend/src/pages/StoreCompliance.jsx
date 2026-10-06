@@ -1,8 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { api, loadSession } from '../api/client';
 import { storeDataApi } from '../api/storeData';
 import { useUrlFilters } from '@/lib/useUrlFilters';
+import { auditsLink } from '@/lib/links';
 import StorePicker from '@/components/StorePicker';
+import { Drawer } from '@/components/Modal';
+import ClickableRow from '@/components/store/ClickableRow';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -17,9 +21,53 @@ const TABS = [
 const EMPTY = '-';
 
 const num = (v) => (v == null || v === '' ? null : Number(v));
-const inr = (v) => (num(v) == null ? EMPTY : `₹${num(v).toLocaleString('en-IN')}`);
+const inr = (v) => (num(v) == null ? EMPTY : `\u20B9${num(v).toLocaleString('en-IN')}`);
 const isZero = (v) => Math.abs(num(v) || 0) < 0.005;
 const diffClass = (v) => (isZero(v) ? 'font-semibold text-emerald-600' : 'font-semibold text-red-600');
+const isDelayed = (r) => !r.cms_pickup_date || (r.handover_delay_days || 0) > 0;
+const itemValue = (r) => (num(r.quantity) != null && num(r.mrp) != null ? num(r.quantity) * num(r.mrp) : null);
+
+// Row filters set by the KPI tiles; each belongs to one tab.
+const FILTERS = {
+  mismatch: { tab: 'cash', label: 'Cash mismatches only', test: (r) => !isZero(r.difference) },
+  delayed: { tab: 'deposits', label: 'Delayed pickups only', test: isDelayed },
+};
+
+// Label/value lines shown in the detail drawer for each record type.
+const DETAIL_FIELDS = {
+  cash: (r) => [
+    ['Cash at tills', inr(r.cash_at_tills)],
+    ['Cash in safe', inr(r.cash_in_safe)],
+    ['Other locations', inr(r.cash_other_locations)],
+    ['Physical cash total', inr(r.physical_cash_total)],
+    ['Cash sales per report', inr(r.cash_sales_as_per_report)],
+    ['Float / imprest', inr(r.float_or_imprest_amount)],
+    ['Book cash total', inr(r.book_cash_total)],
+    ['Difference', inr(r.difference)],
+    ['Status', isZero(r.difference) ? 'Matched' : 'Mismatch'],
+    ['Remarks', r.remarks || EMPTY],
+  ],
+  deposits: (r) => [
+    ['Sales date', r.sales_date || EMPTY],
+    ['Cash sales', inr(r.cash_sales)],
+    ['Cash deposited', inr(r.cash_deposited)],
+    ['Difference', inr(r.difference)],
+    ['CMS pickup date', r.cms_pickup_date || 'Not picked up'],
+    ['Handover delay (days)', r.handover_delay_days ?? EMPTY],
+    ['Remarks', r.remarks || EMPTY],
+  ],
+  inventory: (r) => [
+    ['Article code', r.article_code || EMPTY],
+    ['Description', r.article_description || EMPTY],
+    ['Expiry date', r.expiry_date || EMPTY],
+    ['Review date', r.review_date || EMPTY],
+    ['Quantity', r.quantity ?? EMPTY],
+    ['MRP', inr(r.mrp)],
+    ['Value', inr(itemValue(r))],
+  ],
+};
+
+const DETAIL_TITLES = { cash: 'Cash reconciliation', deposits: 'Deposit pickup', inventory: 'Expired item' };
 
 export default function StoreCompliance() {
   const role = loadSession()?.user?.role;
@@ -34,6 +82,8 @@ export default function StoreCompliance() {
   const [inventory, setInventory] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [rowFilter, setRowFilter] = useState(null);
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => {
     api.stores().then(s => setStores(s || [])).catch(() => setStores([]));
@@ -60,32 +110,47 @@ export default function StoreCompliance() {
 
   const kpis = useMemo(() => {
     const totalDeposits = deposits.reduce((s, d) => s + (num(d.cash_deposited) || 0), 0);
-    const delayed = deposits.filter(d => !d.cms_pickup_date || (d.handover_delay_days || 0) > 0).length;
-    const mismatches = cash.filter(c => !isZero(c.difference)).length;
+    const delayed = deposits.filter(isDelayed).length;
+    const mismatches = cash.filter(FILTERS.mismatch.test).length;
     return { totalDeposits, delayed, mismatches, expired: inventory.length };
   }, [cash, deposits, inventory]);
 
   const q = search.trim().toLowerCase();
+  const activeTest = rowFilter && FILTERS[rowFilter].tab === tab ? FILTERS[rowFilter].test : null;
 
   const filteredCash = useMemo(() => cash.filter(r =>
-    !q || [storeName(r.store_id), r.store_id, r.remarks].some(v => String(v ?? '').toLowerCase().includes(q))
-  ), [cash, q, storeName]);
+    (tab !== 'cash' || !activeTest || activeTest(r)) &&
+    (!q || [storeName(r.store_id), r.store_id, r.remarks].some(v => String(v ?? '').toLowerCase().includes(q)))
+  ), [cash, q, storeName, tab, activeTest]);
 
   const filteredDeposits = useMemo(() => deposits.filter(r =>
-    !q || [storeName(r.store_id), r.store_id, r.remarks, r.sales_date].some(v => String(v ?? '').toLowerCase().includes(q))
-  ), [deposits, q, storeName]);
+    (tab !== 'deposits' || !activeTest || activeTest(r)) &&
+    (!q || [storeName(r.store_id), r.store_id, r.remarks, r.sales_date].some(v => String(v ?? '').toLowerCase().includes(q)))
+  ), [deposits, q, storeName, tab, activeTest]);
 
   const filteredInventory = useMemo(() => inventory.filter(r =>
     !q || [storeName(r.store_id), r.store_id, r.article_code, r.article_description].some(v => String(v ?? '').toLowerCase().includes(q))
   ), [inventory, q, storeName]);
 
+  // Each tile jumps to the tab it counts, with a row filter where it counts a subset.
   const kpiTiles = [
-    { label: 'Cash Records', value: cash.length, bg: '#e8eefa', icon: 'CR' },
-    { label: 'Total Deposits', value: inr(kpis.totalDeposits), bg: '#def7ec', icon: 'DP' },
-    { label: 'Delayed Pickups', value: kpis.delayed, bg: '#feecdc', icon: 'DL' },
-    { label: 'Cash Mismatches', value: kpis.mismatches, bg: '#fde8e8', icon: 'MM' },
-    { label: 'Expired Items', value: kpis.expired, bg: '#fde8e8', icon: 'EX' },
+    { label: 'Cash Records', value: cash.length, bg: '#e8eefa', icon: 'CR', tab: 'cash', filter: null },
+    { label: 'Total Deposits', value: inr(kpis.totalDeposits), bg: '#def7ec', icon: 'DP', tab: 'deposits', filter: null },
+    { label: 'Delayed Pickups', value: kpis.delayed, bg: '#feecdc', icon: 'DL', tab: 'deposits', filter: 'delayed' },
+    { label: 'Cash Mismatches', value: kpis.mismatches, bg: '#fde8e8', icon: 'MM', tab: 'cash', filter: 'mismatch' },
+    { label: 'Expired Items', value: kpis.expired, bg: '#fde8e8', icon: 'EX', tab: 'inventory', filter: null },
   ];
+
+  const openTile = (t) => { setTab(t.tab); setRowFilter(t.filter); setSearch(''); };
+
+  const detailRow = detail ? detail.row : null;
+  const detailLines = detailRow ? DETAIL_FIELDS[detail.tab](detailRow) : [];
+
+  const rowProps = (tabId, r) => ({
+    onActivate: () => setDetail({ tab: tabId, row: r }),
+    label: `Show details for ${storeName(r.store_id)}`,
+    role: 'button',
+  });
 
   return (
     <>
@@ -99,13 +164,21 @@ export default function StoreCompliance() {
       {/* KPI row */}
       <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
         {kpiTiles.map(t => (
-          <div key={t.label} className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
+          <button
+            key={t.label}
+            type="button"
+            onClick={() => openTile(t)}
+            className={cn(
+              'flex items-center gap-3 rounded-[10px] border bg-card p-3.5 py-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              t.filter && rowFilter === t.filter ? 'border-primary' : 'border-border'
+            )}
+          >
             <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-[10px] font-bold text-foreground/70" style={{ background: t.bg }}>{t.icon}</div>
             <div>
               <div className="mb-0.5 text-[11px] text-muted-foreground">{t.label}</div>
               <div className="text-xl font-bold leading-none text-foreground">{t.value}</div>
             </div>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -115,7 +188,7 @@ export default function StoreCompliance() {
           {TABS.map(t => (
             <button
               key={t.id}
-              onClick={() => { setTab(t.id); setSearch(''); }}
+              onClick={() => { setTab(t.id); setSearch(''); setRowFilter(null); }}
               className={cn(
                 'rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors',
                 tab === t.id
@@ -136,6 +209,21 @@ export default function StoreCompliance() {
         </div>
       </div>
 
+      {activeTest && (
+        <div className="mb-3 flex items-center gap-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 font-medium text-primary">
+            Filter active: {FILTERS[rowFilter].label}
+            <button
+              type="button"
+              onClick={() => setRowFilter(null)}
+              className="rounded underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              clear
+            </button>
+          </span>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex h-[40vh] items-center justify-center text-muted-foreground">Loading compliance data...</div>
       ) : (
@@ -154,7 +242,7 @@ export default function StoreCompliance() {
               </TableHeader>
               <TableBody>
                 {filteredCash.length > 0 ? filteredCash.map((r, i) => (
-                  <TableRow key={r.id || i}>
+                  <ClickableRow key={r.id || i} {...rowProps('cash', r)}>
                     <TableCell>{storeName(r.store_id)}</TableCell>
                     <TableCell className="font-medium">{inr(r.physical_cash_total)}</TableCell>
                     <TableCell className="font-medium">{inr(r.book_cash_total)}</TableCell>
@@ -165,7 +253,7 @@ export default function StoreCompliance() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">{r.remarks || EMPTY}</TableCell>
-                  </TableRow>
+                  </ClickableRow>
                 )) : (
                   <TableRow>
                     <TableCell colSpan={6} className="p-10 text-center text-muted-foreground">No cash reconciliation records found.</TableCell>
@@ -191,7 +279,7 @@ export default function StoreCompliance() {
               </TableHeader>
               <TableBody>
                 {filteredDeposits.length > 0 ? filteredDeposits.map((r, i) => (
-                  <TableRow key={r.id || i}>
+                  <ClickableRow key={r.id || i} {...rowProps('deposits', r)}>
                     <TableCell>{storeName(r.store_id)}</TableCell>
                     <TableCell className="text-xs">{r.sales_date || EMPTY}</TableCell>
                     <TableCell className="font-medium">{inr(r.cash_sales)}</TableCell>
@@ -202,7 +290,7 @@ export default function StoreCompliance() {
                       {r.handover_delay_days ?? EMPTY}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">{r.remarks || EMPTY}</TableCell>
-                  </TableRow>
+                  </ClickableRow>
                 )) : (
                   <TableRow>
                     <TableCell colSpan={8} className="p-10 text-center text-muted-foreground">No deposit pickup records found.</TableCell>
@@ -227,17 +315,15 @@ export default function StoreCompliance() {
               </TableHeader>
               <TableBody>
                 {filteredInventory.length > 0 ? filteredInventory.map((r, i) => (
-                  <TableRow key={r.id || i}>
+                  <ClickableRow key={r.id || i} {...rowProps('inventory', r)}>
                     <TableCell>{storeName(r.store_id)}</TableCell>
                     <TableCell className="font-mono text-xs">{r.article_code || EMPTY}</TableCell>
                     <TableCell className="font-medium">{r.article_description || EMPTY}</TableCell>
                     <TableCell className="text-xs">{r.expiry_date || EMPTY}</TableCell>
                     <TableCell>{r.quantity ?? EMPTY}</TableCell>
                     <TableCell>{inr(r.mrp)}</TableCell>
-                    <TableCell className="font-medium">
-                      {num(r.quantity) != null && num(r.mrp) != null ? inr(num(r.quantity) * num(r.mrp)) : EMPTY}
-                    </TableCell>
-                  </TableRow>
+                    <TableCell className="font-medium">{inr(itemValue(r))}</TableCell>
+                  </ClickableRow>
                 )) : (
                   <TableRow>
                     <TableCell colSpan={7} className="p-10 text-center text-muted-foreground">No expired inventory records found.</TableCell>
@@ -254,6 +340,40 @@ export default function StoreCompliance() {
         {tab === 'deposits' && <span>{filteredDeposits.length} records</span>}
         {tab === 'inventory' && <span>{filteredInventory.length} records</span>}
       </div>
+
+      <Drawer open={!!detail} onClose={() => setDetail(null)}>
+        {detailRow && (
+          <div>
+            <div className="mb-1 flex items-start justify-between gap-2">
+              <div className="text-[15px] font-bold text-foreground">{DETAIL_TITLES[detail.tab]}</div>
+              <button
+                type="button"
+                onClick={() => setDetail(null)}
+                aria-label="Close details"
+                className="rounded px-2 text-lg leading-none text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                x
+              </button>
+            </div>
+            <div className="mb-3 text-[13px]">
+              <Link to={`/my-store?store=${encodeURIComponent(detailRow.store_id)}`} className="font-semibold text-primary hover:underline">
+                {storeName(detailRow.store_id)}
+              </Link>
+            </div>
+            <dl className="mb-4 divide-y divide-border rounded-lg border border-border">
+              {detailLines.map(([label, value]) => (
+                <div key={label} className="flex items-start justify-between gap-3 px-3 py-2 text-[12.5px]">
+                  <dt className="text-muted-foreground">{label}</dt>
+                  <dd className="text-right font-medium text-foreground">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <Link to={auditsLink({ store: detailRow.store_id })} className="text-[12.5px] font-medium text-primary hover:underline">
+              Audits for this store
+            </Link>
+          </div>
+        )}
+      </Drawer>
     </>
   );
 }
