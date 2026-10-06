@@ -267,8 +267,3 @@ class SopAuditUpsert(ORMBase):
 class SopSubmitIn(ORMBase):
     overall_remarks: str | None = None
     client_submitted_at: str | None = None
-
-
-class SopCriterionFlags(ORMBase):
-    requires_comment: bool | None = None
-    requires_photo: bool | None = None

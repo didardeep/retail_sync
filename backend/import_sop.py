@@ -76,7 +76,7 @@ def _min_points(rule, marks):
 def upsert_template(db, ws, code, rule):
     sections = parse_sheet(ws)
     name = ws.title.strip()
-    tpl = db.query(SopTemplate).filter_by(code=code).first()
+    tpl = db.query(SopTemplate).filter_by(code=code, is_current=True).first()
     if tpl is None:
         tpl = SopTemplate(code=code, name=name, min_rule=rule)
         db.add(tpl)

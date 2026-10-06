@@ -101,7 +101,8 @@ def seed_sop_demo():
     db = SessionLocal()
     try:
         stores = db.query(Store).order_by(Store.id).all()
-        templates = db.query(SopTemplate).filter_by(is_active=True).order_by(SopTemplate.code).all()
+        templates = (db.query(SopTemplate).filter_by(is_active=True, is_current=True)
+                     .order_by(SopTemplate.code).all())
         auditors = db.query(User).filter_by(role=ROLE_AUDITOR).order_by(User.email).all()
         if not stores or not templates or not auditors:
             print("  SOP demo data skipped (needs stores, SOP tools and auditors)")

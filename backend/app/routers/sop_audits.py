@@ -18,8 +18,12 @@ from ..models import (
     ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, SopAttachment,
     SopAudit, SopAuditScore, SopCriterion, SopTemplate, Store, User,
 )
-from ..schemas import SopAuditUpsert, SopCriterionFlags, SopSubmitIn
-from ..services import compute_sop_score, log_action, validate_sop_submit
+from ..schemas import SopAuditUpsert, SopSubmitIn
+from ..services import (
+    SOP_AUDITOR_EDITABLE, SOP_DRAFT, SOP_FINAL_STATUSES, SOP_PLANNED,
+    SOP_SUBMITTED,
+    compute_sop_score, log_action, validate_sop_submit,
+)
 
 router = APIRouter(prefix="/api/sop-audits", tags=["sop-audits"])
 
@@ -62,7 +66,7 @@ def _can_view(user: User, audit: SopAudit) -> bool:
         return audit.auditor_id == user.id
     if user.role == ROLE_STORE_MANAGER:
         # store managers only see finished audits of their own stores
-        return (audit.status == "Submitted" and audit.store is not None
+        return (audit.status in SOP_FINAL_STATUSES and audit.store is not None
                 and audit.store.manager_id == user.id)
     return False
 
@@ -88,7 +92,8 @@ def list_templates(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    rows = db.query(SopTemplate).filter_by(is_active=True).order_by(SopTemplate.name).all()
+    rows = (db.query(SopTemplate).filter_by(is_active=True, is_current=True)
+            .order_by(SopTemplate.name).all())
     return [t.to_dict() for t in rows]
 
 
@@ -103,24 +108,6 @@ def get_template(
         raise _not_found()
     return tpl.to_dict(with_sections=True)
 
-
-@router.patch("/criteria/{cid}")
-def update_criterion_flags(
-    cid: str,
-    body: SopCriterionFlags,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
-):
-    crit = db.get(SopCriterion, cid)
-    if not crit:
-        raise _not_found()
-    changes = body.model_dump(exclude_none=True)
-    for field, value in changes.items():
-        setattr(crit, field, value)
-    if changes:
-        log_action(db, user.id, "update_sop_criterion", "sop_criterion", cid, changes)
-    db.commit()
-    return crit.to_dict()
 
 
 # --------------------------------------------------------------------------
@@ -157,7 +144,7 @@ def list_sop_audits(
         q = q.filter(SopAudit.auditor_id == user.id)
     elif user.role == ROLE_STORE_MANAGER:
         q = q.join(Store, Store.id == SopAudit.store_id).filter(
-            Store.manager_id == user.id, SopAudit.status == "Submitted")
+            Store.manager_id == user.id, SopAudit.status.in_(SOP_FINAL_STATUSES))
     if store_id:
         q = q.filter(SopAudit.store_id == store_id)
     if status:
@@ -189,13 +176,17 @@ def upsert_sop_audit(
     audit = db.get(SopAudit, aid)
     created = audit is None
     if created:
-        if not db.get(SopTemplate, body.template_id):
+        # Any active version is accepted: an audit started offline on a version
+        # that was replaced since must still sync. The app only offers the
+        # current version for new audits.
+        template = db.get(SopTemplate, body.template_id)
+        if not template or not template.is_active:
             raise HTTPException(status_code=422, detail={"error": "unknown template"})
         if not db.get(Store, body.store_id):
             raise HTTPException(status_code=422, detail={"error": "unknown store"})
         audit = SopAudit(
             id=aid, template_id=body.template_id, store_id=body.store_id,
-            auditor_id=user.id, status="Draft",
+            auditor_id=user.id, status=SOP_DRAFT,
             client_created_at=_parse_dt(body.client_created_at),
         )
         db.add(audit)
@@ -203,11 +194,19 @@ def upsert_sop_audit(
     else:
         if audit.auditor_id != user.id:
             raise _forbidden()
-        if audit.status != "Draft":
-            raise HTTPException(status_code=409, detail={"error": "audit already submitted"})
-        if (audit.template_id, audit.store_id) != (body.template_id, body.store_id):
+        if audit.status not in SOP_AUDITOR_EDITABLE:
+            raise HTTPException(status_code=409, detail={
+                "error": f"audit is {audit.status.lower()} and can no longer be changed",
+                "status": audit.status})
+        sent = db.get(SopTemplate, body.template_id)
+        same_tool = sent is not None and sent.code == audit.template.code
+        template_ok = audit.template_id == body.template_id or (
+            audit.status == SOP_PLANNED and same_tool)
+        if audit.store_id != body.store_id or not template_ok:
             raise HTTPException(status_code=422, detail={
                 "error": "store and template cannot change on an existing audit"})
+        if audit.status == SOP_PLANNED:
+            audit.status = SOP_DRAFT          # the auditor has started it
 
     criteria = {c.id: c for s in audit.template.sections for c in s.criteria}
     existing = {r.criterion_id: r for r in audit.scores}
@@ -258,8 +257,12 @@ def submit_sop_audit(
         raise _not_found()
     if audit.auditor_id != user.id:
         raise _forbidden()
-    if audit.status == "Submitted":
+    if audit.status in SOP_FINAL_STATUSES:
         return _audit_detail(audit)          # idempotent replay
+    if audit.status not in SOP_AUDITOR_EDITABLE:
+        raise HTTPException(status_code=409, detail={
+            "error": f"audit is {audit.status.lower()} and cannot be submitted",
+            "status": audit.status})
 
     if body and body.overall_remarks is not None:
         audit.overall_remarks = body.overall_remarks
@@ -272,7 +275,7 @@ def submit_sop_audit(
     summary = compute_sop_score(audit)
     audit.score, audit.max_score, audit.percent = (
         summary["score"], summary["max_score"], summary["percent"])
-    audit.status = "Submitted"
+    audit.status = SOP_SUBMITTED
     audit.submitted_at = dt.datetime.utcnow()
     audit.client_submitted_at = _parse_dt(body.client_submitted_at) if body else None
     log_action(db, user.id, "submit_sop_audit", "sop_audit", audit.id,
@@ -302,10 +305,14 @@ async def upload_attachment(
     if existing:
         return existing.to_dict()            # idempotent replay
 
-    if audit.status != "Draft":
-        raise HTTPException(status_code=409, detail={"error": "audit already submitted"})
-    if not db.query(SopCriterion).filter_by(id=criterion_id).first():
-        raise HTTPException(status_code=422, detail={"error": "unknown criterion"})
+    if audit.status not in SOP_AUDITOR_EDITABLE:
+        raise HTTPException(status_code=409, detail={
+            "error": f"audit is {audit.status.lower()} and can no longer be changed",
+            "status": audit.status})
+    criterion = db.get(SopCriterion, criterion_id)
+    if criterion is None or criterion.section.template_id != audit.template_id:
+        raise HTTPException(status_code=422, detail={
+            "error": "criterion is not part of this audit tool"})
     ext = _EXT_BY_MIME.get(file.content_type)
     if ext is None:
         raise HTTPException(status_code=422, detail={
@@ -337,8 +344,10 @@ def delete_attachment(
         return {"ok": True}                  # already gone: idempotent
     if att.audit.auditor_id != user.id:
         raise _forbidden()
-    if att.audit.status != "Draft":
-        raise HTTPException(status_code=409, detail={"error": "audit already submitted"})
+    if att.audit.status not in SOP_AUDITOR_EDITABLE:
+        raise HTTPException(status_code=409, detail={
+            "error": f"audit is {att.audit.status.lower()} and can no longer be changed",
+            "status": att.audit.status})
     path = ATTACHMENT_FOLDER / att.file_path
     db.delete(att)
     db.commit()

@@ -12,6 +12,7 @@ import uuid
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -505,14 +506,26 @@ class Issue(Base):
 # generated UUIDs so they can be created offline and synced idempotently.
 # --------------------------------------------------------------------------
 class SopTemplate(Base):
+    """One version of an audit tool. Editing a tool that has been used creates
+    a new row with the same code and version + 1 (docs/SOP_Audit_Decisions.md
+    D21), so audits already done keep the marks and wording they were scored
+    with. Exactly one version per code has is_current set."""
     __tablename__ = "sop_templates"
+    __table_args__ = (
+        UniqueConstraint("code", "version", name="uq_sop_templates_code_version"),
+    )
 
     id = Column(String(12), primary_key=True, default=_uid)
-    code = Column(String(20), unique=True, nullable=False)     # CASH / FMCG
+    code = Column(String(20), nullable=False, index=True)      # CASH / FMCG
     name = Column(String(120), nullable=False)
     total_marks = Column(Float, default=0)
     min_rule = Column(String(20), default="zero")              # zero / third
     is_active = Column(Boolean, default=True)
+    version = Column(Integer, nullable=False, default=1, server_default="1")
+    is_current = Column(Boolean, nullable=False, default=True, server_default="1")
+    published_at = Column(DateTime)
+    created_by_id = Column(String(12), ForeignKey("users.id"))
+    change_note = Column(Text)
 
     sections = relationship("SopSection", back_populates="template",
                             cascade="all, delete-orphan",
@@ -523,6 +536,8 @@ class SopTemplate(Base):
             "id": self.id, "code": self.code, "name": self.name,
             "total_marks": self.total_marks, "min_rule": self.min_rule,
             "is_active": self.is_active,
+            "version": self.version, "is_current": self.is_current,
+            "published_at": self.published_at.isoformat() if self.published_at else None,
             "section_count": len(self.sections),
             "criterion_count": sum(len(s.criteria) for s in self.sections),
         }
@@ -539,6 +554,9 @@ class SopSection(Base):
     code = Column(String(5))                                   # "A"
     name = Column(String(200), nullable=False)
     sort_order = Column(Integer, default=0)
+    # Identifies "the same section" across template versions (the id changes
+    # with every version; this does not).
+    stable_key = Column(String(12), nullable=False, default=_uid, index=True)
 
     template = relationship("SopTemplate", back_populates="sections")
     criteria = relationship("SopCriterion", back_populates="section",
@@ -548,7 +566,7 @@ class SopSection(Base):
     def to_dict(self):
         return {
             "id": self.id, "code": self.code, "name": self.name,
-            "sort_order": self.sort_order,
+            "key": self.stable_key, "sort_order": self.sort_order,
             "total_marks": sum(c.marks for c in self.criteria),
             "criteria": [c.to_dict() for c in self.criteria],
         }
@@ -569,12 +587,16 @@ class SopCriterion(Base):
     requires_comment = Column(Boolean, default=False)
     requires_photo = Column(Boolean, default=False)
     sort_order = Column(Integer, default=0)
+    # Identifies "the same question" across template versions, so the
+    # dashboard can follow one question through a re-publish.
+    stable_key = Column(String(12), nullable=False, default=_uid, index=True)
 
     section = relationship("SopSection", back_populates="criteria")
 
     def to_dict(self):
         return {
-            "id": self.id, "section_id": self.section_id, "title": self.title,
+            "id": self.id, "key": self.stable_key, "section_id": self.section_id,
+            "title": self.title,
             "marks": self.marks, "max_text": self.max_text,
             "avg_text": self.avg_text, "min_text": self.min_text,
             "max_points": self.marks,
@@ -594,11 +616,17 @@ class SopAudit(Base):
     template_id = Column(String(12), ForeignKey("sop_templates.id"), nullable=False)
     store_id = Column(String(20), ForeignKey("stores.id"), nullable=False, index=True)
     auditor_id = Column(String(12), ForeignKey("users.id"), nullable=False, index=True)
-    status = Column(String(20), default="Draft")               # Draft / Submitted
+    # Planned (scheduled by a manager) -> Draft (auditor started) -> Submitted;
+    # Cancelled for a scheduled audit that will not happen. Approved/Returned
+    # are added by the review step.
+    status = Column(String(20), default="Draft")
     score = Column(Float)
     max_score = Column(Float)
     percent = Column(Float)
     overall_remarks = Column(Text)
+    scheduled_at = Column(DateTime, index=True)                # set when scheduled by a manager
+    notes = Column(Text)
+    created_by_id = Column(String(12), ForeignKey("users.id"))  # the manager who scheduled it
     client_created_at = Column(DateTime)
     client_submitted_at = Column(DateTime)
     created_at = Column(DateTime, default=dt.datetime.utcnow)
@@ -609,6 +637,7 @@ class SopAudit(Base):
     template = relationship("SopTemplate")
     store = relationship("Store")
     auditor = relationship("User", foreign_keys=[auditor_id])
+    created_by = relationship("User", foreign_keys=[created_by_id])
     scores = relationship("SopAuditScore", back_populates="audit",
                           cascade="all, delete-orphan")
     attachments = relationship("SopAttachment", back_populates="audit",
@@ -619,10 +648,16 @@ class SopAudit(Base):
             "id": self.id, "template_id": self.template_id,
             "template": self.template.name if self.template else None,
             "template_code": self.template.code if self.template else None,
+            "template_version": self.template.version if self.template else None,
             "store_id": self.store_id,
             "store": self.store.name if self.store else None,
+            "city": self.store.city if self.store else None,
+            "region": self.store.region if self.store else None,
             "auditor_id": self.auditor_id,
             "auditor": self.auditor.name if self.auditor else None,
+            "created_by": self.created_by.name if self.created_by else None,
+            "scheduled_at": self.scheduled_at.isoformat() if self.scheduled_at else None,
+            "notes": self.notes,
             "status": self.status, "score": self.score,
             "max_score": self.max_score, "percent": self.percent,
             "overall_remarks": self.overall_remarks,

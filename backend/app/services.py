@@ -3,7 +3,9 @@ import datetime as dt
 
 from sqlalchemy import func
 
-from .models import Audit, AuditLog, Issue, SopAudit
+from .models import (
+    Audit, AuditLog, AuditorAvailability, Issue, SopAudit, SopTemplate,
+)
 
 # How each answer contributes to the weighted score.
 ANSWER_VALUE = {"Yes": 1.0, "Partial": 0.5, "No": 0.0}
@@ -65,9 +67,77 @@ def log_action(session, user_id, action, entity_type, entity_id=None, details=No
     ))
 
 
+# SOP audit statuses. A manager schedules an audit (Planned); the auditor's
+# first save makes it a Draft; submitting makes it Submitted. Cancelled is for
+# a scheduled audit that will not happen. The review step later adds Returned
+# (back to the auditor) and Approved.
+SOP_PLANNED = "Planned"
+SOP_DRAFT = "Draft"
+SOP_SUBMITTED = "Submitted"
+SOP_APPROVED = "Approved"
+SOP_CANCELLED = "Cancelled"
+
+# Statuses in which the owning auditor may still change answers and photos.
+# The review step adds "Returned" here, in this one place.
+SOP_AUDITOR_EDITABLE = (SOP_PLANNED, SOP_DRAFT)
+
 # SOP audits that count in reports and dashboards. When a manager review step
 # is added, extend this tuple in this one place.
-SOP_FINAL_STATUSES = ("Submitted", "Approved")
+SOP_FINAL_STATUSES = (SOP_SUBMITTED, SOP_APPROVED)
+
+# SOP audits that occupy an auditor's day.
+SOP_BOOKING_STATUSES = (SOP_PLANNED, SOP_DRAFT)
+
+
+def current_template(session, code):
+    """The version of an audit tool that new audits use, or None."""
+    return session.query(SopTemplate).filter_by(
+        code=code, is_current=True, is_active=True).first()
+
+
+def auditor_conflict(session, auditor_id, day, store_id=None,
+                     exclude_audit_id=None, exclude_sop_id=None):
+    """Why an auditor cannot be booked on `day`, or None if they are free.
+
+    Checks their blocked dates, other classic audits (Planned/Ongoing) and SOP
+    audits (Planned/Draft with a scheduled date) on the same day. A booking at
+    the same store does not clash (Cash and FMCG can be done in one visit);
+    a booking at a different store does. With no store given, any booking clashes.
+    Returns the dict the API sends as the 409 body.
+    """
+    blocked = session.query(AuditorAvailability).filter(
+        AuditorAvailability.auditor_id == auditor_id,
+        AuditorAvailability.from_date <= day,
+        AuditorAvailability.to_date >= day,
+    ).first()
+    if blocked:
+        return {"error": "auditor unavailable", "reason": blocked.reason}
+
+    classic = session.query(Audit).filter(
+        Audit.auditor_id == auditor_id,
+        func.date(Audit.scheduled_at) == day.isoformat(),
+        Audit.status.in_(["Planned", "Ongoing"]),
+    )
+    if exclude_audit_id:
+        classic = classic.filter(Audit.id != exclude_audit_id)
+    for other in classic.all():
+        if store_id is None or other.store_id != store_id:
+            return {"error": "auditor already booked", "audit_id": other.id,
+                    "kind": "legacy"}
+
+    sop = session.query(SopAudit).filter(
+        SopAudit.auditor_id == auditor_id,
+        SopAudit.scheduled_at.isnot(None),
+        func.date(SopAudit.scheduled_at) == day.isoformat(),
+        SopAudit.status.in_(SOP_BOOKING_STATUSES),
+    )
+    if exclude_sop_id:
+        sop = sop.filter(SopAudit.id != exclude_sop_id)
+    for other in sop.all():
+        if store_id is None or other.store_id != store_id:
+            return {"error": "auditor already booked", "audit_id": other.id,
+                    "kind": "sop"}
+    return None
 
 
 def sop_effective_rows(audit: SopAudit) -> dict:
