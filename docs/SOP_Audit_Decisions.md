@@ -79,3 +79,12 @@ Entries marked (user) were chosen explicitly by the product owner.
 ## D18. Issues link to SOP audits through new columns, not the old audit_id
 - Why: `Issue.audit_id` is a foreign key to the old `audits` table; SOP audits live in `sop_audits` with UUID ids. Added `issues.sop_audit_id` and `issues.sop_criterion_id` (migration 0002) so an issue can point at the audit and the exact criterion that raised it, and be queried by them.
 - Rejected: storing the link only in `Issue.meta` (no foreign key, hard to query).
+
+## D19. SOP dashboard: one data call, filtering in the browser, filters in the URL
+- Why: the data set is small (stores x audits x ~25 criteria, about 200 KB for 68 audits), so one call to `/api/sop-dashboard` plus filtering in the browser makes every chart click instant, and the calculations are plain functions that can be tested without a screen. Filters (`tool`, `region`, `store`, `section`, `criterion`, `q`) live in the URL so a filtered view can be shared and the back button works.
+- Placement: a new "SOP Audits" tab inside Dashboard & Analytics (user choice), with the existing page kept as the "Overview" tab.
+- Store score: the average of the store's latest audit per tool. Bands: 80% and above is good, 70 to 80 needs watching, below 70 needs attention (constants in `logic.js`).
+- A store stays visible in the ranking and coverage panels when it is selected, so you can see it among the others; every other widget narrows to it.
+- Counted audits: `SOP_FINAL_STATUSES` in `services.py` (`Submitted`, `Approved`), so adding a manager review step changes one line.
+- Rejected: server-side filtering per click (slower, more endpoints); a separate page (user preferred a tab).
+- Revisit if the data grows past a few thousand audits.

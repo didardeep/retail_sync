@@ -62,6 +62,26 @@ Cautions from Pulse One itself:
 6. **C1-C3, A4, A5**: search, grouped nav, tool admin, scheduling.
 7. Capacitor phone wrapper, after the web app is settled.
 
+## Status (branch `track-b-dashboard`)
+
+Built, first slice of Track B:
+
+| Item | State |
+|------|-------|
+| A6 demo seed data | Done: `backend/seed_sop_demo.py`, runs from `seed.py` (skip with `--no-sop-demo`) |
+| A7 change vs previous audit | Done: per audit and as an average tile |
+| B1 cross-filtering | Done: click a store, section or question bar; chips and Clear all |
+| B2 Pareto | Done: marks lost per question with cumulative line |
+| B3 gap by section | Done |
+| B4 coverage / freshness | Done: stores with no audit in 30 days |
+| B5 at-risk table | Done: sortable, searchable, click row opens the audit, "scored low on this question" list |
+| B6 tab and filters in the URL | Done (`?tab=sop&tool=...`) |
+| A3 export | Partly: CSV of the audits table. Excel and compiled multi-store report not done |
+| B7 clean-up of old dashboard labels | Not done |
+| C1-C8 navigation | Not started |
+
+Verified without a browser: calculations (Node tests against real API output), every widget rendered on the server with real data in six filter states, production build, API access rules (manager only), and the earlier SOP API regression test. **Not yet checked by eye in a browser**: layout, chart appearance, click behaviour on real charts.
+
 ## Splitting the work between two people
 
 Goal: two tracks that touch different files, so merges are boring.

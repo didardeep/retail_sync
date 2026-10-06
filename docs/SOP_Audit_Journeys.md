@@ -70,11 +70,14 @@ Outcome: nothing is lost, the queue waits for a valid login.
 
 ## Audit Manager journeys
 
-### J8. Review submitted audits across stores -- Built (API tested, screen shows list only)
-1. Open SOP Audits and filter by store and status.
-2. Tap an audit to see every score, comment and photo, section by section, read-only.
+### J8. Review submitted audits across stores -- Built (dashboard checked with real data, not yet by eye in a browser)
+1. Open Dashboard & Analytics, then the SOP Audits tab.
+2. See the store ranking, gap by section, where marks are lost, coverage, trend and every audit. Click a store, section or question to focus the rest of the page; chips show what is active and Clear all resets.
+3. Click a row in the audits table to open that audit: every score, comment and photo, section by section, read-only.
+4. Export CSV downloads the rows currently shown.
 
-Outcome: a manager can inspect any submitted audit. There is no cross-store comparison or trend view for SOP audits yet.
+Outcome: a manager can compare stores, find the weak sections and questions, spot stores that have not been audited recently, and drill down to the audit.
+Still missing: a review/approve step (A1), Excel and multi-store compiled reports (A3).
 
 ### J9. Decide which questions need proof -- Gap (API done, screen not built)
 1. Manager opens an "Audit Tools" screen showing sections and questions.
