@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { avC, sColor, sBadge, pbClass, prC, stC } from '../utils/helpers';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import SopDashboard from './SopDashboard';
 
-export default function Dashboard() {
+function OverviewDashboard() {
   const navigate = useNavigate();
   const [obsTab, setObsTab] = useState('top');
   const [drillOpen, setDrillOpen] = useState(false);
@@ -483,5 +485,33 @@ export default function Dashboard() {
         </div>
       </div>
     </>
+  );
+}
+
+const TABS = [
+  { value: 'overview', label: 'Overview' },
+  { value: 'sop', label: 'SOP Audits' },
+];
+
+// Dashboard & Analytics: the original overview plus the SOP audit scores.
+// The tab lives in the URL (?tab=sop) so links and the back button work.
+export default function Dashboard() {
+  const [params, setParams] = useSearchParams();
+  const requested = params.get('tab');
+  const tab = TABS.some((t) => t.value === requested) ? requested : 'overview';
+
+  function changeTab(value) {
+    // Filters belong to a tab, so switching tabs starts clean.
+    setParams(value === 'overview' ? {} : { tab: value }, { replace: true });
+  }
+
+  return (
+    <Tabs value={tab} onValueChange={changeTab} className="space-y-4">
+      <TabsList>
+        {TABS.map((t) => <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>)}
+      </TabsList>
+      <TabsContent value="overview" className="mt-0"><OverviewDashboard /></TabsContent>
+      <TabsContent value="sop" className="mt-0"><SopDashboard /></TabsContent>
+    </Tabs>
   );
 }

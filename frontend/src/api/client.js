@@ -46,7 +46,7 @@ async function send(path, options) {
   }
 }
 
-async function request(path, { method = 'GET', body } = {}) {
+export async function request(path, { method = 'GET', body } = {}) {
   const res = await send(path, {
     method,
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
