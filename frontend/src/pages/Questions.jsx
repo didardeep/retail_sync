@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useToast } from '../components/Toast'
-import { api } from '../api/client'
+import { api, loadSession } from '../api/client'
+import { canAccess } from '@/lib/rolesMap'
 import { wColor, qTypeLabel } from '../utils/helpers'
 import { cn, fieldClass, labelClass } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import SopToolsTab from '@/components/sop-admin/SopToolsTab'
 import { Modal, ModalTitle, ModalActions } from '../components/Modal'
 
 function normalizeQ(q) {
@@ -23,7 +27,7 @@ function normalizeQ(q) {
   }
 }
 
-export default function Questions() {
+function QuestionBank() {
   const toast = useToast()
 
   const [questions, setQuestions] = useState([])
@@ -394,4 +398,34 @@ export default function Questions() {
       </Modal>
     </>
   )
+}
+
+const TABS = [
+  { value: 'bank', label: 'Question bank' },
+  { value: 'sop-tools', label: 'SOP tools' },
+];
+
+// Audit Questions: the question bank, plus (for managers) the editor for the
+// SOP audit tools. The tab lives in the URL (?tab=sop-tools) so links work.
+export default function Questions() {
+  const [params, setParams] = useSearchParams();
+  const role = loadSession()?.user?.role;
+  const tabs = TABS.filter((t) => t.value !== 'sop-tools' || canAccess(role, 'sop-tools'));
+  const requested = params.get('tab');
+  const tab = tabs.some((t) => t.value === requested) ? requested : 'bank';
+
+  function changeTab(value) {
+    setParams(value === 'bank' ? {} : { tab: value }, { replace: true });
+  }
+
+  if (tabs.length === 1) return <QuestionBank />;
+  return (
+    <Tabs value={tab} onValueChange={changeTab} className="space-y-4">
+      <TabsList>
+        {tabs.map((t) => <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>)}
+      </TabsList>
+      <TabsContent value="bank" className="mt-0"><QuestionBank /></TabsContent>
+      <TabsContent value="sop-tools" className="mt-0"><SopToolsTab /></TabsContent>
+    </Tabs>
+  );
 }
