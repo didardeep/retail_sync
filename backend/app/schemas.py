@@ -267,3 +267,38 @@ class SopAuditUpsert(ORMBase):
 class SopSubmitIn(ORMBase):
     overall_remarks: str | None = None
     client_submitted_at: str | None = None
+
+
+# --------------------------------------------------------------------------
+# SOP tool editor (routers/sop_admin.py). Deliberately lenient: the rules live
+# in sop_versions.validate_tree so every problem comes back in one list.
+# --------------------------------------------------------------------------
+class SopCriterionTreeIn(BaseModel):
+    key: str | None = None
+    title: str = ""
+    marks: float | None = None
+    max_text: str | None = None
+    avg_text: str | None = None
+    min_text: str | None = None
+    default_na: bool = False
+    requires_comment: bool = False
+    requires_photo: bool = False
+
+
+class SopSectionTreeIn(BaseModel):
+    key: str | None = None
+    code: str | None = None
+    name: str = ""
+    criteria: list[SopCriterionTreeIn] = []
+
+
+class SopTreeIn(BaseModel):
+    name: str = ""
+    min_rule: str = "zero"
+    sections: list[SopSectionTreeIn] = []
+
+
+class SopPublishIn(BaseModel):
+    tree: SopTreeIn
+    base_version: int
+    change_note: str | None = None
