@@ -62,8 +62,8 @@ Starting the app on such a database stops with a clear message. Choose one:
   database already has the SOP tables (it was created after the SOP work). A database
   from before the SOP tables should be rebuilt.
 
-A database stamped this way shows one harmless difference in `alembic check`: an
-unnamed unique constraint on `sop_templates.code`. A `--reset` removes it.
+Migration 0004 handles the unnamed unique constraint on `sop_templates.code` that
+such a database carries, so `alembic check` is clean after upgrading it.
 
 ## Current migrations
 
@@ -71,3 +71,13 @@ unnamed unique constraint on `sop_templates.code`. A `--reset` removes it.
 |----------|------|
 | 0001 | Baseline: the whole schema as of the SOP audit feature (22 tables) |
 | 0002 | `issues.sop_audit_id` and `issues.sop_criterion_id` (foreign keys to `sop_audits` and `sop_criteria`) so issues can come from SOP audits |
+| 0003 | `sop_audits.scheduled_at`, `notes`, `created_by_id`: a manager can schedule an SOP audit (status Planned) before the auditor starts it |
+| 0004 | Versioned audit tools: `sop_templates.version`, `is_current`, `published_at`, `created_by_id`, `change_note`; unique (code, version) replaces unique (code); `stable_key` on `sop_sections` and `sop_criteria` (backfilled with the row id). Downgrade refuses while any tool has more than one version |
+
+Planned: 0005 (review step: `sop_audit_reviews`, `sop_audits.reviewed_at/reviewed_by_id`). Only the
+migration owner for a stream creates a migration; see `SOP_Audit_Roadmap.md`.
+
+## Running the tests
+
+`cd backend && python -m pytest` uses a throwaway SQLite database built by the real
+migrations, so it never touches `retail_sync.db`.

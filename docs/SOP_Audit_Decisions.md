@@ -88,3 +88,15 @@ Entries marked (user) were chosen explicitly by the product owner.
 - Counted audits: `SOP_FINAL_STATUSES` in `services.py` (`Submitted`, `Approved`), so adding a manager review step changes one line.
 - Rejected: server-side filtering per click (slower, more endpoints); a separate page (user preferred a tab).
 - Revisit if the data grows past a few thousand audits.
+
+## D20. SOP audits are scheduled by a manager as "Planned", and cancelled rather than deleted
+- Why: a scheduled audit needs a status before the auditor starts it. Planned becomes Draft on the auditor's first save, then Submitted. A Cancelled audit stays in the database because a phone that started it offline would otherwise recreate it on the next sync.
+- Booking rule: one shared check (`services.auditor_conflict`) covers blocked dates, classic audits and SOP audits. A booking at the same store on the same day does not clash (Cash and FMCG can be done in one visit); a booking at a different store does. This relaxes the old rule, which clashed on any booking that day.
+- Rejected: separate booking rules per audit kind (an auditor could be booked twice on one day); deleting scheduled audits.
+
+## D21. Audit tools are versioned; old audits keep the version they were done on
+- Why: editing marks on a tool already used would silently change the percentage of every past audit. Each edit after use creates a new `sop_templates` row (same code, version + 1, one `is_current`); questions carry a `stable_key` across versions so dashboards can follow one question through a re-publish.
+- Drafts finish on the version they started on. Past audits never change.
+- Server leniency: the server accepts a NEW audit on a superseded version as long as the tool is active, because an audit started offline on a cached version must still sync. The app only offers the current version for new audits. (The plan said to reject these with 422; that would strand offline work.)
+- A Planned audit may arrive from the phone naming another version of the same tool; the server keeps its own version.
+- Rejected: editing in place (rewrites history); locking marks after first use (cannot fix a wrong mark).
