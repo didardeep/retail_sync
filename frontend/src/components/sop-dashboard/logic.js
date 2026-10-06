@@ -12,10 +12,19 @@ export const PARETO_LIMIT = 10
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null)
 export const round1 = (n) => (n == null ? null : Math.round(n * 10) / 10)
 
+// A question keeps its `key` through every version of a tool, so everything
+// below groups and filters by key. The old `key ?? id` fallback only covers
+// data from a server that does not send keys yet.
+export const keyOfCriterion = (c) => c.key ?? c.id
+export const keyOfScore = (r) => r.criterion_key ?? r.criterion_id
+
 export function buildIndex(data) {
+  const criterionByKey = Object.fromEntries(data.criteria.map((c) => [keyOfCriterion(c), c]))
   return {
     storeById: Object.fromEntries(data.stores.map((s) => [s.id, s])),
-    criterionById: Object.fromEntries(data.criteria.map((c) => [c.id, c])),
+    criterionByKey,
+    // Same lookup under its old name: ?criterion= now holds a key.
+    criterionById: criterionByKey,
   }
 }
 
@@ -99,23 +108,26 @@ export function sectionStats(audits) {
 }
 
 // Which criteria lose the most marks across the audits in scope (the 80/20 view).
-// `sectionKey` ("CASH:B") narrows it to one section.
+// `sectionKey` ("CASH:B") narrows it to one section. Rows are one per question
+// key (so a question re-published in a new version is one row) and `id` is
+// that key; lost marks use each audit's own marks for the question.
 export function pareto(data, auditIds, sectionKey, index) {
   const byCriterion = new Map()
   for (const r of data.criterion_scores) {
     if (!auditIds.has(r.audit_id)) continue
-    const c = index.criterionById[r.criterion_id]
+    const key = keyOfScore(r)
+    const c = index.criterionByKey[key]
     if (!c) continue
     if (sectionKey && `${c.template_code}:${c.section_code}` !== sectionKey) continue
-    const cur = byCriterion.get(c.id) ?? {
-      id: c.id, title: c.title, tool: c.template_code, section: c.section_code,
+    const cur = byCriterion.get(key) ?? {
+      id: key, title: c.title, tool: c.template_code, section: c.section_code,
       lost: 0, marks: 0, scored: 0, count: 0,
     }
     cur.lost += r.marks - r.score
     cur.marks += r.marks
     cur.scored += r.score
     cur.count += 1
-    byCriterion.set(c.id, cur)
+    byCriterion.set(key, cur)
   }
   const rows = [...byCriterion.values()].filter((v) => v.lost > 0).sort((a, b) => b.lost - a.lost)
   const totalLost = rows.reduce((sum, r) => sum + r.lost, 0)
@@ -145,7 +157,7 @@ export function trendByMonth(audits) {
 // Rows for the audits table, honouring the section and criterion cross-filters.
 export function tableRows(data, audits, index, { section, criterion, q }) {
   const criterionRows = criterion
-    ? new Map(data.criterion_scores.filter((r) => r.criterion_id === criterion).map((r) => [r.audit_id, r]))
+    ? new Map(data.criterion_scores.filter((r) => keyOfScore(r) === criterion).map((r) => [r.audit_id, r]))
     : null
   const needle = (q || '').trim().toLowerCase()
   const rows = []
