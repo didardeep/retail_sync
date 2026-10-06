@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user, require_roles
 from ..db import get_db
 from ..models import (
-    ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, SopAttachment,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, SopAttachment,
     SopAudit, SopAuditScore, SopCriterion, SopTemplate, Store, User,
 )
 from ..schemas import SopAuditUpsert, SopSubmitIn
@@ -60,7 +60,7 @@ def _parse_dt(text):
 
 
 def _can_view(user: User, audit: SopAudit) -> bool:
-    if user.role == ROLE_AUDIT_MANAGER:
+    if user.role in (ROLE_ADMIN, ROLE_AUDIT_MANAGER):
         return True
     if user.role == ROLE_AUDITOR:
         return audit.auditor_id == user.id

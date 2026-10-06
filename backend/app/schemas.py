@@ -371,3 +371,28 @@ class SopPublishIn(BaseModel):
     tree: SopTreeIn
     base_version: int
     change_note: str | None = None
+
+
+# --------------------------------------------------------------------------
+# SOP scheduling and classic audit rescheduling
+# --------------------------------------------------------------------------
+class SopScheduleCreate(ORMBase):
+    template_code: str
+    store_id: str
+    auditor_id: str
+    scheduled_at: str
+    notes: str | None = None
+
+
+class SopSchedulePatch(ORMBase):
+    store_id: str | None = None
+    auditor_id: str | None = None
+    scheduled_at: str | None = None
+    notes: str | None = None
+
+
+class AuditPatchRequest(ORMBase):
+    status: str | None = None
+    auditor_id: str | None = None
+    scheduled_at: str | None = None
+    notes: str | None = None

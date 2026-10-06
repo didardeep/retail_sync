@@ -10,9 +10,12 @@
 // expiry and resumes when the same auditor signs in again.
 import { api, loadSession } from '@/api/client'
 import {
-  currentUserId, dropAttachmentRecord, getSyncBundle, hydrateFromServer,
-  listUnsynced, markAttachmentUploaded, markPushed, patchAudit,
-  refreshReferenceData,
+  auditsToHydrate, assignmentErrorMessage, localAuditsToDrop, scheduleChanges,
+} from './assigned'
+import {
+  currentUserId, deleteLocalAudit, dropAttachmentRecord, getSyncBundle,
+  hydrateFromServer, listLocalAudits, listUnsynced, markAttachmentUploaded,
+  markPushed, patchAudit, refreshReferenceData,
 } from './store'
 
 const TICK_MS = 30000
@@ -69,6 +72,12 @@ export function requestSync() {
 
 async function handleAuditError(audit, err) {
   if (err.offline || err.status === 401) throw err
+  const assignment = assignmentErrorMessage(err)
+  if (assignment) {
+    // Reassigned or cancelled: do not retry, and keep what the auditor entered.
+    await patchAudit(audit.id, { sync_error: assignment })
+    return
+  }
   if (err.status === 409) {
     // Server already holds a submitted version: take its answer as truth.
     await hydrateFromServer(audit.id)
@@ -164,6 +173,31 @@ async function syncAudit(id) {
   }
 }
 
+// Assigned audits: pull Planned audits onto the device so they work offline,
+// refresh rescheduled ones, and drop never-started local copies the manager
+// cancelled or reassigned. Never throws; a failure just means try next time.
+export async function syncAssigned() {
+  if (!currentUserId() || !isAuditor() || !navigator.onLine) return
+  try {
+    const serverPlanned = await api.sopAudits('?status=Planned')
+    const local = await listLocalAudits()
+    const unsynced = new Set((await listUnsynced()).map((a) => a.id))
+    for (const id of auditsToHydrate(serverPlanned, local)) {
+      await hydrateFromServer(id).catch(() => {})
+    }
+    const byId = new Map(serverPlanned.map((s) => [s.id, s]))
+    for (const a of local) {
+      const patch = unsynced.has(a.id) ? null : scheduleChanges(a, byId.get(a.id))
+      if (patch) await patchAudit(a.id, patch)
+    }
+    for (const id of localAuditsToDrop(local, serverPlanned, unsynced)) {
+      await deleteLocalAudit(id)
+    }
+  } catch {
+    // offline or server trouble: the regular sync reports that
+  }
+}
+
 export async function syncNow({ refresh = false } = {}) {
   if (!currentUserId() || !isAuditor()) return
   if (running) {
@@ -193,7 +227,10 @@ async function runOnce(refresh) {
     for (const a of await listUnsynced()) {
       if (!a.sync_error) await syncAudit(a.id)
     }
-    if (refresh) await refreshReferenceData()
+    if (refresh) {
+      await syncAssigned()
+      await refreshReferenceData()
+    }
     failures = 0
   } catch (err) {
     failures += 1

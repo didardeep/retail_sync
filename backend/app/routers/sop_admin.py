@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import require_roles
 from ..db import get_db
-from ..models import ROLE_AUDIT_MANAGER, SopAudit, SopTemplate, User
+from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, SopAudit, SopTemplate, User
 from ..schemas import SopPublishIn
 from ..services import SOP_DRAFT, SOP_FINAL_STATUSES, SOP_PLANNED
 from ..sop_versions import (
@@ -72,7 +72,7 @@ def _current_or_404(db, code):
 @router.get("/tools")
 def list_tools(
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     rows = db.query(SopTemplate).order_by(SopTemplate.code, SopTemplate.version.desc()).all()
     counts = _counts(db, [t.id for t in rows]) if rows else {}
@@ -98,7 +98,7 @@ def list_tools(
 def get_current_tree(
     code: str,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     tpl = _current_or_404(db, code)
     counts = _counts(db, [tpl.id])[tpl.id]
@@ -112,7 +112,7 @@ def get_version_tree(
     code: str,
     version: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     tpl = db.query(SopTemplate).filter_by(code=code, version=version).first()
     if tpl is None:
@@ -129,7 +129,7 @@ def publish_tool(
     code: str,
     body: SopPublishIn,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     _current_or_404(db, code)
     tree = body.tree.model_dump()

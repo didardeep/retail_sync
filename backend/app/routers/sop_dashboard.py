@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..auth import require_roles
 from ..db import get_db
-from ..models import ROLE_AUDIT_MANAGER, SopAudit, SopTemplate, Store, User
+from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, SopAudit, SopTemplate, Store, User
 from ..services import SOP_FINAL_STATUSES, compute_sop_score
 
 router = APIRouter(prefix="/api/sop-dashboard", tags=["sop-dashboard"])
@@ -34,7 +34,7 @@ def _iso(value):
 @router.get("")
 def sop_dashboard(
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     now = dt.datetime.utcnow()
     stores = db.query(Store).order_by(Store.name).all()
