@@ -6,6 +6,7 @@ leave the rest of the app untouched.
 
     python seed.py            # create + seed
     python seed.py --reset    # drop everything first
+    python seed.py --no-sop-demo   # skip the demo SOP audits
 """
 import datetime as dt
 import json
@@ -14,6 +15,7 @@ import sys
 from pathlib import Path
 
 from import_sop import import_sop
+from seed_sop_demo import seed_sop_demo
 from app.auth import hash_password
 from app.db import SessionLocal, init_db, reset_db
 from app.models import (
@@ -357,3 +359,5 @@ if __name__ == "__main__":
     else:
         seed()
     import_sop()
+    if "--no-sop-demo" not in sys.argv:
+        seed_sop_demo()

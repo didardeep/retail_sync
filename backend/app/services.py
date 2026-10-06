@@ -65,6 +65,11 @@ def log_action(session, user_id, action, entity_type, entity_id=None, details=No
     ))
 
 
+# SOP audits that count in reports and dashboards. When a manager review step
+# is added, extend this tuple in this one place.
+SOP_FINAL_STATUSES = ("Submitted", "Approved")
+
+
 def sop_effective_rows(audit: SopAudit) -> dict:
     """criterion_id -> (criterion, score_row_or_None) for every criterion in
     the audit's template. A criterion with no row yet is N/A only if the
