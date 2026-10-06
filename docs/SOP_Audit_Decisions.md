@@ -100,3 +100,9 @@ Entries marked (user) were chosen explicitly by the product owner.
 - Server leniency: the server accepts a NEW audit on a superseded version as long as the tool is active, because an audit started offline on a cached version must still sync. The app only offers the current version for new audits. (The plan said to reject these with 422; that would strand offline work.)
 - A Planned audit may arrive from the phone naming another version of the same tool; the server keeps its own version.
 - Rejected: editing in place (rewrites history); locking marks after first use (cannot fix a wrong mark).
+
+## D22. One edit endpoint for classic audits, and ADMIN accepted on the SOP endpoints
+- Why: two people added `PATCH /api/audits/{id}` independently (a manager/admin status, date and auditor editor with no checks, and a Planned-only reschedule with the booking check). Both were registered on the same route, so one silently shadowed the other. There is now one handler: only fields that change are applied; date, auditor and notes change only while the audit is Planned and pass the shared booking check; status must be one of Planned, Ongoing, Completed, Approved, Cancelled (the old words "In Progress" and "Overdue" were never real statuses and are rejected).
+- ADMIN: the new top-level role already sees every page in the frontend, so the SOP schedule, dashboard, tool-editor and audit endpoints accept it as well as AUDIT_MANAGER. Running an audit stays an auditor-only action because the audit belongs to the person doing it.
+- Rejected: keeping her unchecked handler (lets any status string in and skips the booking rules); removing the status edit (it is a feature she built on purpose).
+- Left as she wrote it, flagged for her to confirm: `DATABASE_URL` is required (no SQLite fallback) and `reset_db()` drops the whole Postgres `public` schema.

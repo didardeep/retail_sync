@@ -26,7 +26,8 @@ Only Step 0 and Stream D create migrations. Nobody autogenerates on a stream bra
 |-----|-------|------|
 | 0003 sop_audit_scheduling | Step 0 | `sop_audits.scheduled_at` (indexed), `notes`, `created_by_id` (named FK to users) |
 | 0004 sop_template_versions | Step 0 | `sop_templates.version` (NOT NULL, default 1), `is_current` (default true), `published_at`, `created_by_id`, `change_note`; drop UNIQUE(code), add `uq_sop_templates_code_version`; `sop_sections.stable_key` and `sop_criteria.stable_key` (nullable, backfill = id, then NOT NULL + index) |
-| 0005 sop_audit_review | Stream D | table `sop_audit_reviews`; `sop_audits.reviewed_at`, `reviewed_by_id` |
+| 0005 chat_turns | Assistant feature (added by Didardeep; migration written during integration) | table `chat_turns` |
+| 0006 sop_audit_review | Stream D | table `sop_audit_reviews`; `sop_audits.reviewed_at`, `reviewed_by_id` |
 
 0004 care points: dropping the unique constraint must work on SQLite databases that were *stamped* (unnamed constraint) as well as migrated ones. Use `batch_alter_table(recreate="always", naming_convention={"uq": "uq_%(table_name)s_%(column_0_name)s"})` then drop by name; on Postgres inspect and drop whichever constraint covers `code`. Name the column `stable_key` (API returns it as `key`). Downgrade must refuse when a code has more than one version. Back up `backend/retail_sync.db` before first run (migrations run on app start).
 
@@ -85,7 +86,7 @@ Owns: `routers/sop_admin.py`, new `app/sop_versions.py`, `import_sop.py`, `route
 Rule: drafts finish on the version they started on; only new audits get the current version.
 
 ## Stream D (optional, last) - review and issues from SOP audits
-Owns: migration 0005, `routers/sop_review.py`, `services.py` (constants + `raise_issues_from_sop`), `sop_audits.py` submit hook, `routers/issues.py`/`Issue.to_dict`, `components/sop-review/ReviewPanel.jsx`, `api/sopReview.js`, `statuses.js` (add Returned).
+Owns: migration 0006, `routers/sop_review.py`, `services.py` (constants + `raise_issues_from_sop`), `sop_audits.py` submit hook, `routers/issues.py`/`Issue.to_dict`, `components/sop-review/ReviewPanel.jsx`, `api/sopReview.js`, `statuses.js` (add Returned).
 - A1: queue, approve, return with comment, history; Returned joins `SOP_AUDITOR_EDITABLE`; decide whether reports count Approved only.
 - A2: on approve (or submit if A1 not built) raise one issue per low-scoring criterion, idempotent, using the existing `Issue.sop_audit_id`/`sop_criterion_id`, assigned to the store manager with a due date.
 

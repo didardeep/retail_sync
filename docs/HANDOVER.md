@@ -99,85 +99,101 @@ rules live in `backend/app/services.py` (`SOP_*`, `SOP_AUDITOR_EDITABLE`, `SOP_F
 - Drift check: `cd backend && alembic check` must say "No new upgrade operations detected".
 
 ## 5. State of the work, exactly
-Branches (local; see the warning in section 12 about pushing):
+Everything below is on GitHub (`origin`) except where marked.
+
 | Branch | What | State |
 |--------|------|-------|
-| `tanmay` | Original SOP build: backend, offline frontend, docs, Alembic 0001/0002 | **Pushed** to origin (`64f8a21`) |
-| `track-b-dashboard` (base for everything below) | `tanmay` + SOP dashboard + demo data (6db6cb3, 12be40d, c1443cb) + Step 0 (9155744, d5e9149, c24029b) + these docs | **Pushed** to origin |
-| Stream B: pushed as `origin/stream-b-scheduling` (local branch `worktree-agent-a63789b559297ac20`, worktree `.claude/worktrees/agent-a63789b559297ac20`) | SOP scheduling | **Pushed.** Fully committed (1197cfe backend, 3f82527 libs, e9547d9 pages). Backend 28 tests and node 25 tests pass, `vite build` passed. The three pages (`Scheduling.jsx`, `AuditStatus.jsx`, `SopAudits.jsx`) have **not had a render check or a browser check**. Their line endings were fixed (they were CRLF) just before committing |
-| Stream C: pushed as `origin/stream-c-editor` (local branch `stream-c-editor`, worktree `.claude/worktrees/agent-a89f35ecffab5f521`; the worktree's own branch `worktree-agent-a89f35ecffab5f521` sits on old `main` with nothing on it, ignore it) | Questionnaire editor and versioning | **Pushed.** Fully committed (c6caa78 backend, 7b6d76b frontend). 30 backend tests and 33 node tests pass, `alembic check` clean, `vite build` passes. The editor and the Questions tabs have **not had a render check or a browser check** |
-| Stream A: not pushed (nothing to push) | Clickable pages and navigation | **Not started.** Its worktree was created from an old commit (`bad364c`, before Step 0) and a permission check blocked it from moving the branch forward. Start a fresh branch from `track-b-dashboard` |
+| `tanmay` | Original SOP build: backend, offline frontend, docs, Alembic 0001/0002 | Pushed |
+| `track-b-dashboard` | `tanmay` + SOP dashboard + demo data + Step 0 (migrations 0003/0004, shared nav/statuses/links) + docs | Pushed |
+| `stream-b-scheduling` | SOP scheduling: manager scheduling API, Scheduling page, merged Audit Status, "Assigned to me", assigned-audit sync | Pushed. Backend tested; pages not render-checked or browser-checked |
+| `stream-c-editor` | Questionnaire versioning, tool editor, Questions tabs, key-based dashboard grouping | Pushed. Backend tested; editor not render-checked or browser-checked |
+| `didar` (Didardeep's branch) | Her own work (see below) plus our `track-b-dashboard` merged in, plus her implementation of most of Stream A | Pushed, but **the backend does not start on it** (see the two bugs below). Do not build on it as it is |
+| `integration` | `didar` + fixes + Stream C + Stream B merged and reconciled | **Local only, not pushed.** 55 backend tests, 47 node tests, `vite build` and `alembic check` all pass. This is the branch to continue from, and the one `didar` should adopt |
 
-Streams B and C are on separate branches and have NOT been merged into each other or into `track-b-dashboard`. They are designed
-not to conflict (different files), but the first merge has not been tried: expect to merge, then run the full suite
-(`python -m pytest -q`, `npm test`, `npx vite build`, `alembic heads`, `alembic check`) and fix anything that surfaces.
+### What `integration` fixes and reconciles (relative to `didar`)
+1. **services shadowing (backend would not start).** She turned `backend/app/services.py` into a `services/` package (to hold
+   `assistant_service.py`). The package's `__init__.py` held the OLD pre-SOP code and shadowed our `services.py`, so
+   `from ..services import auditor_conflict` failed. Fix: `services/__init__.py` now holds the full current module and
+   `services.py` is removed.
+2. **No migration for `chat_turns`.** Her `ChatTurn` model had no migration, so a migrated database had no table for the
+   assistant to log into and `alembic check` failed. Fix: migration **0005_chat_turns**. The review-step migration is
+   therefore now **0006**.
+3. **Two `PATCH /api/audits/{id}` handlers.** She and Stream B each added one with different rules; both were registered
+   on the same route, so only one would run. Fix: one handler. Managers and admins can edit status, date, auditor
+   (and unassign); only the fields that actually change are applied; date, auditor and notes can change only while the audit
+   is Planned and go through the shared booking check; status is validated against Planned / Ongoing / Completed /
+   Approved / Cancelled. Her form used old status words ("In Progress", "Overdue") that the backend never produced; those
+   are now rejected, and her edit modal on the Audit Status page uses the real statuses.
+4. **`AuditStatus.jsx` conflict.** Both rewrote it. Stream B's merged classic + SOP list is the base; her edit modal and
+   quick "Mark as" dropdown were re-added for classic audits.
+5. **`ADMIN` role on the SOP endpoints.** The frontend gives `ADMIN` access to every page, but the SOP routes only allowed
+   `AUDIT_MANAGER`, so an admin got 403s. Fix: schedule, dashboard, tool editor and audit endpoints now accept `ADMIN`; the
+   SOP Audits page and the scorecard link treat admin as a manager. Running an audit stays an auditor-only job.
+6. **`schemas.py`** merge conflict (both appended classes at the end of the file): both kept.
+Tests added: `backend/tests/test_audit_edit_and_admin.py` (10 tests), an admin user in `conftest.py`, an admin case in
+`frontend/tests/links.test.mjs`.
 
-Re-check before relying on this table: `git worktree list`, `git log --oneline c24029b..<branch>`, and `git -C <worktree> status --short`.
-
-Stream B backend contents (committed): manager-only `POST/PATCH/cancel/GET conflicts` in `sop_schedule.py`, classic
-`PATCH/cancel` in `audits.py`, 5 Planned demo audits in `seed_sop_demo.py`, 15 tests in `test_sop_schedule.py`,
-`lib/auditRows.js` (merges classic and SOP audits into one row shape; never invents a score), `lib/offline/assigned.js`
-and `syncAssigned()` in `sync.js` (assigned Planned audits are pulled so they work offline; a reassigned or cancelled
-audit gets a clear message and its local data is kept).
+### What Didardeep's `didar` branch contains (none of it is in our plan, decisions log or journeys)
+- **AI chat assistant:** `routers/chat.py`, `services/assistant_service.py` (about 800 lines), `components/ChatAssistant.jsx`,
+  `chat_turns` log table. New dependencies `langchain-core` and `langchain-google-genai`; needs a Google API key (check
+  `.env.example` and ask her which variable).
+- **`ADMIN` role** (above everyone, `ROLE_ADMIN` in `models.py`), `routers/admin.py`, `pages/UserManagement.jsx`, an admin user
+  in `seed.py` and a guard that stops `seed.py` re-seeding a populated database.
+- **Store-manager pages:** `StoreDashboard.jsx`, `StoreChecklist.jsx`, `StoreCompliance.jsx`; role isolation fixes.
+- **Reworked `AuditExecution.jsx`** and "View Report" wiring; Login demo-credential fix.
+- **Stream A (clickable pages), mostly done:** store bar, top/bottom rows, KPI tiles, format bar, Recent Issues and the drill
+  drawer on the Overview link onward through `lib/links.js`; Issues filters live in the URL; Stores and Store Audit Scores read URL
+  filters and link to the scorecard; Audit Log ids link; a working `NotificationBell`, avatar menu, settings gear removed;
+  review "Back" and store link.
+- **`db.py` changes (her call, left as she wrote them):** `DATABASE_URL` is now REQUIRED (no SQLite fallback; the app raises if
+  it is unset), and `reset_db()` on Postgres runs `DROP SCHEMA public CASCADE`, which wipes whatever database the URL points at.
 
 ## 6. What still has to be done
-In order. Each item names the files it owns so streams do not collide.
+In order.
 
-### 6.1 Finish Stream B (scheduling and "Assigned to me")
-Files: `Scheduling.jsx`, `AuditStatus.jsx`, `SopAudits.jsx`, `components/AuditRowStatus.jsx`, `sync.js`.
-1. The pages are committed but unverified. Do the render check (a jsdom harness was started in the session
-   scratchpad `ssr/` folder, but its fixture lists came back empty: probably a fetch stub path-matching bug; server
-   rendering alone skips effects, so pass data in or use jsdom), then re-run pytest, `npm test`, `npx vite build`.
-2. Check the Scheduling form with a real browser: kind toggle, conflict messages, edit and cancel, KPI tiles as
-   filters, `?id=` drawer, `?new=sop`.
+### 6.1 Decide how `integration` reaches `didar`
+`integration` is local only. Either push it as a branch for her to review and merge into `didar`, or merge it into `didar`
+directly. Ask the user before pushing. Tell Didardeep about the services package fix, the 0005 migration and the single
+PATCH handler, because her own copy is broken until she takes them.
 
-### 6.2 Finish Stream C (editor and versioning)
-Files: `backend/app/sop_versions.py`, `routers/sop_admin.py`, `import_sop.py`, `routers/sop_dashboard.py`,
-`components/sop-dashboard/logic.js`, `Questions.jsx` (tabs), `SopToolEditor.jsx`, `components/sop-admin/*`,
-`api/sopAdmin.js`. Scope is in `docs/SOP_Integration_Plan.md` under "Stream C". Key rules: publish creates version
-N+1 in one transaction; stale `base_version` returns 409; no-op if nothing changed; stable keys preserved; Planned
-audits move to the new version only if they have no score rows and no photos; dashboards group questions by key
-across versions; `import_sop` is "compare then publish" and stays idempotent.
-To finish: run the render check (the agent left an entry file in the session scratchpad: `entry.jsx`; if it is gone,
-write one covering the Questions tabs, tool cards and version history, editor fields, the "marks must be above 0"
-message, read-only mode `?version=N` and the review summary), then check the editor in a real browser (edit,
-autosave and restore across a reload, publish with redirect and toast, the stale-version 409 reload path, phone width).
-Known deviations in the committed backend: `publish_version` returns a `PublishResult(template, unchanged, diff,
-moved_audits)` instead of the bare template; `POST /tools` (create a brand-new tool code) was skipped; `change_note`
-is optional in the API but required by the UI; `logic.js` exports `criterionByKey` and keeps `criterionById` pointing
-at the same lookup, and falls back to ids when data has no keys, so Stream A's `SopDashboard.jsx` keeps working.
+### 6.2 Finish Stream A (what her commit left out)
+- `SopDashboard.jsx` still keeps its own filter code; move it to `lib/useUrlFilters.js` (keep the rule that changing tool clears
+  section and criterion).
+- SOP dashboard `KpiTiles` are not clickable (planned: "Stores below 70%" sets a `band=bad` URL filter, implemented in a new
+  helper file, not in `logic.js`).
+- The Overview "SOP summary strip" (counts of planned / in progress / submitted SOP audits, linking to Audit Status).
+- Power BI mock: "KPI 1 Summary" and similar tab labels are still there; mark the whole modal as a sample-data preview.
+- Check that the risk doughnut and its drill drawer now count the same thing (chart counts observations by `risk`; the drawer
+  used to list issues by `priority`).
+- Tests: none were added for her changes (a backend test that top/bottom stores carry `store_id`; node tests for the bell items).
 
-### 6.3 Do Stream A (clickable pages and navigation)
-Start it from a worktree or branch created directly from `track-b-dashboard`. Files: `Dashboard.jsx`,
-`routers/dashboard.py`, `Issues.jsx`, `StoreAuditScores.jsx`, `Stores.jsx`, `AuditLog.jsx`, `SopDashboard.jsx` and
-`components/sop-dashboard/*` except `logic.js`, `SopAuditReview.jsx`, `Layout.jsx`, new `NotificationBell.jsx`.
-Concrete findings to act on (from a clickability audit):
-- Overview store bar loses the store id (names are truncated in `storeBarD`); Top/Bottom rows, KPI tiles
-  (Planned/Ongoing/Completed), format bar and Recent Issues rows are not links.
-- The risk doughnut counts observations by `risk` but its drill drawer lists issues by `priority` (mismatch).
-- The drill drawer duplicates the shared `Drawer` markup, has no links and no URL.
-- `Layout.jsx` bell and gear have no handler; `Issues.jsx` and `AuditStatus.jsx` audit-id links have no href.
-- Only `Dashboard.jsx` and `SopDashboard.jsx` keep state in the URL; every other page uses local state and its
-  modals have no address.
-- The Power BI mock modal shows hard-coded sales-return data with labels like "Duplicate of KPI 3": relabel as a preview.
-Use `lib/links.js` for every link and `useUrlFilters` for filters. Role rule: managers can open `/dashboard`;
-auditors and store managers cannot, so `storeScorecardLink(storeId, role)` sends them to `/sop-audits?store=`.
+### 6.3 Verify Streams B and C in a real browser (nothing has been looked at on screen)
+- Scheduling: kind toggle, conflict messages, edit and cancel, stage tiles as filters, `?id=` drawer, `?new=sop`.
+- Audit Status: merged list, her edit modal and "Mark as" dropdown on classic audits, SOP rows opening the review or run page.
+- SOP Audits: the "Assigned to me" section; an assigned audit opened offline.
+- Questions page: both tabs; the tool editor (edit, autosave and restore after a reload, review changes, publish with redirect
+  and toast, the stale-version 409 reload path, phone width).
+- Server-side render checks were planned for B and C but never ran (a jsdom harness was started in the session scratchpad and
+  its fixture lists came back empty).
 
-### 6.4 Merge order and then Stream D
-Merge order: Step 0 (done) -> A -> B and C (either order; they share no files) -> D. After merging run the full
-suite, `alembic heads` (must be one line) and `alembic check`.
-Stream D (optional, last): manager review (approve / return with comment) and raising issues from low-scoring SOP
-criteria. Needs migration 0005 (`sop_audit_reviews`, `sop_audits.reviewed_at/reviewed_by_id`); the issue link
-columns already exist. Decide whether reports count Approved only once review exists (single constant:
-`SOP_FINAL_STATUSES`).
+### 6.4 Postgres
+`DATABASE_URL` is now required, and her environment uses Postgres. Migration 0004 has a Postgres branch (drop the unique
+constraint on `code` by inspecting it) that has only ever run on SQLite in our tests. Confirm with Didardeep that `alembic upgrade
+head` has run on her Postgres database, or test it on a scratch Postgres.
 
-### 6.5 Not started anywhere
-- Capacitor wrapper (needs an HTTPS backend reachable from phones, camera permission entries, app icon; the camera
-  button is a plain `<input type="file" capture>` and needs a real-phone test).
+### 6.5 Record her work
+Add decision-log entries (D22 onward) and requirements/journeys for the assistant, the `ADMIN` role and user management, the
+store-manager pages and the audit edit feature. Update `docs/URL_Contract.md` if her pages add routes.
+
+### 6.6 Stream D (optional, last): manager review and issues from low scores
+Needs migration **0006** (`sop_audit_reviews`, `sop_audits.reviewed_at/reviewed_by_id`); the issue link columns already exist.
+Decide whether reports count Approved only once review exists (one constant: `SOP_FINAL_STATUSES`).
+
+### 6.7 Not started anywhere
+- Capacitor wrapper (needs an HTTPS backend reachable from phones, camera permission entries, app icon; the camera button is a plain
+  `<input type="file" capture>` and needs a real-phone test).
 - Excel export and a multi-store compiled report (only a CSV of the dashboard table exists).
 - Global search (Ctrl+K), grouped sidebar rendering (the nav list already has `group` fields), light/dark toggle.
-- A "vs last audit" figure on pages other than the SOP dashboard; user admin and 2FA (the ESG portal in
-  `E:\KPMG\Sustainability` has these; it was only read, see `docs/SOP_Audit_Roadmap.md`).
 - A README section pointing at these docs.
 
 ## 7. Drawbacks, risks and known limitations (be honest about these)
@@ -201,6 +217,10 @@ columns already exist. Decide whether reports count Approved only once review ex
   browser to keep its data but cannot force it).
 - **Merge coordination:** two people adding migrations at once creates two heads. The streams were designed so only
   Step 0 and Stream D create migrations.
+- **Postgres is untested for our migrations** (see 6.4), and `reset_db()` on Postgres drops the whole `public` schema: never point
+  `DATABASE_URL` at a shared database when running `seed.py --reset`.
+- **Two people's work was merged by hand** (`integration`). The reconciliation points are listed in section 5; anything else
+  that both of them changed is unreviewed.
 - **Dev-environment fragility:** the sandbox reaped the dev servers once for low memory; worktrees and parallel
   agents add memory pressure.
 
@@ -256,9 +276,9 @@ Run from the repo root unless stated.
 - Are the Planned/Draft booking assumptions in D20 right for the business (Cash and FMCG in one visit)?
 
 ## 12. Before you continue: do these first
-1. `git status`, `git branch -vv`, `git worktree list`; read section 5 and confirm what each stream really contains.
-2. Everything is pushed to origin: `tanmay`, `track-b-dashboard`, `stream-b-scheduling`, `stream-c-editor`.
-   Fetch them (`git fetch origin`) and branch from the one you need. The `.claude/worktrees/` folders on the original
+1. `git fetch origin`, `git status`, `git branch -vv`; read section 5 and confirm what each branch really contains.
+2. Pushed to origin: `tanmay`, `track-b-dashboard`, `stream-b-scheduling`, `stream-c-editor`, `didar`. NOT pushed: `integration`
+   (local to the machine that made it; ask the user before pushing). The `.claude/worktrees/` folders on the original
    machine are agent scratch worktrees: ignore them (they are listed in `.gitignore`).
 3. Run `cd backend && python -m pytest -q` and `cd frontend && npm test` to confirm a green base.
 4. Read `docs/SOP_Audit_Decisions.md` (D1 to D21) and `docs/SOP_Integration_Plan.md`.

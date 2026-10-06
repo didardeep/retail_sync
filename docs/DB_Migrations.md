@@ -73,8 +73,9 @@ such a database carries, so `alembic check` is clean after upgrading it.
 | 0002 | `issues.sop_audit_id` and `issues.sop_criterion_id` (foreign keys to `sop_audits` and `sop_criteria`) so issues can come from SOP audits |
 | 0003 | `sop_audits.scheduled_at`, `notes`, `created_by_id`: a manager can schedule an SOP audit (status Planned) before the auditor starts it |
 | 0004 | Versioned audit tools: `sop_templates.version`, `is_current`, `published_at`, `created_by_id`, `change_note`; unique (code, version) replaces unique (code); `stable_key` on `sop_sections` and `sop_criteria` (backfilled with the row id). Downgrade refuses while any tool has more than one version |
+| 0005 | `chat_turns` table for the AI assistant's conversation log (the model had been added without a migration) |
 
-Planned: 0005 (review step: `sop_audit_reviews`, `sop_audits.reviewed_at/reviewed_by_id`). Only the
+Planned: 0006 (review step: `sop_audit_reviews`, `sop_audits.reviewed_at/reviewed_by_id`). Only the
 migration owner for a stream creates a migration; see `SOP_Audit_Roadmap.md`.
 
 ## Running the tests
