@@ -27,7 +27,8 @@ def dashboard(
     all_scores = db.query(StoreScore).all()
     store_by_id = {st.id: st for st in stores}
     store_scores = sorted(
-        [{"store": store_by_id[sc.store_id].name,
+        [{"store_id": store_by_id[sc.store_id].id,
+          "store": store_by_id[sc.store_id].name,
           "city": store_by_id[sc.store_id].city,
           "score": sc.q4 or sc.q3 or sc.q2 or sc.q1 or 0}
          for sc in all_scores if sc.store_id in store_by_id

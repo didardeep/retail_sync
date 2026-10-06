@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Line } from 'react-chartjs-2'
-import { api } from '../api/client'
+import { api, loadSession } from '../api/client'
 import { sColor, pbClass, exportCSV } from '../utils/helpers'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -8,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Modal, ModalActions } from '../components/Modal'
+import { storeScorecardLink } from '@/lib/links'
 
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4']
 const SCORE_GRID = 'grid-cols-[2fr_1fr_1.5fr_1.5fr_1.5fr_1.5fr_70px]'
@@ -21,6 +23,9 @@ function deltaDisplay(curr, prev) {
 }
 
 export default function StoreAuditScores() {
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const role = loadSession()?.user?.role
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [detailStore, setDetailStore] = useState(null)
@@ -44,6 +49,12 @@ export default function StoreAuditScores() {
       }
       setScoreMap(map)
       setLoading(false)
+      // open detail from ?id= query param
+      const idParam = params.get('id')
+      if (idParam) {
+        const found = (s || []).find(x => x.id === idParam)
+        if (found) setDetailStore(found)
+      }
     })
   }, [])
 
@@ -166,7 +177,12 @@ export default function StoreAuditScores() {
               <div className="flex items-center gap-2">
                 <img src="store-logo.jpg" alt="" className="h-[26px] w-[26px] rounded-md" onError={e => { e.target.style.display = 'none' }} />
                 <div>
-                  <div className="text-[12.5px] font-semibold">{s.name}</div>
+                  <button
+                    className="text-left text-[12.5px] font-semibold text-primary hover:underline"
+                    onClick={e => { e.stopPropagation(); navigate(storeScorecardLink(s.id, role)) }}
+                  >
+                    {s.name}
+                  </button>
                   <div className="text-[11px] text-muted-foreground">{s.city}</div>
                 </div>
               </div>

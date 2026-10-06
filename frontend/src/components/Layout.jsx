@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
@@ -7,6 +7,7 @@ import { canAccess } from '@/lib/rolesMap';
 import { NAV_ITEMS, titleFor } from '@/lib/nav';
 import { Drawer } from '@/components/Modal';
 import { NAV_ICONS } from '@/components/navIcons';
+import NotificationBell from '@/components/NotificationBell';
 
 function SidebarContent({ user, onLogout, nav, onNavigate }) {
   return (
@@ -63,6 +64,15 @@ export default function Layout({ user, onLogout, children }) {
   const initial = (user?.name || user?.email || 'U')[0].toUpperCase();
   const nav = NAV_ITEMS.filter((n) => canAccess(user?.role, n.page));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const avatarRef = useRef(null);
+
+  // Close avatar menu on outside click
+  useEffect(() => {
+    function handle(e) { if (avatarRef.current && !avatarRef.current.contains(e.target)) setAvatarOpen(false); }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
@@ -87,10 +97,26 @@ export default function Layout({ user, onLogout, children }) {
             <div className="text-sm font-semibold text-foreground">{title}</div>
           </div>
           <div className="flex items-center gap-2.5">
-            <button className="flex h-10 w-10 items-center justify-center rounded-[7px] border border-border bg-card text-[13px]" title="Notifications">&#x1F514;</button>
-            <button className="hidden h-10 w-10 items-center justify-center rounded-[7px] border border-border bg-card text-[13px] sm:flex" title="Settings">&#x2699;&#xFE0F;</button>
-            <div className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-[#00338D] to-[#0080DB] text-[11px] font-bold text-white">
-              {initial}
+            <NotificationBell role={user?.role} />
+            <div className="relative" ref={avatarRef}>
+              <div
+                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-[#00338D] to-[#0080DB] text-[11px] font-bold text-white"
+                onClick={() => setAvatarOpen(v => !v)}
+                title={user?.name || user?.email || 'User'}
+              >
+                {initial}
+              </div>
+              {avatarOpen && (
+                <div className="absolute right-0 top-[calc(100%+6px)] z-50 min-w-[160px] overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+                  <div className="border-b border-border px-4 py-2.5 text-[12px] text-muted-foreground">{user?.name || user?.email}</div>
+                  <button
+                    className="block w-full px-4 py-2.5 text-left text-[12.5px] text-foreground hover:bg-accent"
+                    onClick={() => { setAvatarOpen(false); onLogout(); }}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

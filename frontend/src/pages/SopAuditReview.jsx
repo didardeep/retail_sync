@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 
-import { api } from '@/api/client';
+import { api, loadSession } from '@/api/client';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { storeScorecardLink } from '@/lib/links';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/Toast';
 import { ErrorNote, Loading } from '@/components/Loader';
@@ -50,6 +51,7 @@ async function loadServerBundle(id) {
 export default function SopAuditReview() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const role = loadSession()?.user?.role;
   const toast = useToast();
   const online = useOnline();
 
@@ -232,7 +234,14 @@ export default function SopAuditReview() {
             <Button className="h-11 flex-1" disabled={found.length > 0} onClick={() => setConfirmOpen(true)}>Submit audit</Button>
           </>
         ) : (
-          <Button variant="outline" className="h-11 w-full" onClick={() => navigate('/sop-audits')}>Back to audits</Button>
+          <div className="flex w-full gap-2">
+            <Button variant="outline" className="h-11 flex-1" onClick={() => navigate(-1)}>Back</Button>
+            {audit.store_id && (
+              <Button variant="outline" className="h-11 flex-1" onClick={() => navigate(storeScorecardLink(audit.store_id, role))}>
+                Store dashboard
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
