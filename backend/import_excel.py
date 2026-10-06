@@ -10,7 +10,7 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-from app.db import Base, SessionLocal, engine, init_db
+from app.db import SessionLocal, init_db, reset_db
 from app.models import (
     CashReconciliation, CashDepositPickup, DataImport,
     ExpiredInventory, StoreScore,
@@ -276,7 +276,7 @@ def run_import():
 
 if __name__ == "__main__":
     if "--reset" in sys.argv:
-        Base.metadata.drop_all(bind=engine)
+        reset_db()
         print("Dropped all tables.")
     init_db()
 

@@ -452,6 +452,9 @@ class Issue(Base):
     audit_id = Column(String(20), ForeignKey("audits.id"))
     store_id = Column(String(20), ForeignKey("stores.id"))
     response_id = Column(String(12), ForeignKey("audit_responses.id"))
+    # Set instead of audit_id/response_id when the issue came from an SOP audit.
+    sop_audit_id = Column(String(36), ForeignKey("sop_audits.id"), index=True)
+    sop_criterion_id = Column(String(12), ForeignKey("sop_criteria.id"))
 
     title = Column(String(240), nullable=False)
     description = Column(Text)
@@ -480,6 +483,8 @@ class Issue(Base):
     def to_dict(self):
         return {
             "id": self.id, "audit_id": self.audit_id, "store_id": self.store_id,
+            "sop_audit_id": self.sop_audit_id,
+            "sop_criterion_id": self.sop_criterion_id,
             "store": self.store.name if self.store else None,
             "title": self.title, "description": self.description,
             "process": self.process, "sub_process": self.sub_process,

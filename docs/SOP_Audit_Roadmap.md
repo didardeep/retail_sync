@@ -67,7 +67,8 @@ Cautions from Pulse One itself:
 Goal: two tracks that touch different files, so merges are boring.
 
 ### Step 0 (before anyone branches, ~1 hour, together)
-1. Commit the current SOP base to `tanmay` (everything is uncommitted today). Both tracks branch from that commit.
+1. ~~Commit the current SOP base to `tanmay`.~~ **Done** (three commits: backend, frontend, docs). Both tracks branch from the commit after the migrations commit.
+   ~~Add Alembic and the issue link columns.~~ **Done**: see `DB_Migrations.md`. Both people must run `alembic upgrade head` (or `python seed.py --reset`) after pulling.
 2. Agree the **contract** both sides code against:
    - Audit status values: `Draft`, `Submitted`, `Returned`, `Approved`. Dashboards count `Submitted` and `Approved` until review exists; keep that list in one constant in `services.py` so it changes in one place.
    - Response shapes of the new endpoints (below), written as examples in this file.
@@ -105,12 +106,8 @@ Owns: `Layout.jsx`, `App.jsx`, `rolesMap.js`, new `routers/sop_dashboard.py` (re
 | Audit status meaning | A introduces `Approved`; B counts what is "final" | The one constant described in Step 0 |
 | `SopAudits.jsx` (list page) | A wants a "review" status badge, B wants URL filters | B owns the file; A sends a small change or waits for the URL-state work |
 
-### Design decision A must make early (affects A2)
-`Issue.audit_id` is a foreign key to the **old** `audits` table, and SOP audit ids are UUIDs in a different table. Options:
-1. Add a `sop_audit_id` column to `Issue` (cleanest; needs a DB reset since there is no Alembic, so do it in Step 0 together with any other column changes).
-2. Keep the link only in `Issue.meta` (no schema change; harder to query).
-
-Do it in Step 0 so nobody has to reset the database mid-way.
+### Issue link (affects A2) -- decided and built
+`Issue.audit_id` is a foreign key to the **old** `audits` table, and SOP audit ids are UUIDs in a different table. Decision: add `Issue.sop_audit_id` and `Issue.sop_criterion_id` (migration 0002). SOP-sourced issues set these and leave `audit_id` / `response_id` empty. Alembic now exists, so further columns no longer need a database reset: each track adds its own migration (see `DB_Migrations.md`, including how to avoid two heads).
 
 ### Independent of both (anyone, later)
 - **Capacitor phone wrapper:** touches only new files (`android/`, Capacitor config) plus `package.json`. It also needs a backend reachable over HTTPS and is best started once the web app is stable.

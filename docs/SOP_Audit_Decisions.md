@@ -59,3 +59,23 @@ Entries marked (user) were chosen explicitly by the product owner.
 ## D14. Offline queue survives token expiry; logout warns about unsynced items
 - Why: the JWT lasts 12 hours and an auditor can be offline longer. Unsynced work must never be silently discarded.
 - Rejected: clearing local data on logout or expiry.
+
+## D15. Sync driven by revision counters on local records, not a separate queue; `idb` instead of Dexie
+- Why: every local edit bumps `rev`; a push records `synced_rev` as of the revision it sent, so an edit made while a request is in flight is never marked synced and lost. No second structure has to be kept in step with the data. `idb` is a thin IndexedDB wrapper, smaller than Dexie, and all that is needed.
+- Rejected: an explicit outbox table (two places to keep consistent); Dexie (extra weight for no benefit here).
+- Supersedes the wording in D10 about an "outbox".
+
+## D16. Login session stored in localStorage instead of sessionStorage
+- Why: the mobile app can be killed and reopened; the auditor must still reach their unsynced audits. The JWT still expires after 12 hours server-side.
+- Cost: on the web, the login now survives closing the tab, for everyone.
+- Rejected: keeping sessionStorage (login lost on app restart).
+
+## D17. Alembic migrations replace create_all; constraints use a naming convention
+- Why: `create_all` never alters existing tables, so every schema change meant resetting the database, which does not work with two people developing or with real data. Alembic adds columns in place. Named constraints are required so later migrations can drop or change them on SQLite as well as Postgres.
+- Behaviour: the app runs `alembic upgrade head` on startup. A database created before migrations stops with a clear message (rebuild with `seed.py --reset`, or `alembic stamp 0001`). All `--reset` scripts go through `reset_db()`, which also drops the version table.
+- Rejected: keep `create_all` and reset the DB for each change; hand-written ALTER scripts.
+- Status: tested on SQLite only.
+
+## D18. Issues link to SOP audits through new columns, not the old audit_id
+- Why: `Issue.audit_id` is a foreign key to the old `audits` table; SOP audits live in `sop_audits` with UUID ids. Added `issues.sop_audit_id` and `issues.sop_criterion_id` (migration 0002) so an issue can point at the audit and the exact criterion that raised it, and be queried by them.
+- Rejected: storing the link only in `Issue.meta` (no foreign key, hard to query).
