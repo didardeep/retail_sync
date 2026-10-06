@@ -5,7 +5,7 @@
 import { api, loadSession } from '@/api/client'
 import { isAuditorEditable } from '../statuses'
 import { getDb } from './db'
-import { problems } from './scoring'
+import { firstUnansweredIndex, problems } from './scoring'
 
 export function currentUserId() {
   return loadSession()?.user?.id || null
@@ -266,7 +266,9 @@ export async function hydrateFromServer(id) {
     submit_pending: false,
     remote: true,
     overall_remarks: detail.overall_remarks || '',
-    position: 0,
+    // Resume where the work stopped, not at question 1.
+    position: firstUnansweredIndex(
+      template, Object.fromEntries(detail.scores.map((s) => [s.criterion_id, s]))),
     header_rev: 0,
     header_synced_rev: 0,
     sync_error: null,

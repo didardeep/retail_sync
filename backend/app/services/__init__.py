@@ -95,6 +95,15 @@ def current_template(session, code):
         code=code, is_current=True, is_active=True).first()
 
 
+def _clash(other, kind):
+    """The 409 body for a booking clash: enough to say where and when."""
+    return {
+        "error": "auditor already booked", "audit_id": other.id, "kind": kind,
+        "store": other.store.name if other.store else None,
+        "scheduled_at": other.scheduled_at.isoformat() if other.scheduled_at else None,
+    }
+
+
 def auditor_conflict(session, auditor_id, day, store_id=None,
                      exclude_audit_id=None, exclude_sop_id=None):
     """Why an auditor cannot be booked on `day`, or None if they are free.
@@ -122,8 +131,7 @@ def auditor_conflict(session, auditor_id, day, store_id=None,
         classic = classic.filter(Audit.id != exclude_audit_id)
     for other in classic.all():
         if store_id is None or other.store_id != store_id:
-            return {"error": "auditor already booked", "audit_id": other.id,
-                    "kind": "legacy"}
+            return _clash(other, "legacy")
 
     sop = session.query(SopAudit).filter(
         SopAudit.auditor_id == auditor_id,
@@ -135,8 +143,7 @@ def auditor_conflict(session, auditor_id, day, store_id=None,
         sop = sop.filter(SopAudit.id != exclude_sop_id)
     for other in sop.all():
         if store_id is None or other.store_id != store_id:
-            return {"error": "auditor already booked", "audit_id": other.id,
-                    "kind": "sop"}
+            return _clash(other, "sop")
     return None
 
 

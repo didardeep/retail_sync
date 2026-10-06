@@ -107,6 +107,7 @@ def _build_audit(db, store, template, k, n, auditor, quality, trend, days_ago):
     summary = compute_sop_score(audit)
     audit.score, audit.max_score, audit.percent = (
         summary["score"], summary["max_score"], summary["percent"])
+    audit.updated_at = when        # setting the score above would otherwise stamp "now"
     return True
 
 

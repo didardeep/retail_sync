@@ -61,6 +61,9 @@ function SidebarContent({ user, onLogout, nav, onNavigate }) {
 
 export default function Layout({ user, onLogout, children }) {
   const loc = useLocation();
+  const scrollRef = useRef(null);
+  // A new page starts at the top (the scroll container is shared by every page).
+  useEffect(() => { scrollRef.current?.scrollTo(0, 0); }, [loc.pathname]);
   const title = titleFor(loc.pathname);
   const initial = (user?.name || user?.email || 'U')[0].toUpperCase();
   const nav = NAV_ITEMS.filter((n) => canAccess(user?.role, n.page));
@@ -121,7 +124,7 @@ export default function Layout({ user, onLogout, children }) {
             </div>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 pb-10 pt-[18px] md:px-[22px]">{children}</div>
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 pb-10 pt-[18px] md:px-[22px]">{children}</div>
       </div>
       {/* Not on the audit wizard / review screens: its floating button would sit over Next and Submit on a phone. */}
       {!/^\/sop-audits\/[^/]+/.test(loc.pathname) && <ChatAssistant user={user} />}

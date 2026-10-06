@@ -173,6 +173,13 @@ export default function SopAuditWizard() {
     navigate('/sop-audits');
   }
 
+  // Jump to the review screen from anywhere (used after fixing a question the review flagged).
+  async function goToReview() {
+    if (!(await flush())) return;
+    await setHeader(id, { position: idx });
+    navigate(`/sop-audits/${id}/review`);
+  }
+
   async function onComment(text) {
     await saveAnswer(id, c, { comment: text });
     await refresh();
@@ -217,7 +224,10 @@ export default function SopAuditWizard() {
           <div className="truncate text-sm font-semibold text-foreground">{audit.store_name}</div>
           <div className="truncate text-xs text-muted-foreground">{audit.template_name}</div>
         </div>
-        <SyncChip />
+        <div className="flex shrink-0 items-center gap-2">
+          <Button type="button" variant="outline" size="sm" className="h-8" onClick={goToReview}>Review</Button>
+          <SyncChip />
+        </div>
       </div>
 
       <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">

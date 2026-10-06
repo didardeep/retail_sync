@@ -319,6 +319,7 @@ Run from the repo root unless stated.
 | File | Contents |
 |------|----------|
 | `docs/HANDOVER.md` | This document |
+| `docs/DEMO_SCRIPT.md` | How to present the product: story, exact clicks, talk track, expected results, reset. Staged by `backend/demo.py`; sample photo in `docs/demo/` |
 | `docs/SOP_Integration_Plan.md` | The approved plan for Step 0 and Streams A to D, with file ownership, migrations and verification |
 | `docs/SOP_Audit_Decisions.md` | Decision log D1 to D21 (decision, why, alternatives rejected) |
 | `docs/SOP_Audit_Requirements.md` | Functional and non-functional requirements of the SOP audit feature |

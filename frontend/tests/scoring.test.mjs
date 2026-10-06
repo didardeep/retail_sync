@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  flattenCriteria, isAnswered, isNa, problems, summarize, validateScore,
+  firstUnansweredIndex, flattenCriteria, isAnswered, isNa, problems, summarize, validateScore,
 } from '../src/lib/offline/scoring.js';
 
 const tree = {
@@ -81,4 +81,14 @@ test('flattenCriteria keeps section context and order', () => {
   const flat = flattenCriteria(tree);
   assert.deepEqual(flat.map((c) => c.id), ['q1', 'q2', 'q3', 'q4']);
   assert.deepEqual([flat[1].section_code, flat[1].index_in_section, flat[1].section_size], ['A', 1, 2]);
+});
+
+test('firstUnansweredIndex: resume where the work stopped', () => {
+  assert.equal(firstUnansweredIndex(tree, {}), 0);
+  assert.equal(firstUnansweredIndex(tree, { q1: row(4) }), 1);
+  // q3 is "(N/A)" by default, so after q1 and q2 the next open question is q4 (index 3)
+  assert.equal(firstUnansweredIndex(tree, { q1: row(4), q2: row(1) }), 3);
+  // everything answered: stay on the last question
+  assert.equal(firstUnansweredIndex(tree, { q1: row(4), q2: row(1), q4: row(5) }), 3);
+  assert.equal(firstUnansweredIndex({ sections: [] }, {}), 0);
 });

@@ -37,15 +37,22 @@ function errorMessage(e) {
     return `Auditor is unavailable on that day${d.reason ? ` (${d.reason})` : ''}`;
   }
   if (e.status === 409 && d.audit_id) {
-    return `${e.message}: clashes with audit ${d.audit_id}`;
+    return clashText(d);
   }
   return e.message || 'Something went wrong';
+}
+
+// "Auditor is already booked that day at Select Citywalk (11:00)"
+function clashText(c) {
+  const where = c.store ? ` at ${c.store}` : ' at another store';
+  const at = c.scheduled_at ? ` (${formatTime(c.scheduled_at)})` : '';
+  return `Auditor is already booked that day${where}${at}`;
 }
 
 function conflictText(c) {
   if (!c) return '';
   if (c.error === 'auditor unavailable') return `Auditor is unavailable on that day${c.reason ? ` (${c.reason})` : ''}.`;
-  return `Auditor is already booked that day at another store (audit ${c.audit_id}).`;
+  return `${clashText(c)}.`;
 }
 
 function Tile({ icon: Icon, tint, label, value, active, onClick }) {
