@@ -123,7 +123,8 @@ export default function Layout({ user, onLogout, children }) {
         </div>
         <div className="flex-1 overflow-y-auto px-4 pb-10 pt-[18px] md:px-[22px]">{children}</div>
       </div>
-      <ChatAssistant user={user} />
+      {/* Not on the audit wizard / review screens: its floating button would sit over Next and Submit on a phone. */}
+      {!/^\/sop-audits\/[^/]+/.test(loc.pathname) && <ChatAssistant user={user} />}
     </div>
   );
 }

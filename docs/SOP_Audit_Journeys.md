@@ -79,18 +79,19 @@ Outcome: nothing is lost, the queue waits for a valid login.
 Outcome: a manager can compare stores, find the weak sections and questions, spot stores that have not been audited recently, and drill down to the audit.
 Still missing: a review/approve step (A1), Excel and multi-store compiled reports (A3).
 
-### J9. Decide which questions need proof -- Gap (API done, screen not built)
-1. Manager opens an "Audit Tools" screen showing sections and questions.
-2. Per question, switches "comment required" and "photo required" on or off.
-3. Change applies to audits that start or are refreshed afterwards (see J5).
+### J9. Edit the questionnaires, including which questions need proof -- Built (API tested; the editor screen has not been checked in a browser)
+1. Manager or admin opens Audit Questions, then the SOP tools tab, and chooses a tool.
+2. Edits wording, marks, the Best / Average / Least text, the proof switches, and adds, removes or reorders questions and sections.
+3. Reviews the change summary, adds a note and publishes. This creates a new version: audits already done keep the marks and wording they were scored with, and new audits use the new version (see J5).
 
-Today this can only be done by calling the API directly.
+The old per-question switch endpoint was retired; proof rules change by publishing a version.
 
-### J10. Plan and assign SOP audits -- Gap
-1. Manager schedules a Cash or FMCG audit for a store and date and assigns an auditor, as is done for the older checklist audits.
-2. Auditor sees it as "assigned to me" and starts it from there.
+### J10. Plan and assign SOP audits -- Built (API and live smoke tested; the pages have not been checked in a browser)
+1. Manager or admin schedules a Cash or FMCG audit on the Audit Scheduling page for a store, date and auditor. A clash with the auditor's blocked dates or another store that day is refused with a clear message.
+2. The auditor sees it under "Assigned to me", starts it (it becomes a Draft on the first save) and it also works offline once downloaded.
+3. It appears on Audit Status for managers, and a cancelled audit stays visible as Cancelled.
 
-Today auditors choose any store and tool themselves. That is fine for ad hoc visits but gives managers no way to plan coverage.
+Auditors can still start an unplanned audit themselves for ad hoc visits.
 
 ---
 

@@ -148,6 +148,26 @@ Tests added: `backend/tests/test_audit_edit_and_admin.py` (10 tests), an admin u
 - **`db.py` changes (her call, left as she wrote them):** `DATABASE_URL` is now REQUIRED (no SQLite fallback; the app raises if
   it is unset), and `reset_db()` on Postgres runs `DROP SCHEMA public CASCADE`, which wipes whatever database the URL points at.
 
+## 5b. Requirements audit after the merge (2026-10-06)
+Two read-only audits traced every original requirement (FR-1 to FR-6, the non-functional requirements, decisions D3 to D16,
+journeys J1 to J7, J13, J14) against the merged code. Result: **no original behaviour was removed** by the later additions.
+Problems found, and what was done:
+
+| Finding | Severity | Status |
+|---------|----------|--------|
+| A planned audit already on a phone broke after its tool was re-published (the server moved the audit to the new version, the phone kept sending the old question ids, and every answer was rejected) | High | **Fixed**: the server maps older-version question ids to the audit's own version through the stable key, for answers and photos, and accepts any version of the same tool on an editable audit. Tested |
+| `ADMIN` was blocked (403) on the original manager routes: Audit Log, scheduling, approvals, availability, checklists, issues, observations, questions | High | **Fixed** and tested |
+| The shared nav list dropped her sidebar links (My Store, Audit Checklist, Compliance Metrics, User Management) | High | **Fixed**; a test now checks that every page a role can open has a nav item |
+| The floating assistant button could cover Next / Submit on a phone | Medium | **Fixed** by hiding it on the audit wizard and review screens (not checked on a real phone) |
+| Almost none of the original SOP rules had automated tests | Medium | **Fixed**: `backend/tests/test_sop_core_rules.py` (scoring totals 77 / 92, N/A, ranges and half steps, required proof, idempotent replays, who can see what, audit log) and `frontend/tests/scoring.test.mjs`, `nav.test.mjs` |
+
+Still open (lower severity): the importer matches questions by position, so inserting a row in the Excel shifts keys; the
+importer re-run on a tool edited in the editor overwrites the editor's wording; a draft started on another device with no
+scheduled date is not detected as a duplicate; a manager opening `/sop-audits/<id>` by URL copies that audit into their own
+browser storage; an audit with a sync error is skipped until the auditor edits it (no retry button); the manager SOP list
+offers "Assigned" and "Cancelled" filters that show nothing; proof-sheet buttons are 40 px (the target is 44 px) and the photo
+remove button is 24 px; `SopAudits.jsx` imports `syncAssigned` straight from `lib/offline/sync` instead of the index.
+
 ## 6. What still has to be done
 In order.
 

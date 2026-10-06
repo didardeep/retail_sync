@@ -113,3 +113,28 @@ def test_chat_turns_table_is_created_by_the_migrations(db):
     assert db.query(ChatTurn).count() == 1
     db.query(ChatTurn).delete()
     db.commit()
+
+
+def test_admin_can_use_the_original_manager_pages(client, tokens, user_ids):
+    """ADMIN sees every page in the frontend, so the original manager routes must accept it."""
+    assert client.get("/api/audit-logs", headers=tokens["admin"]).status_code == 200
+    audit = _classic_audit(client, tokens, user_ids, "2033-04-01T09:00:00")
+    sched = client.post("/api/audits", headers=tokens["admin"], json={
+        "store_id": "T002", "scheduled_at": "2033-04-02T09:00:00",
+        "auditor_id": user_ids["auditor1@test"]})
+    assert sched.status_code == 201, sched.text
+    block = client.post("/api/availability", headers=tokens["admin"], json={
+        "auditor_id": user_ids["auditor2@test"], "from_date": "2033-05-01",
+        "to_date": "2033-05-02", "reason": "Leave"})
+    assert block.status_code in (200, 201), block.text
+    assert block.json()["auditor_id"] == user_ids["auditor2@test"]     # admin may set it for someone else
+    q = client.post("/api/questions", headers=tokens["admin"], json={
+        "text": "Admin-created question", "process": "Cash", "weight": 1})
+    assert q.status_code in (200, 201), q.text
+    assert q.json()["approval_status"] == "APPROVED"                          # same as a manager's
+    assert audit["id"]
+
+
+def test_the_audit_log_stays_closed_to_other_roles(client, tokens):
+    for who in ("auditor1", "sm1"):
+        assert client.get("/api/audit-logs", headers=tokens[who]).status_code == 403

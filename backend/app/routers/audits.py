@@ -52,7 +52,7 @@ def get_audit(aid: str, db: Session = Depends(get_db), user: User = Depends(get_
 def schedule_audit(
     body: AuditScheduleRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     """Scheduling checks auditor availability before assigning."""
     when = dt.datetime.fromisoformat(body.scheduled_at)
@@ -200,7 +200,7 @@ def answer_question(
     rid: str,
     body: AnswerQuestionRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDITOR, ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDITOR, ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     """The auditor's core action — answer, remark, attach evidence, set risk."""
     audit = db.get(Audit, aid)
@@ -259,7 +259,7 @@ def approve_audit(
     aid: str,
     body: AuditApproveRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     audit = db.get(Audit, aid)
     if not audit or audit.status != "Completed":

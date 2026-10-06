@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user, require_roles
 from ..db import get_db
-from ..models import ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, Issue, User
+from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, Issue, User
 from ..schemas import IssueCreate, IssueUpdate
 from ..services import log_action
 
@@ -33,7 +33,7 @@ def list_issues(
 def create_issue(
     body: IssueCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_AUDITOR)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN, ROLE_AUDITOR)),
 ):
     i = Issue(
         audit_id=body.audit_id, store_id=body.store_id,

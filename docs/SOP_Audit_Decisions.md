@@ -85,7 +85,7 @@ Entries marked (user) were chosen explicitly by the product owner.
 - Placement: a new "SOP Audits" tab inside Dashboard & Analytics (user choice), with the existing page kept as the "Overview" tab.
 - Store score: the average of the store's latest audit per tool. Bands: 80% and above is good, 70 to 80 needs watching, below 70 needs attention (constants in `logic.js`).
 - A store stays visible in the ranking and coverage panels when it is selected, so you can see it among the others; every other widget narrows to it.
-- Counted audits: `SOP_FINAL_STATUSES` in `services.py` (`Submitted`, `Approved`), so adding a manager review step changes one line.
+- Counted audits: `SOP_FINAL_STATUSES` in `backend/app/services/__init__.py` (the services module became a package) (`Submitted`, `Approved`), so adding a manager review step changes one line.
 - Rejected: server-side filtering per click (slower, more endpoints); a separate page (user preferred a tab).
 - Revisit if the data grows past a few thousand audits.
 
