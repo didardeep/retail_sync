@@ -491,3 +491,184 @@ class Issue(Base):
             "overdue": self.is_overdue, "meta": self.meta or {},
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+# --------------------------------------------------------------------------
+# SOP audits -- fixed audit tools (Cash, FMCG) scored with marks + rubric.
+# Kept separate from Question/Checklist/Audit on purpose (see
+# docs/SOP_Audit_Decisions.md D1). Audit and attachment ids are client-
+# generated UUIDs so they can be created offline and synced idempotently.
+# --------------------------------------------------------------------------
+class SopTemplate(Base):
+    __tablename__ = "sop_templates"
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    code = Column(String(20), unique=True, nullable=False)     # CASH / FMCG
+    name = Column(String(120), nullable=False)
+    total_marks = Column(Float, default=0)
+    min_rule = Column(String(20), default="zero")              # zero / third
+    is_active = Column(Boolean, default=True)
+
+    sections = relationship("SopSection", back_populates="template",
+                            cascade="all, delete-orphan",
+                            order_by="SopSection.sort_order")
+
+    def to_dict(self, with_sections=False):
+        d = {
+            "id": self.id, "code": self.code, "name": self.name,
+            "total_marks": self.total_marks, "min_rule": self.min_rule,
+            "is_active": self.is_active,
+            "section_count": len(self.sections),
+            "criterion_count": sum(len(s.criteria) for s in self.sections),
+        }
+        if with_sections:
+            d["sections"] = [s.to_dict() for s in self.sections]
+        return d
+
+
+class SopSection(Base):
+    __tablename__ = "sop_sections"
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    template_id = Column(String(12), ForeignKey("sop_templates.id"), index=True)
+    code = Column(String(5))                                   # "A"
+    name = Column(String(200), nullable=False)
+    sort_order = Column(Integer, default=0)
+
+    template = relationship("SopTemplate", back_populates="sections")
+    criteria = relationship("SopCriterion", back_populates="section",
+                            cascade="all, delete-orphan",
+                            order_by="SopCriterion.sort_order")
+
+    def to_dict(self):
+        return {
+            "id": self.id, "code": self.code, "name": self.name,
+            "sort_order": self.sort_order,
+            "total_marks": sum(c.marks for c in self.criteria),
+            "criteria": [c.to_dict() for c in self.criteria],
+        }
+
+
+class SopCriterion(Base):
+    __tablename__ = "sop_criteria"
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    section_id = Column(String(12), ForeignKey("sop_sections.id"), index=True)
+    title = Column(Text, nullable=False)
+    marks = Column(Float, nullable=False)
+    max_text = Column(Text)
+    avg_text = Column(Text)                                    # None when sheet says NA
+    min_text = Column(Text)
+    min_points = Column(Float, default=0)                      # guide points for Minimum
+    default_na = Column(Boolean, default=False)
+    requires_comment = Column(Boolean, default=False)
+    requires_photo = Column(Boolean, default=False)
+    sort_order = Column(Integer, default=0)
+
+    section = relationship("SopSection", back_populates="criteria")
+
+    def to_dict(self):
+        return {
+            "id": self.id, "section_id": self.section_id, "title": self.title,
+            "marks": self.marks, "max_text": self.max_text,
+            "avg_text": self.avg_text, "min_text": self.min_text,
+            "max_points": self.marks,
+            "avg_points": self.marks / 2 if self.avg_text else None,
+            "min_points": self.min_points,
+            "default_na": self.default_na,
+            "requires_comment": self.requires_comment,
+            "requires_photo": self.requires_photo,
+            "sort_order": self.sort_order,
+        }
+
+
+class SopAudit(Base):
+    __tablename__ = "sop_audits"
+
+    id = Column(String(36), primary_key=True)                  # client UUID
+    template_id = Column(String(12), ForeignKey("sop_templates.id"), nullable=False)
+    store_id = Column(String(20), ForeignKey("stores.id"), nullable=False, index=True)
+    auditor_id = Column(String(12), ForeignKey("users.id"), nullable=False, index=True)
+    status = Column(String(20), default="Draft")               # Draft / Submitted
+    score = Column(Float)
+    max_score = Column(Float)
+    percent = Column(Float)
+    overall_remarks = Column(Text)
+    client_created_at = Column(DateTime)
+    client_submitted_at = Column(DateTime)
+    created_at = Column(DateTime, default=dt.datetime.utcnow)
+    updated_at = Column(DateTime, default=dt.datetime.utcnow,
+                        onupdate=dt.datetime.utcnow)
+    submitted_at = Column(DateTime)
+
+    template = relationship("SopTemplate")
+    store = relationship("Store")
+    auditor = relationship("User", foreign_keys=[auditor_id])
+    scores = relationship("SopAuditScore", back_populates="audit",
+                          cascade="all, delete-orphan")
+    attachments = relationship("SopAttachment", back_populates="audit",
+                               cascade="all, delete-orphan")
+
+    def to_dict(self, detail=False):
+        d = {
+            "id": self.id, "template_id": self.template_id,
+            "template": self.template.name if self.template else None,
+            "template_code": self.template.code if self.template else None,
+            "store_id": self.store_id,
+            "store": self.store.name if self.store else None,
+            "auditor_id": self.auditor_id,
+            "auditor": self.auditor.name if self.auditor else None,
+            "status": self.status, "score": self.score,
+            "max_score": self.max_score, "percent": self.percent,
+            "overall_remarks": self.overall_remarks,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "submitted_at": self.submitted_at.isoformat() if self.submitted_at else None,
+        }
+        if detail:
+            d["scores"] = [s.to_dict() for s in self.scores]
+            d["attachments"] = [a.to_dict() for a in self.attachments]
+        return d
+
+
+class SopAuditScore(Base):
+    __tablename__ = "sop_audit_scores"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    audit_id = Column(String(36), ForeignKey("sop_audits.id"), index=True)
+    criterion_id = Column(String(12), ForeignKey("sop_criteria.id"))
+    score = Column(Float)
+    is_na = Column(Boolean, default=False)
+    comment = Column(Text)
+    answered_at = Column(DateTime)
+
+    audit = relationship("SopAudit", back_populates="scores")
+    criterion = relationship("SopCriterion")
+
+    def to_dict(self):
+        return {
+            "criterion_id": self.criterion_id, "score": self.score,
+            "is_na": self.is_na, "comment": self.comment,
+            "answered_at": self.answered_at.isoformat() if self.answered_at else None,
+        }
+
+
+class SopAttachment(Base):
+    __tablename__ = "sop_attachments"
+
+    id = Column(String(36), primary_key=True)                  # client UUID
+    audit_id = Column(String(36), ForeignKey("sop_audits.id"), index=True)
+    criterion_id = Column(String(12), ForeignKey("sop_criteria.id"))
+    file_path = Column(String(300), nullable=False)
+    mime = Column(String(60))
+    size = Column(Integer)
+    created_at = Column(DateTime, default=dt.datetime.utcnow)
+
+    audit = relationship("SopAudit", back_populates="attachments")
+
+    def to_dict(self):
+        return {
+            "id": self.id, "audit_id": self.audit_id,
+            "criterion_id": self.criterion_id, "mime": self.mime,
+            "size": self.size, "url": f"/api/sop-audits/attachments/{self.id}",
+        }

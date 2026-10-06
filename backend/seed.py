@@ -13,6 +13,7 @@ import random
 import sys
 from pathlib import Path
 
+from import_sop import import_sop
 from app.auth import hash_password
 from app.db import Base, SessionLocal, engine, init_db
 from app.models import (
@@ -355,3 +356,4 @@ if __name__ == "__main__":
         seed_from_excel()
     else:
         seed()
+    import_sop()
