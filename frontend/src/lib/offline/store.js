@@ -3,6 +3,7 @@
 // connection, a killed app or a reboot never loses an answer (NFR: durability).
 // sync.js reads the same records and pushes whatever has a newer `rev`.
 import { api, loadSession } from '@/api/client'
+import { isAuditorEditable } from '../statuses'
 import { getDb } from './db'
 import { problems } from './scoring'
 
@@ -24,8 +25,16 @@ export async function refreshReferenceData() {
   const tx = db.transaction(['stores', 'templates'], 'readwrite')
   await tx.objectStore('stores').clear()
   for (const s of stores) tx.objectStore('stores').put(s)
-  // Never clear templates: local audits may reference an older tree.
-  for (const t of trees) tx.objectStore('templates').put(t)
+  // Never delete templates: local audits may reference an older tree. Trees the
+  // server no longer lists as current are kept but flagged.
+  const currentIds = new Set(trees.map((t) => t.id))
+  const cached = await tx.objectStore('templates').getAll()
+  for (const old of cached) {
+    if (!currentIds.has(old.id) && old.is_current !== false) {
+      tx.objectStore('templates').put({ ...old, is_current: false })
+    }
+  }
+  for (const t of trees) tx.objectStore('templates').put({ ...t, is_current: true })
   await tx.done
 }
 
@@ -38,7 +47,13 @@ export async function getStores() {
 export async function getTemplates() {
   const db = await getDb()
   const rows = await db.getAll('templates')
-  return rows.filter((t) => t.is_active).sort((a, b) => a.name.localeCompare(b.name))
+  const latest = new Map()
+  for (const t of rows) {
+    if (t.is_active === false || t.is_current === false) continue
+    const best = latest.get(t.code)
+    if (!best || (t.version || 1) > (best.version || 1)) latest.set(t.code, t)
+  }
+  return [...latest.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export async function getTemplate(id) {
@@ -65,8 +80,9 @@ export async function createAudit(store, template) {
     store_id: store.id,
     store_name: store.name,
     status: 'Draft',
+    template_version: template.version,
     submit_pending: false,
-    remote: false,               // has the server seen this audit yet?
+    remote: false,              // has the server seen this audit yet?
     overall_remarks: '',
     position: 0,                 // where to resume in the wizard
     header_rev: 1,
@@ -86,10 +102,10 @@ export async function listLocalAudits() {
   return rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
 }
 
-export async function findDraft(storeId, templateId) {
+export async function findDraft(storeId, templateCode) {
   const audits = await listLocalAudits()
   return audits.find(
-    (a) => a.status === 'Draft' && a.store_id === storeId && a.template_id === templateId,
+    (a) => isAuditorEditable(a.status) && a.store_id === storeId && a.template_code === templateCode,
   ) || null
 }
 
@@ -130,10 +146,12 @@ export async function saveAnswer(auditId, criterion, patch) {
   const db = await getDb()
   const tx = db.transaction(['audits', 'scores'], 'readwrite')
   const audit = await tx.objectStore('audits').get(auditId)
-  if (!audit || audit.status !== 'Draft') {
+  if (!audit || !isAuditorEditable(audit.status)) {
     await tx.done
     return null
   }
+  // First answer on an assigned audit starts it.
+  if (audit.status === 'Planned') audit.status = 'Draft'
   const key = [auditId, criterion.id]
   const row = (await tx.objectStore('scores').get(key)) || {
     audit_id: auditId,
@@ -242,6 +260,9 @@ export async function hydrateFromServer(id) {
     store_id: detail.store_id,
     store_name: detail.store,
     status: detail.status,
+    scheduled_at: detail.scheduled_at,
+    notes: detail.notes,
+    template_version: detail.template_version,
     submit_pending: false,
     remote: true,
     overall_remarks: detail.overall_remarks || '',

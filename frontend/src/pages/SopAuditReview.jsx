@@ -4,14 +4,15 @@ import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 import { api } from '@/api/client';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/Toast';
 import { ErrorNote, Loading } from '@/components/Loader';
 import { Modal, ModalActions, ModalTitle } from '@/components/Modal';
 import AttachmentThumb from '@/components/AttachmentThumb';
+import SopStatusBadge from '@/components/SopStatusBadge';
 import SyncChip from '@/components/SyncChip';
+import { isAuditorEditable } from '@/lib/statuses';
 import {
   flattenCriteria, getBundle, getTemplate, isNa, problems, requestSubmit,
   setHeader, summarize, useOnline,
@@ -32,6 +33,7 @@ async function loadServerBundle(id) {
       store_name: detail.store,
       template_name: detail.template,
       status: detail.status,
+      template_version: detail.template_version,
       submit_pending: false,
       overall_remarks: detail.overall_remarks || '',
       server_summary: {
@@ -78,7 +80,7 @@ export default function SopAuditReview() {
   if (!bundle) return <Loading what="review" />;
 
   const { audit, template, rows, attachments } = bundle;
-  const editable = !bundle.readOnly && audit.status === 'Draft';
+  const editable = !bundle.readOnly && isAuditorEditable(audit.status);
   const found = problems(template, rows, attachments);
   const issueByCriterion = {};
   for (const p of found) (issueByCriterion[p.criterion_id] ||= []).push(p.problem);
@@ -115,12 +117,6 @@ export default function SopAuditReview() {
     }
   }
 
-  const statusBadge = audit.status === 'Draft'
-    ? <Badge variant="secondary">Draft</Badge>
-    : audit.submit_pending
-      ? <Badge className="border-transparent bg-amber-500 text-white hover:bg-amber-500">Submitted - pending sync</Badge>
-      : <Badge className="border-transparent bg-emerald-600 text-white hover:bg-emerald-600">Submitted</Badge>;
-
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-3 flex items-start justify-between gap-2">
@@ -129,7 +125,11 @@ export default function SopAuditReview() {
           <div className="truncate text-xs text-muted-foreground">{audit.template_name}</div>
         </div>
         <div className="flex flex-col items-end gap-1.5">
-          {statusBadge}
+          <SopStatusBadge
+            status={audit.status}
+            submitPending={audit.submit_pending}
+            version={audit.template_version}
+          />
           {!bundle.readOnly && <SyncChip />}
         </div>
       </div>

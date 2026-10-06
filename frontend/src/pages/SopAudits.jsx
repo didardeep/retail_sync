@@ -4,11 +4,12 @@ import { ChevronRight } from 'lucide-react';
 
 import { api, loadSession } from '@/api/client';
 import { cn, fieldClass, labelClass } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/Toast';
 import { Loading } from '@/components/Loader';
+import SopStatusBadge from '@/components/SopStatusBadge';
 import SyncChip from '@/components/SyncChip';
+import { isAuditorEditable } from '@/lib/statuses';
 import {
   createAudit, currentUserId, findDraft, getStores, getTemplates,
   listLocalAudits, refreshReferenceData, useOnline, useSyncState,
@@ -23,15 +24,6 @@ function when(iso) {
   });
 }
 
-function StatusBadge({ row }) {
-  if (row.sync_error) return <Badge variant="destructive">Needs attention</Badge>;
-  if (row.status === 'Draft') return <Badge variant="secondary">Draft</Badge>;
-  if (row.submit_pending) {
-    return <Badge className="border-transparent bg-amber-500 text-white hover:bg-amber-500">Submitted - pending sync</Badge>;
-  }
-  return <Badge className="border-transparent bg-emerald-600 text-white hover:bg-emerald-600">Submitted</Badge>;
-}
-
 // Local (on-device) and server audits merged by id; the local copy wins for
 // state because it can be ahead of the server while offline.
 function mergeRows(local, remote) {
@@ -40,7 +32,7 @@ function mergeRows(local, remote) {
     byId.set(r.id, {
       id: r.id, store_id: r.store_id, store_name: r.store, template_name: r.template,
       status: r.status, updated_at: r.updated_at, auditor: r.auditor,
-      auditor_id: r.auditor_id,
+      auditor_id: r.auditor_id, template_version: r.template_version,
       summary: r.status === 'Submitted'
         ? { score: r.score, max_score: r.max_score, percent: r.percent } : null,
     });
@@ -118,12 +110,13 @@ export default function SopAudits() {
     if (online) loadRemote();
   }, [sync.lastSync, sync.pending]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const selectedCode = templates.find((t) => t.id === templateId)?.code;
   const rows = useMemo(() => mergeRows(local, remote), [local, remote]);
   const shown = rows.filter((r) =>
     (!storeFilter || r.store_id === storeFilter) &&
     (!statusFilter || r.status === statusFilter));
   const existingDraft = local.find(
-    (a) => a.status === 'Draft' && a.store_id === storeId && a.template_id === templateId,
+    (a) => isAuditorEditable(a.status) && a.store_id === storeId && a.template_code === selectedCode,
   );
 
   async function start() {
@@ -132,7 +125,7 @@ export default function SopAudits() {
     if (!store || !template) return;
     setStarting(true);
     try {
-      const draft = await findDraft(store.id, template.id);
+      const draft = await findDraft(store.id, template.code);
       const audit = draft || (await createAudit(store, template));
       navigate(`/sop-audits/${audit.id}`);
     } catch (e) {
@@ -143,7 +136,7 @@ export default function SopAudits() {
 
   function open(row) {
     const mine = row.auditor_id === currentUserId();
-    if (row.status === 'Draft' && mine) navigate(`/sop-audits/${row.id}`);
+    if (isAuditorEditable(row.status) && mine) navigate(`/sop-audits/${row.id}`);
     else navigate(`/sop-audits/${row.id}/review`);
   }
 
@@ -262,7 +255,12 @@ export default function SopAudits() {
                 {r.sync_error && <div className="mt-0.5 truncate text-xs text-destructive">{r.sync_error}</div>}
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <StatusBadge row={r} />
+                <SopStatusBadge
+                  status={r.status}
+                  submitPending={r.submit_pending}
+                  syncError={r.sync_error}
+                  version={r.template_version}
+                />
                 {r.summary && r.summary.max_score != null && (
                   <div className="text-xs font-semibold text-foreground">
                     {fmt(r.summary.score)} / {fmt(r.summary.max_score)} ({fmt(r.summary.percent)}%)

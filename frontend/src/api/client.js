@@ -119,8 +119,6 @@ export const api = {
     if (!res.ok) await throwFor(res, 'Download failed')
     return res.blob()
   },
-  updateSopCriterion: (id, body) =>
-    request(`/sop-audits/criteria/${id}`, { method: 'PATCH', body }),
   // CRUD
   createStore: (body) => request('/stores', { method: 'POST', body }),
   updateStore: (id, body) => request(`/stores/${id}`, { method: 'PUT', body }),

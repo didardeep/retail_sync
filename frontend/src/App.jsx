@@ -21,6 +21,7 @@ import AuditLog from './pages/AuditLog'
 import SopAudits from './pages/SopAudits'
 import SopAuditWizard from './pages/SopAuditWizard'
 import SopAuditReview from './pages/SopAuditReview'
+import SopToolEditor from './pages/SopToolEditor'
 
 export default function App() {
   const [session, setSession] = useState(loadSession())
@@ -73,7 +74,8 @@ export default function App() {
             <Route path="/audits" element={guarded('audits', <AuditStatus />)} />
             <Route path="/scheduling" element={guarded('scheduling', <Scheduling />)} />
             <Route path="/questions" element={guarded('questions', <Questions />)} />
-            <Route path="/stores" element={guarded('stores', <Stores />)} />
+            <Route path="/questions/sop-tools/:code" element={guarded('sop-tools', <SopToolEditor />)} />
+            <Route path="/stores"element={guarded('stores', <Stores />)} />
             <Route path="/email" element={guarded('email', <Email />)} />
             <Route path="/sop-audits" element={guarded('sop-audits', <SopAudits />)} />
             <Route path="/sop-audits/:id" element={guarded('sop-audits', <SopAuditWizard />)} />

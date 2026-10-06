@@ -2,7 +2,7 @@
 // access. AUDIT_MANAGER gets everything -- represented as null (no
 // restriction). Keep these page keys in sync with the `page` prop on
 // <RoleProtectedRoute> in App.jsx and the `page` key on each nav item in
-// Layout.jsx.
+// lib/nav.js (NAV_ITEMS).
 //
 // Derived from what backend/app/routers/*.py actually enforces per route
 // (see require_roles(...) calls), not a new design decision:
@@ -13,10 +13,13 @@
 //   - STORE_MANAGER's core surface is issues assigned to them + rating their
 //     store's audits (issues.py filters to assignee_id == self;
 //     audits.store_manager_rating is STORE_MANAGER-only)
+//   - sop-tools (the SOP tool editor under /questions/sop-tools/:code) is
+//     manager-only: it is absent from the AUDITOR and STORE_MANAGER lists
+//   - AUDITOR's first page is sop-audits, so auditors land on /sop-audits
 //   - "email" has no backend endpoint (UI-only demo page) -- open to all roles
 export const ROLE_PAGES = {
   AUDIT_MANAGER: null,
-  AUDITOR: ['audits', 'sop-audits', 'questions', 'email'],
+  AUDITOR: ['sop-audits', 'audits', 'questions', 'email'],
   STORE_MANAGER: ['issues', 'audits', 'sop-audits', 'email'],
 }
 

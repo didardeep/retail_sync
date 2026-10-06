@@ -4,33 +4,9 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { canAccess } from '@/lib/rolesMap';
+import { NAV_ITEMS, titleFor } from '@/lib/nav';
 import { Drawer } from '@/components/Modal';
-
-const TITLES = {
-  '/dashboard': 'Dashboard & Analytics',
-  '/scores': 'Store Audit Scores',
-  '/issues': 'Action Taken Tracking',
-  '/audits': 'Audit Status',
-  '/scheduling': 'Audit Scheduling',
-  '/questions': 'Audit Questions',
-  '/stores': 'Store Management',
-  '/email': 'Email Communications',
-  '/audit-log': 'Audit Log',
-  '/sop-audits': 'SOP Audits',
-};
-
-const NAV = [
-  ['/dashboard', 'dashboard', 'Dashboard & Analytics', <svg key="d" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="6" width="4" height="15"/><rect x="17" y="2" width="4" height="19"/></svg>],
-  ['/scores', 'scores', 'Store Audit Scores', <svg key="sc" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3,17 9,11 13,15 21,5"/></svg>],
-  ['/issues', 'issues', 'Action Taken Tracking', <svg key="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L22 20H2Z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16.5" r=".5" fill="currentColor"/></svg>],
-  ['/audits', 'audits', 'Audit Status', <svg key="as" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><polyline points="8,12 11,15 16,9"/></svg>],
-  ['/scheduling', 'scheduling', 'Audit Scheduling', <svg key="sh" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="17" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>],
-  ['/questions', 'questions', 'Audit Questions', <svg key="q" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="3" width="16" height="18" rx="1"/><polyline points="8,9 10,11 14,7"/><line x1="8" y1="15" x2="16" y2="15"/></svg>],
-  ['/stores', 'stores', 'Store Management', <svg key="st" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="1"/><path d="M16 21V7a4 4 0 00-8 0v14"/></svg>],
-  ['/email', 'email', 'Email Communications', <svg key="e" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="14" rx="1"/><polyline points="3,7 12,13 21,7"/></svg>],
-  ['/sop-audits', 'sop-audits', 'SOP Audits', <svg key="sop" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 3v2h6V3"/><polyline points="8,11 10,13 14,9"/><line x1="8" y1="17" x2="16" y2="17"/></svg>],
-  ['/audit-log', 'audit-log', 'Audit Log', <svg key="al" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12h6M9 16h6M9 8h6"/><rect x="4" y="3" width="16" height="18" rx="1"/></svg>],
-];
+import { NAV_ICONS } from '@/components/navIcons';
 
 function SidebarContent({ user, onLogout, nav, onNavigate }) {
   return (
@@ -52,10 +28,10 @@ function SidebarContent({ user, onLogout, nav, onNavigate }) {
         </div>
       </div>
       <nav className="flex-1 px-2 py-1">
-        {nav.map(([to, , label, icon]) => (
+        {nav.map(({ path, label, icon }) => (
           <NavLink
-            key={to}
-            to={to}
+            key={path}
+            to={path}
             onClick={onNavigate}
             className={({ isActive }) =>
               cn(
@@ -64,7 +40,7 @@ function SidebarContent({ user, onLogout, nav, onNavigate }) {
               )
             }
           >
-            {icon}{label}
+            {NAV_ICONS[icon]}{label}
           </NavLink>
         ))}
       </nav>
@@ -83,10 +59,9 @@ function SidebarContent({ user, onLogout, nav, onNavigate }) {
 
 export default function Layout({ user, onLogout, children }) {
   const loc = useLocation();
-  const title = TITLES[loc.pathname]
-    || (loc.pathname.startsWith('/sop-audits') ? TITLES['/sop-audits'] : 'Store Audit and Analysis');
+  const title = titleFor(loc.pathname);
   const initial = (user?.name || user?.email || 'U')[0].toUpperCase();
-  const nav = NAV.filter(([, page]) => canAccess(user?.role, page));
+  const nav = NAV_ITEMS.filter((n) => canAccess(user?.role, n.page));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
