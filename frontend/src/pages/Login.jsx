@@ -135,14 +135,14 @@ export default function Login({ onLogin }) {
             <div className="login-hint-row">
               <span className="login-hint-badge aud">AU</span>
               <div>
-                <div className="login-hint-email">aud.j.patel@retail-chain.com</div>
+                <div className="login-hint-email">aud.amit.singh@retail-chain.com</div>
                 <div className="login-hint-role">Auditor</div>
               </div>
             </div>
             <div className="login-hint-row">
               <span className="login-hint-badge sm">SM</span>
               <div>
-                <div className="login-hint-email">sm.deepak.tiwari@retail-chain.com</div>
+                <div className="login-hint-email">sm.a.sharma@retail-chain.com</div>
                 <div className="login-hint-role">Store Manager</div>
               </div>
             </div>
