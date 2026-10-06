@@ -14,7 +14,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from app.auth import hash_password
-from app.db import Base, SessionLocal, engine, init_db
+from app.db import SessionLocal, init_db, reset_db
 from app.models import (
     ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
     Audit, AuditResponse, AuditorAvailability, CashReconciliation,
@@ -602,7 +602,7 @@ def seed_from_excel():
 
 if __name__ == "__main__":
     if "--reset" in sys.argv:
-        Base.metadata.drop_all(bind=engine)
+        reset_db()
         print("Dropped all tables.")
     init_db()
     seed_from_excel()

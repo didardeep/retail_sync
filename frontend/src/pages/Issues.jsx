@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/Toast';
 import { api } from '../api/client';
 import { avC, prC, stC, exportCSV } from '../utils/helpers';
@@ -6,7 +7,9 @@ import { cn, fieldClass, labelClass } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Modal, ModalActions } from '../components/Modal';
+import { Modal } from '../components/Modal';
+import { useUrlFilters } from '@/lib/useUrlFilters';
+import { auditsLink } from '@/lib/links';
 
 function stBorder(s) {
   return s === 'In Progress' ? '#00338D' : s === 'Resolved' ? '#0e9f6e' : s === 'On Hold' ? '#f59e0b' : s === 'Closed' ? '#6b7280' : '#e02424';
@@ -26,16 +29,14 @@ function fmtDisp(d) {
 
 export default function Issues() {
   const toast = useToast();
+  const navigate = useNavigate();
+  const { filters, setFilter, clearAll } = useUrlFilters(['status', 'priority', 'store', 'id']);
   const [issues, setIssues] = useState([]);
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('table');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [priFilter, setPriFilter] = useState('');
-  const [storeFilter, setStoreFilter] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState('');
-  const [statusTab, setStatusTab] = useState('');
 
   /* modal state */
   const [modalOpen, setModalOpen] = useState(false);
@@ -71,7 +72,14 @@ export default function Issues() {
       setIssues(normalized);
       setStores(s || []);
       setLoading(false);
+      // open detail from ?id= query param
+      const idParam = filters.id;
+      if (idParam) {
+        const found = normalized.find(x => x.id === idParam);
+        if (found) openEditIssueData(found);
+      }
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ── derived data ── */
@@ -83,14 +91,14 @@ export default function Issues() {
       const q = search.toLowerCase();
       if (!(i.title||'').toLowerCase().includes(q) && !(i.desc||'').toLowerCase().includes(q) && !(i.tags||[]).join(' ').toLowerCase().includes(q)) return false;
     }
-    if (statusFilter && i.status !== statusFilter) return false;
-    if (priFilter && i.pri !== priFilter) return false;
-    if (storeFilter && i.store !== storeFilter) return false;
+    if (filters.status && i.status !== filters.status) return false;
+    if (filters.priority && i.pri !== filters.priority) return false;
+    if (filters.store && i.store !== filters.store) return false;
     if (assigneeFilter && i.assignee !== assigneeFilter) return false;
     return true;
   });
 
-  const tableData = filtered.filter(i => !statusTab || i.status === statusTab);
+  const tableData = filtered;
 
   /* KPI counts from full issues array */
   const totalCount = issues.length;
@@ -108,10 +116,27 @@ export default function Issues() {
 
   function clearFilters() {
     setSearch('');
-    setStatusFilter('');
-    setPriFilter('');
-    setStoreFilter('');
     setAssigneeFilter('');
+    clearAll();
+  }
+
+  function openEditIssueData(i) {
+    setEditId(i.id);
+    setForm({
+      title: i.title,
+      status: i.status,
+      desc: i.desc || '',
+      pri: i.pri,
+      store: i.store,
+      assignee: i.assignee,
+      created: fmtLocalDT(new Date()),
+      due: fmtLocalDT(new Date()),
+      aid: i.aid || '',
+      tags: (i.tags || []).join(', '),
+      comment: ''
+    });
+    setFiles([]);
+    setModalOpen(true);
   }
 
   function openNewIssue() {
@@ -128,23 +153,7 @@ export default function Issues() {
 
   function openEditIssue(id) {
     const i = issues.find(x => x.id === id);
-    if (!i) return;
-    setEditId(id);
-    setForm({
-      title: i.title,
-      status: i.status,
-      desc: i.desc || '',
-      pri: i.pri,
-      store: i.store,
-      assignee: i.assignee,
-      created: fmtLocalDT(new Date()),
-      due: fmtLocalDT(new Date()),
-      aid: i.aid || '',
-      tags: (i.tags || []).join(', '),
-      comment: ''
-    });
-    setFiles([]);
-    setModalOpen(true);
+    if (i) openEditIssueData(i);
   }
 
   function saveIssue() {
@@ -262,19 +271,19 @@ export default function Issues() {
 
       {/* KPI Row */}
       <div className="mb-4 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
-        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
+        <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => { setFilter('status', ''); setFilter('priority', '') }}>
           <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#f3f4f6' }}>&#x1F4CA;</div>
           <div><div className="mb-0.5 text-[11px] text-muted-foreground">Total Issues</div><div className="text-2xl font-bold leading-none text-foreground">{totalCount}</div></div>
         </div>
-        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
+        <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => setFilter('status', 'Open')}>
           <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#fffbeb' }}>&#x1F7E1;</div>
           <div><div className="mb-0.5 text-[11px] text-muted-foreground">Open (Not Due)</div><div className="text-2xl font-bold leading-none text-foreground">{openNotDue}</div></div>
         </div>
-        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
+        <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => { setFilter('status', 'Open'); setFilter('priority', 'Critical') }}>
           <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#fde8e8' }}>&#x1F534;</div>
           <div><div className="mb-0.5 text-[11px] text-muted-foreground">Open (Overdue)</div><div className="text-2xl font-bold leading-none text-foreground">{overdueCount}</div></div>
         </div>
-        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
+        <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => setFilter('status', 'Resolved')}>
           <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#ecfdf5' }}>&#x2705;</div>
           <div><div className="mb-0.5 text-[11px] text-muted-foreground">Completed</div><div className="text-2xl font-bold leading-none text-foreground">{completedCount}</div></div>
         </div>
@@ -286,21 +295,21 @@ export default function Issues() {
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">&#x1F50D;</span>
           <Input className="pl-8" placeholder="Search title, tags..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.status} onChange={e => setFilter('status', e.target.value)}>
           <option value="">Status</option>
           <option>Open</option>
           <option>In Progress</option>
           <option>On Hold</option>
           <option>Closed</option>
         </select>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={priFilter} onChange={e => setPriFilter(e.target.value)}>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.priority} onChange={e => setFilter('priority', e.target.value)}>
           <option value="">Priority</option>
           <option>Critical</option>
           <option>High</option>
           <option>Medium</option>
           <option>Low</option>
         </select>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={storeFilter} onChange={e => setStoreFilter(e.target.value)}>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.store} onChange={e => setFilter('store', e.target.value)}>
           <option value="">Store</option>
           {storeOpts.map(s => <option key={s}>{s}</option>)}
         </select>
@@ -311,15 +320,6 @@ export default function Issues() {
         <button className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-card text-[13px]" onClick={clearFilters} title="Clear filters">&#x1F504;</button>
       </div>
 
-      {/* Status Tabs */}
-      {view === 'table' && (
-        <div className="mb-2.5 flex flex-wrap gap-1.5">
-          {[{ label: 'All Status', val: '' }, { label: 'Open', val: 'Open' }, { label: 'In Progress', val: 'In Progress' }, { label: 'On Hold', val: 'On Hold' }, { label: 'Closed', val: 'Closed' }].map(t => (
-            <button key={t.val} className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusTab === t.val && 'border-primary bg-primary text-primary-foreground')} onClick={() => setStatusTab(t.val)}>{t.label}</button>
-          ))}
-        </div>
-      )}
-
       {/* Table View */}
       {view === 'table' && (
         <div>
@@ -328,7 +328,9 @@ export default function Issues() {
               <div key={i.id} className="rounded-[10px] border border-border bg-card p-3.5" style={{ borderLeft: `4px solid ${stBorder(i.status)}` }}>
                 {/* top row: audit id + overdue + actions */}
                 <div className="mb-1.5 flex items-center justify-between">
-                  <a className="text-[11.5px] font-semibold text-primary no-underline">{i.aid}</a>
+                  {i.aid ? (
+                    <button className="text-[11.5px] font-semibold text-primary hover:underline" onClick={e => { e.stopPropagation(); navigate(auditsLink({ id: i.aid })); }}>{i.aid}</button>
+                  ) : <span />}
                   <div className="flex items-center gap-1.5">
                     {i.ov && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-800">Overdue</span>}
                     <button className="flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border bg-card text-[10px]" onClick={() => openEditIssue(i.id)}>&#x270F;&#xFE0F;</button>
@@ -419,7 +421,7 @@ export default function Issues() {
 
         <div className="grid gap-3">
           {/* title + status (2-col) */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass}>Title <span className="text-destructive">*</span></label>
               <Input placeholder="Short summary of the issue" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
@@ -439,7 +441,7 @@ export default function Issues() {
           </div>
 
           {/* priority + store + assignee (3-col) */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <label className={labelClass}>Priority <span className="text-destructive">*</span></label>
               <select className={fieldClass} value={form.pri} onChange={e => setForm(f => ({ ...f, pri: e.target.value }))}>
@@ -462,7 +464,7 @@ export default function Issues() {
           </div>
 
           {/* created at + due at (2-col) */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass}>Created At <span className="text-destructive">*</span></label>
               <Input type="datetime-local" value={form.created} onChange={e => setForm(f => ({ ...f, created: e.target.value }))} />
@@ -474,7 +476,7 @@ export default function Issues() {
           </div>
 
           {/* audit id + tags (2-col) */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass}>Audit ID</label>
               <Input placeholder="Link to Audit (optional)" value={form.aid} onChange={e => setForm(f => ({ ...f, aid: e.target.value }))} />

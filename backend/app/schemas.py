@@ -315,3 +315,24 @@ class UserUpdate(ORMBase):
     store_id: str | None = None       # reassign store for STORE_MANAGER
     active: bool | None = None
     password: str | None = None       # optional password reset
+# SOP audits
+# --------------------------------------------------------------------------
+class SopScoreIn(ORMBase):
+    criterion_id: str
+    score: float | None = Field(default=None, ge=0)
+    is_na: bool = False
+    comment: str | None = None
+    answered_at: str | None = None
+
+
+class SopAuditUpsert(ORMBase):
+    template_id: str
+    store_id: str
+    scores: list[SopScoreIn] = []
+    overall_remarks: str | None = None
+    client_created_at: str | None = None
+
+
+class SopSubmitIn(ORMBase):
+    overall_remarks: str | None = None
+    client_submitted_at: str | None = None

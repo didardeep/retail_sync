@@ -1,7 +1,6 @@
 import datetime as dt
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_user, require_roles
@@ -15,7 +14,8 @@ from ..schemas import (
     AuditScheduleRequest,
 )
 from ..services import (
-    compute_audit_score, log_action, next_audit_id, raise_issue_from_response,
+    auditor_conflict, compute_audit_score, log_action, next_audit_id,
+    raise_issue_from_response,
 )
 
 router = APIRouter(prefix="/api/audits", tags=["audits"])
@@ -59,24 +59,9 @@ def schedule_audit(
     auditor_id = body.auditor_id
 
     if auditor_id:
-        blocked = db.query(AuditorAvailability).filter(
-            AuditorAvailability.auditor_id == auditor_id,
-            AuditorAvailability.from_date <= when.date(),
-            AuditorAvailability.to_date >= when.date(),
-        ).first()
-        if blocked:
-            raise HTTPException(status_code=409, detail={
-                "error": "auditor unavailable", "reason": blocked.reason,
-            })
-        clash = db.query(Audit).filter(
-            Audit.auditor_id == auditor_id,
-            func.date(Audit.scheduled_at) == when.date(),
-            Audit.status.in_(["Planned", "Ongoing"]),
-        ).first()
-        if clash:
-            raise HTTPException(status_code=409, detail={
-                "error": "auditor already booked", "audit_id": clash.id,
-            })
+        conflict = auditor_conflict(db, auditor_id, when.date(), body.store_id)
+        if conflict:
+            raise HTTPException(status_code=409, detail=conflict)
 
     audit = Audit(
         id=next_audit_id(db), store_id=body.store_id,

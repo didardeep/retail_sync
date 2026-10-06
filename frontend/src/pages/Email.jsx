@@ -204,21 +204,21 @@ export default function Email() {
       </div>
 
       {/* layout */}
-      <div className="flex overflow-hidden rounded-[10px] border border-border bg-card" style={{ height: 'calc(100vh - 148px)' }}>
+      <div className="flex flex-col overflow-hidden rounded-[10px] border border-border bg-card md:flex-row" style={{ height: 'calc(100vh - 148px)' }}>
         {/* sidebar */}
-        <div className="w-[190px] shrink-0 border-r border-border p-2.5">
+        <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-border p-2 md:w-[190px] md:flex-col md:gap-0 md:overflow-visible md:border-b-0 md:border-r md:p-2.5">
           {FOLDERS.map(f => (
             <div
               key={f.key}
-              className={cn('mb-0.5 flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-[12.5px] text-foreground/80', folder === f.key ? 'bg-accent text-primary' : 'hover:bg-accent hover:text-primary')}
+              className={cn('mb-0.5 flex shrink-0 cursor-pointer items-center justify-between gap-1.5 rounded-md px-2 py-1.5 text-[12.5px] text-foreground/80', folder === f.key ? 'bg-accent text-primary' : 'hover:bg-accent hover:text-primary')}
               onClick={() => { setFolder(f.key); setSelected([]); }}
             >
-              <span className="flex items-center gap-1.5">{f.icon} {f.key}</span>
+              <span className="flex items-center gap-1.5 whitespace-nowrap">{f.icon} {f.key}</span>
               <span className="rounded-full bg-primary px-1.5 text-[9.5px] font-bold text-primary-foreground">{folderCount(f.key)}</span>
             </div>
           ))}
 
-          <div className="mb-1.5 mt-4 px-2 text-[10px] font-bold tracking-wide text-muted-foreground">
+          <div className="mb-1.5 mt-4 hidden px-2 text-[10px] font-bold tracking-wide text-muted-foreground md:block">
             LABELS
           </div>
 
@@ -226,7 +226,7 @@ export default function Email() {
             <div
               key={lb}
               onClick={() => setLabelFilter(prev => prev === lb ? '' : lb)}
-              className="m-0.5 inline-block cursor-pointer rounded-xl px-2.5 py-0.5 text-[11px] font-semibold"
+              className="m-0.5 hidden cursor-pointer rounded-xl px-2.5 py-0.5 text-[11px] font-semibold md:inline-block"
               style={{
                 background: EMAIL_LABEL_BG[lb],
                 color: EMAIL_LABEL_COLORS[lb],
@@ -241,7 +241,7 @@ export default function Email() {
         {/* main */}
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* toolbar */}
-          <div className="flex items-center gap-2 border-b border-border p-2.5">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border p-2.5">
             <div className="relative min-w-[140px] flex-1">
               <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">&#128269;</span>
               <Input className="pl-8" placeholder="Search emails..." value={search} onChange={e => setSearch(e.target.value)} />

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Line } from 'react-chartjs-2'
-import { api } from '../api/client'
+import { api, loadSession } from '../api/client'
 import { sColor, pbClass, exportCSV } from '../utils/helpers'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Modal, ModalActions } from '../components/Modal'
+import { storeScorecardLink } from '@/lib/links'
 
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4']
 const SCORE_GRID = 'grid-cols-[2fr_100px_1fr_1fr_1fr_1fr_44px]'
@@ -23,6 +24,8 @@ function deltaDisplay(curr, prev) {
 
 export default function StoreAuditScores() {
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const role = loadSession()?.user?.role
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [detailStore, setDetailStore] = useState(null)
@@ -46,6 +49,12 @@ export default function StoreAuditScores() {
       }
       setScoreMap(map)
       setLoading(false)
+      // open detail from ?id= query param
+      const idParam = params.get('id')
+      if (idParam) {
+        const found = (s || []).find(x => x.id === idParam)
+        if (found) setDetailStore(found)
+      }
     })
   }, [])
 
@@ -145,9 +154,9 @@ export default function StoreAuditScores() {
       </div>
 
       {/* Score table */}
-      <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+      <div className="overflow-x-auto rounded-[10px] border border-border bg-card">
         {/* Header row */}
-        <div className={cn('grid items-center gap-4 border-b border-border bg-gray-50 px-4 py-3', SCORE_GRID)}>
+        <div className={cn('grid min-w-[820px] items-center gap-2.5 border-b border-border bg-gray-50 px-3 py-2.5', SCORE_GRID)}>
           <span className="text-[11.5px] font-semibold text-muted-foreground">Store Details</span>
           <span className="text-center text-[11.5px] font-semibold text-muted-foreground">Status</span>
           {QUARTERS.map(q => (
@@ -161,14 +170,19 @@ export default function StoreAuditScores() {
           return (
             <div
               key={s.id}
-              className={cn('grid cursor-pointer items-center gap-4 border-b border-border px-4 py-3 last:border-0 hover:bg-[#fafbff]', SCORE_GRID)}
+              className={cn('grid min-w-[820px] cursor-pointer items-center gap-2.5 border-b border-border px-3 py-2.5 last:border-0 hover:bg-[#fafbff]', SCORE_GRID)}
               onClick={() => setDetailStore(s)}
             >
               {/* Store details */}
               <div className="flex items-center gap-2">
                 <img src="store-logo.jpg" alt="" className="h-[26px] w-[26px] rounded-md" onError={e => { e.target.style.display = 'none' }} />
                 <div>
-                  <div className="text-[12.5px] font-semibold">{s.name}</div>
+                  <button
+                    className="text-left text-[12.5px] font-semibold text-primary hover:underline"
+                    onClick={e => { e.stopPropagation(); navigate(storeScorecardLink(s.id, role)) }}
+                  >
+                    {s.name}
+                  </button>
                   <div className="text-[11px] text-muted-foreground">{s.city}</div>
                 </div>
               </div>

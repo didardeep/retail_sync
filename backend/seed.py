@@ -6,6 +6,7 @@ leave the rest of the app untouched.
 
     python seed.py            # create + seed
     python seed.py --reset    # drop everything first
+    python seed.py --no-sop-demo   # skip the demo SOP audits
 """
 import datetime as dt
 import json
@@ -13,8 +14,10 @@ import random
 import sys
 from pathlib import Path
 
+from import_sop import import_sop
+from seed_sop_demo import seed_sop_demo
 from app.auth import hash_password
-from app.db import Base, SessionLocal, engine, init_db
+from app.db import SessionLocal, init_db, reset_db
 from app.models import (
     ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
     Audit, AuditResponse, AuditorAvailability, CashReconciliation,
@@ -48,6 +51,13 @@ def parse_dt(text: str):
 
 def seed():
     s = SessionLocal()
+
+    # Guard: if users already exist this DB is already seeded.
+    if s.query(User).count() > 0:
+        print("Database already seeded. Run with --reset to rebuild from scratch.")
+        s.close()
+        return
+
     data = load_seed()
 
     # ---- users -----------------------------------------------------------
@@ -340,6 +350,7 @@ def seed():
           f"{ei_count} expired inventory, {ss_count} store scores, {ob_count} observations")
     print(f"  Issues: {len(data.get('issues', []))}")
     print(f"\nLogins (password: {DEFAULT_PASSWORD})")
+    print("  Admin         : admin@retail-chain.com")
     print("  Audit Manager : am@retail-chain.com")
     for role, label in ((ROLE_AUDITOR, "Auditor      "),
                         (ROLE_STORE_MANAGER, "Store Manager")):
@@ -351,7 +362,7 @@ def seed():
 
 if __name__ == "__main__":
     if "--reset" in sys.argv:
-        Base.metadata.drop_all(bind=engine)
+        reset_db()
         print("Dropped all tables.")
     init_db()
 
@@ -360,3 +371,6 @@ if __name__ == "__main__":
         seed_from_excel()
     else:
         seed()
+    import_sop()
+    if "--no-sop-demo" not in sys.argv:
+        seed_sop_demo()

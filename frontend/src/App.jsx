@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { clearSession, loadSession, saveSession } from './api/client'
 import Layout from './components/Layout'
 import RoleProtectedRoute from './components/RoleProtectedRoute'
 import ToastProvider from './components/Toast'
+import { listUnsynced, startSync, stopSync } from './lib/offline'
 import { firstAllowedPage } from './lib/rolesMap'
 import Login from './pages/Login'
 
@@ -22,6 +23,10 @@ import StoreChecklist from './pages/StoreChecklist'
 import StoreCompliance from './pages/StoreCompliance'
 import UserManagement from './pages/UserManagement'
 import AuditExecution from './pages/AuditExecution'
+import SopAudits from './pages/SopAudits'
+import SopAuditWizard from './pages/SopAuditWizard'
+import SopAuditReview from './pages/SopAuditReview'
+import SopToolEditor from './pages/SopToolEditor'
 
 export default function App() {
   const [session, setSession] = useState(loadSession())
@@ -31,7 +36,21 @@ export default function App() {
     setSession(result)
   }
 
-  function handleLogout() {
+  // Auditors sync offline audits in the background while signed in.
+  const isAuditor = session?.user?.role === 'AUDITOR'
+  useEffect(() => {
+    if (!isAuditor) return undefined
+    startSync()
+    return stopSync
+  }, [isAuditor])
+
+  async function handleLogout() {
+    if (isAuditor) {
+      const pending = await listUnsynced().catch(() => [])
+      const msg = `${pending.length} audit(s) have changes that have not synced yet. ` +
+        'They stay safely on this device and sync when you sign in again. Sign out now?'
+      if (pending.length && !window.confirm(msg)) return
+    }
     clearSession()
     setSession(null)
   }
@@ -61,8 +80,12 @@ export default function App() {
             <Route path="/audits/:id" element={guarded('audits', <AuditExecution readOnly />)} />
             <Route path="/scheduling" element={guarded('scheduling', <Scheduling />)} />
             <Route path="/questions" element={guarded('questions', <Questions />)} />
-            <Route path="/stores" element={guarded('stores', <Stores />)} />
+            <Route path="/questions/sop-tools/:code" element={guarded('sop-tools', <SopToolEditor />)} />
+            <Route path="/stores"element={guarded('stores', <Stores />)} />
             <Route path="/email" element={guarded('email', <Email />)} />
+            <Route path="/sop-audits" element={guarded('sop-audits', <SopAudits />)} />
+            <Route path="/sop-audits/:id" element={guarded('sop-audits', <SopAuditWizard />)} />
+            <Route path="/sop-audits/:id/review" element={guarded('sop-audits', <SopAuditReview />)} />
             <Route path="/audit-log" element={guarded('audit-log', <AuditLog />)} />
             <Route path="/my-store" element={guarded('my-store', <StoreDashboard />)} />
             <Route path="/checklist" element={guarded('checklist', <StoreChecklist />)} />

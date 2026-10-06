@@ -200,10 +200,10 @@ export default function Questions() {
 
   const Toggle = ({ on, onClick }) => (
     <div
-      className={cn('relative h-[17px] w-8 shrink-0 cursor-pointer rounded-full transition-colors', on ? 'bg-primary' : 'bg-gray-300')}
+      className={cn('relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors', on ? 'bg-primary' : 'bg-gray-300')}
       onClick={onClick}
     >
-      <div className={cn('absolute top-[1.5px] h-3.5 w-3.5 rounded-full bg-white shadow transition-all', on ? 'left-4' : 'left-0.5')} />
+      <div className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', on ? 'left-[22px]' : 'left-0.5')} />
     </div>
   )
 
@@ -246,7 +246,7 @@ export default function Questions() {
         </div>
 
         {/* ── right main area ── */}
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <div className="mb-3.5 flex flex-wrap items-center gap-2">
             <div className="relative min-w-[180px] flex-1">
               <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{'🔍'}</span>
@@ -258,8 +258,8 @@ export default function Questions() {
             </select>
           </div>
 
-          <div className="overflow-hidden rounded-[10px] border border-border bg-card">
-            <div className="grid grid-cols-[1fr_150px_155px_55px_75px_75px] gap-2 border-b border-border bg-gray-50 px-2.5 py-2">
+          <div className="overflow-x-auto rounded-[10px] border border-border bg-card">
+            <div className="min-w-[700px] grid grid-cols-[1fr_150px_155px_55px_75px_75px] gap-2 border-b border-border bg-gray-50 px-2.5 py-2">
               <span className="text-[11.5px] font-semibold text-muted-foreground">Audit Question</span>
               <span className="text-[11.5px] font-semibold text-muted-foreground">Process</span>
               <span className="text-[11.5px] font-semibold text-muted-foreground">Sub-Process</span>
@@ -268,7 +268,7 @@ export default function Questions() {
               <span className="text-[11.5px] font-semibold text-muted-foreground">Actions</span>
             </div>
 
-            <div>
+            <div className="min-w-[700px]">
               {filtered.length ? filtered.map(item => (
                 <div className="flex flex-col border-b border-border last:border-0 hover:bg-[#fafbff]" key={item.id}>
                   <div className="flex">
@@ -313,7 +313,7 @@ export default function Questions() {
       <Modal open={showQModal} onClose={() => setShowQModal(false)} className="w-[620px]">
         <ModalTitle>{editId ? 'Edit Audit Question' : 'New Audit Question'}</ModalTitle>
         <div className="grid gap-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass}>Process <span className="text-destructive">*</span></label>
               <select className={fieldClass} value={qForm.proc} onChange={e => handleProcSelectChange(e.target.value)}>
@@ -332,7 +332,7 @@ export default function Questions() {
             <textarea className={cn(fieldClass, 'min-h-[72px] resize-y')} placeholder="Whether..." value={qForm.text} onChange={e => setQForm(f => ({ ...f, text: e.target.value }))} />
           </div>
 
-          <div className="grid grid-cols-[2fr_1fr_1fr] items-end gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_1fr] sm:items-end">
             <div>
               <label className={labelClass}>Question Type</label>
               <select className={fieldClass} value={qForm.at} onChange={e => handleRTSelectChange(e.target.value)}>

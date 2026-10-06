@@ -129,7 +129,7 @@ export default function Scheduling() {
 
   return (
     <>
-      <div className="mb-4 grid grid-cols-5 gap-3">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4"><div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#e8eefa'}}>&#x1F550;</div><div><div className="mb-0.5 text-[11px] text-muted-foreground">Total Audits</div><div className="text-2xl font-bold leading-none text-foreground">{total}</div></div></div>
         <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4"><div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#e8eefa'}}>&#x1F4C5;</div><div><div className="mb-0.5 text-[11px] text-muted-foreground">Scheduled</div><div className="text-2xl font-bold leading-none text-foreground">{scheduled}</div></div></div>
         <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4"><div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#fffbeb'}}>&#x1F464;</div><div><div className="mb-0.5 text-[11px] text-muted-foreground">Assigned</div><div className="text-2xl font-bold leading-none text-foreground">{assigned}</div></div></div>
@@ -256,7 +256,7 @@ export default function Scheduling() {
         <div className="mb-4 text-[15px] font-bold text-foreground">{editId ? 'Edit Audit' : 'Schedule New Audit'}</div>
         <div className="grid gap-3">
           <div><label className={labelClass}>Audit Title <span className="text-destructive">*</span></label><Input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="e.g. Q3 Compliance Audit"/></div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div><label className={labelClass}>Store <span className="text-destructive">*</span></label>
               <select className={fieldClass} value={form.store} onChange={e=>setForm({...form,store:e.target.value})}>
                 <option value="">Select store</option>
@@ -265,7 +265,7 @@ export default function Scheduling() {
             </div>
             <div><label className={labelClass}>Date &amp; Time <span className="text-destructive">*</span></label><Input type="datetime-local" value={form.dt} onChange={e=>setForm({...form,dt:e.target.value})}/></div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div><label className={labelClass}>Auditor</label>
               <select className={fieldClass} value={form.auditor} onChange={e=>setForm({...form,auditor:e.target.value})}>
                 <option value="">Unassigned</option>

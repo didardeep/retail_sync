@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Line } from 'react-chartjs-2'
 import { useToast } from '../components/Toast'
-import { api } from '../api/client'
+import { api, loadSession } from '../api/client'
 import { avC, sColor, pbClass, exportCSV } from '../utils/helpers'
 import { cn, fieldClass, labelClass } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -9,15 +10,21 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Modal, ModalTitle, ModalActions } from '../components/Modal'
+import { storeScorecardLink } from '@/lib/links'
 
 const PP = 7
 
 export default function Stores() {
   const toast = useToast()
+  const navigate = useNavigate()
+  const [urlParams] = useSearchParams()
+  const role = loadSession()?.user?.role
   const [stores, setStores] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [regionFilter, setRegionFilter] = useState(urlParams.get('region') || '')
+  const [formatFilter, setFormatFilter] = useState(urlParams.get('format') || '')
   const [page, setPage] = useState(1)
 
   /* modals */
@@ -48,6 +55,12 @@ export default function Stores() {
       for (const sc of (scores || [])) map[sc.store_id] = sc
       setScoreMap(map)
       setLoading(false)
+      // open insight from ?id= query param
+      const idParam = urlParams.get('id')
+      if (idParam) {
+        const found = (normalized || []).find(x => x.id === idParam)
+        if (found) { setInsightStore(found); setSiTab('info'); setInsightOpen(true) }
+      }
     })
   }, [])
 
@@ -68,6 +81,8 @@ export default function Stores() {
       if (!(s.name||'').toLowerCase().includes(q) && !(s.city||'').toLowerCase().includes(q)) return false
     }
     if (statusFilter && s.status !== statusFilter) return false
+    if (regionFilter && s.region !== regionFilter) return false
+    if (formatFilter && s.format !== formatFilter) return false
     return true
   })
   const totalPages = Math.ceil(filtered.length / PP) || 1
@@ -219,7 +234,15 @@ export default function Stores() {
                   <div className="flex items-center gap-2">
                     <div className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-xs" style={{ background: '#e8eefa' }}>&#x1F3EA;</div>
                     <div>
-                      <div className="flex items-center gap-1.5 font-semibold">{s.name}{s.type && <span className="rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10.5px] font-medium text-gray-700">{s.type}</span>}</div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          className="font-semibold text-primary hover:underline"
+                          onClick={e => { e.stopPropagation(); navigate(storeScorecardLink(s.id, role)) }}
+                        >
+                          {s.name}
+                        </button>
+                        {s.type && <span className="rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10.5px] font-medium text-gray-700">{s.type}</span>}
+                      </div>
                       <div className="text-[11px] text-muted-foreground">{s.city}</div>
                     </div>
                   </div>

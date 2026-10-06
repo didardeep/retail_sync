@@ -1,18 +1,24 @@
 import { useState, useEffect } from 'react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
-import { useNavigate } from 'react-router-dom';
-import { api } from '../api/client';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { api, loadSession } from '../api/client';
 import { avC, sColor, sBadge, pbClass, prC, stC } from '../utils/helpers';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Drawer } from '../components/Modal';
+import { auditsLink, issuesLink, storesLink, storeScorecardLink } from '@/lib/links';
+import SopDashboard from './SopDashboard';
 
-export default function Dashboard() {
+function OverviewDashboard() {
   const navigate = useNavigate();
+  const role = loadSession()?.user?.role;
   const [obsTab, setObsTab] = useState('top');
   const [drillOpen, setDrillOpen] = useState(false);
   const [drillTitle, setDrillTitle] = useState('');
   const [drillList, setDrillList] = useState([]);
+  const [drillLink, setDrillLink] = useState(null);
   const [pbiOpen, setPbiOpen] = useState(false);
 
   // API data
@@ -92,12 +98,12 @@ export default function Dashboard() {
   // Store bar chart from DB stores
   const storeBarD = stores.length
     ? stores
-        .map(s => ({l: s.name?.substring(0,12) || s.id, v: latestScore(s)}))
+        .map(s => ({l: s.name?.substring(0,12) || s.id, v: latestScore(s), id: s.id}))
         .sort((a,b) => b.v - a.v)
         .slice(0,7)
     : [{l:'Mumbai #1',v:92},{l:'Delhi D1',v:89},{l:'Blr B3',v:88},{l:'Pune P2',v:79},{l:'Jaipur J1',v:72},{l:'Kolkata K4',v:68},{l:'Chennai C2',v:65}];
   const storeBarData = { labels:storeBarD.map(d=>d.l), datasets:[{data:storeBarD.map(d=>d.v),backgroundColor:storeBarD.map(d=>d.v>=77?'#0e9f6e':'#f59e0b'),borderRadius:4}] };
-  const storeBarOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{min:50,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}} };
+  const storeBarOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{min:50,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}, onClick:(evt,els)=>{ if(els.length){ const d=storeBarD[els[0].index]; if(d?.id) navigate(storeScorecardLink(d.id, role)); } } };
 
   // Region distribution from DB
   const byRegion = dashData?.by_region || {};
@@ -145,8 +151,8 @@ export default function Dashboard() {
 
   // Top/Bottom stores from DB
   const sortedStores = [...stores].sort((a,b) => (latestScore(b) - latestScore(a)));
-  const t5 = sortedStores.slice(0,5).map(s => ({n:`${s.name}, ${s.city}`, v:`${latestScore(s)}%`}));
-  const b5 = sortedStores.slice(-5).reverse().map(s => ({n:`${s.name}, ${s.city}`, v:`${latestScore(s)}%`}));
+  const t5 = sortedStores.slice(0,5).map(s => ({n:`${s.name}, ${s.city}`, v:`${latestScore(s)}%`, id:s.id}));
+  const b5 = sortedStores.slice(-5).reverse().map(s => ({n:`${s.name}, ${s.city}`, v:`${latestScore(s)}%`, id:s.id}));
 
   // Top observations from DB
   const topObservations = observations.length
@@ -162,11 +168,11 @@ export default function Dashboard() {
   // drill handlers
   function openRiskDrill(idx) {
     const level = riskD[idx].l;
-    const priMap = { High:['Critical','High'], Medium:['Medium'], Low:['Low'] };
-    const pris = priMap[level] || [];
-    const data = issues.filter(i => pris.includes(i.priority));
+    const riskLevels = level === 'High' ? ['Critical', 'High'] : [level];
+    const data = observations.filter(o => riskLevels.includes(o.risk));
     setDrillTitle(`${level} Risk Observations (${data.length})`);
-    setDrillList(data.map(i => ({ title:i.title, badges:[{text:i.status,cls:stC(i.status)},{text:i.priority,cls:prC(i.priority)}], sub:i.store })));
+    setDrillList(data.map(o => ({ title: o.observation || o.title || '—', badges:[], sub: o.store || '' })));
+    setDrillLink(issuesLink({ priority: level === 'High' ? 'Critical' : level }));
     setDrillOpen(true);
   }
   function openRegionDrill(idx) {
@@ -175,6 +181,7 @@ export default function Dashboard() {
     const data = audits.filter(a => a.region === fullRegion || a.region === region);
     setDrillTitle(`${fullRegion} Audits (${data.length})`);
     setDrillList(data.map(a => ({ title:`${a.store}, ${a.city||''}`, badges:[{text:a.status,cls:sBadge(a.status)}], sub:a.scheduled_at })));
+    setDrillLink(auditsLink({ region: fullRegion }));
     setDrillOpen(true);
   }
   function openDistDrill(idx) {
@@ -188,7 +195,8 @@ export default function Dashboard() {
     };
     const data = stores.filter(s => inBucket(latestScore(s)));
     setDrillTitle(`Stores Scoring ${bucket}% (${data.length})`);
-    setDrillList(data.map(s => ({ title:`${s.name}, ${s.city}`, badges:[{text:s.status,cls:s.status==='Operating'?BADGE_OPERATING:BADGE_GRAY}], sub:null, score:latestScore(s) })));
+    setDrillList(data.map(s => ({ title:`${s.name}, ${s.city}`, badges:[{text:s.status,cls:s.status==='Operating'?BADGE_OPERATING:BADGE_GRAY}], sub:null, score:latestScore(s), id:s.id })));
+    setDrillLink(storesLink({}));
     setDrillOpen(true);
   }
   const BADGE_OPERATING = 'bg-emerald-50 text-emerald-700';
@@ -220,23 +228,23 @@ export default function Dashboard() {
       </div>
 
       {/* KPIs */}
-      <div className="mb-3 grid grid-cols-3 gap-3">
-        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
+      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => navigate(auditsLink({ stage: 'scheduled' }))}>
           <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#e8eefa'}}>&#x1F4CB;</div>
           <div><div className="mb-0.5 text-[11px] text-muted-foreground">Planned</div><div className="text-2xl font-bold leading-none text-foreground">{plannedCount}</div></div>
         </div>
-        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
+        <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => navigate(auditsLink({ stage: 'in_progress' }))}>
           <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#fffbeb'}}>&#x23F3;</div>
           <div><div className="mb-0.5 text-[11px] text-muted-foreground">Ongoing</div><div className="text-2xl font-bold leading-none text-foreground">{ongoingCount}</div></div>
         </div>
-        <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4">
+        <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => navigate(auditsLink({ stage: 'completed' }))}>
           <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#ecfdf5'}}>&#x2705;</div>
           <div><div className="mb-0.5 text-[11px] text-muted-foreground">Completed</div><div className="text-2xl font-bold leading-none text-foreground">{completedCount}</div></div>
         </div>
       </div>
 
       {/* Row 1: Trend + Risk */}
-      <div className="mb-3 grid grid-cols-[2fr_1fr] gap-3">
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Performance Trends<span className="text-[11px] font-normal text-muted-foreground">Benchmark: 90%</span></div>
           <div className="relative h-[190px] w-full"><Line data={trendData} options={trendOpts}/></div>
@@ -260,7 +268,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 2: Store bars + Region */}
-      <div className="mb-3 grid grid-cols-[2fr_1fr] gap-3">
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 text-[13px] font-semibold text-foreground">Store-wise Compliance Score (%)</div>
           <div className="relative h-[190px] w-full"><Bar data={storeBarData} options={storeBarOpts}/></div>
@@ -286,7 +294,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 3: Format + Distribution */}
-      <div className="mb-3 grid grid-cols-[2fr_1fr] gap-3">
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 text-[13px] font-semibold text-foreground">Store Format Performance (Avg. Score)</div>
           <div className="flex gap-4.5">
@@ -294,7 +302,7 @@ export default function Dashboard() {
             <div className="min-w-[155px] text-xs">
               <div className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Format Summary</div>
               {fmtD.map(d => (
-                <div key={d.l} className="mb-1 border-b border-gray-200 pb-1">
+                <div key={d.l} className="mb-1 cursor-pointer border-b border-gray-200 pb-1 hover:opacity-80" onClick={() => navigate(storesLink({ format: d.l }))}>
                   <div className="mb-1 flex justify-between">
                     <span className="text-gray-500">{d.l} Average</span><b style={{color:d.c}}>{d.v}%</b>
                   </div>
@@ -323,14 +331,14 @@ export default function Dashboard() {
       </div>
 
       {/* Row 4: Scorecards + Observations */}
-      <div className="mb-3 grid grid-cols-2 gap-3">
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 text-[13px] font-semibold text-foreground">Store Scorecards</div>
           <div className="flex gap-4.5">
             <div className="flex-1">
               <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider" style={{color:'var(--green)'}}>&#x1F3C6; Top 5 Stores</div>
               {t5.map(s => { const v = parseInt(s.v); return (
-                <div key={s.n} className="flex items-center justify-between border-b border-border py-1 text-xs last:border-0">
+                <div key={s.n} className={cn('flex cursor-pointer items-center justify-between border-b border-border py-1 text-xs last:border-0', s.id && 'hover:bg-accent/40')} onClick={() => s.id && navigate(storeScorecardLink(s.id, role))}>
                   <span>{s.n}</span>
                   <div className="flex min-w-[70px] items-center gap-1.5">
                     <div className="h-[5px] flex-1 overflow-hidden rounded-[3px] bg-gray-200"><div className={cn('h-full rounded-[3px]', pbClass(v))} style={{width:`${v}%`}}/></div>
@@ -342,7 +350,7 @@ export default function Dashboard() {
             <div className="flex-1">
               <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider" style={{color:'var(--red)'}}>&#x26A0; Bottom 5 Stores</div>
               {b5.map(s => { const v = parseInt(s.v); return (
-                <div key={s.n} className="flex items-center justify-between border-b border-border py-1 text-xs last:border-0">
+                <div key={s.n} className={cn('flex cursor-pointer items-center justify-between border-b border-border py-1 text-xs last:border-0', s.id && 'hover:bg-accent/40')} onClick={() => s.id && navigate(storeScorecardLink(s.id, role))}>
                   <span>{s.n}</span>
                   <div className="flex min-w-[70px] items-center gap-1.5">
                     <div className="h-[5px] flex-1 overflow-hidden rounded-[3px] bg-gray-200"><div className={cn('h-full rounded-[3px]', pbClass(v))} style={{width:`${v}%`}}/></div>
@@ -369,7 +377,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 5: Recent Issues */}
-      <div className="mb-3 grid grid-cols-2 gap-3">
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Recent Communications<span className="cursor-pointer text-[11px] font-normal text-muted-foreground" onClick={() => navigate('/email')}>View all &rarr;</span></div>
           <div className="p-5 text-center text-xs text-muted-foreground">No communications yet</div>
@@ -377,7 +385,7 @@ export default function Dashboard() {
         <div className="self-start rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Recent Issues<span className="cursor-pointer text-[11px] font-normal text-muted-foreground" onClick={() => navigate('/issues')}>View all &rarr;</span></div>
           {recentIssues.length ? recentIssues.map((i, idx) => (
-            <div key={i.id} className={cn('flex cursor-pointer items-center justify-between gap-2.5 py-2', idx < recentIssues.length - 1 && 'border-b border-border')} onClick={() => navigate('/issues')}>
+            <div key={i.id} className={cn('flex cursor-pointer items-center justify-between gap-2.5 py-2', idx < recentIssues.length - 1 && 'border-b border-border')} onClick={() => navigate(issuesLink({ id: i.id }))}>
               <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(i.assignee || 'U'))}>{(i.assignee||'U')[0]}</div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[12.5px] font-semibold text-foreground">{i.title}</div>
@@ -393,24 +401,25 @@ export default function Dashboard() {
       </div>
 
       {/* Drill Drawer */}
-      <div className={cn('fixed inset-0 z-[1000] bg-black/30', drillOpen ? 'block' : 'hidden')} onClick={e => { if(e.target === e.currentTarget) setDrillOpen(false); }}>
-        <div className={cn('fixed bottom-0 right-0 top-0 w-[380px] max-w-[92vw] overflow-y-auto bg-card p-[22px] shadow-2xl transition-transform duration-200 ease-out', drillOpen ? 'translate-x-0' : 'translate-x-full')}>
-          <div className="mb-3.5 flex items-center justify-between">
-            <div className="text-[15px] font-bold text-foreground">{drillTitle}</div>
-            <span className="cursor-pointer text-[15px] text-muted-foreground" onClick={() => setDrillOpen(false)}>&#x2715;</span>
-          </div>
-          {drillList.length ? drillList.map((item, idx) => (
-            <div key={idx} className="border-b border-border py-2.5 last:border-0">
-              <div className="mb-1 text-[12.5px] font-semibold text-foreground">{item.title}</div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {item.badges.map((b, bi) => <Badge key={bi} className={b.cls}>{b.text}</Badge>)}
-                {item.sub && <span className="text-[11px] text-muted-foreground">{item.sub}</span>}
-                {item.score != null && <span className="text-[11px] font-bold" style={{color:sColor(item.score)}}>{item.score}%</span>}
-              </div>
-            </div>
-          )) : <div className="p-5 text-center text-xs text-muted-foreground">No items in this category</div>}
+      <Drawer open={drillOpen} onClose={() => setDrillOpen(false)}>
+        <div className="mb-3.5 flex items-center justify-between">
+          <div className="text-[15px] font-bold text-foreground">{drillTitle}</div>
+          <span className="cursor-pointer text-[15px] text-muted-foreground" onClick={() => setDrillOpen(false)}>&#x2715;</span>
         </div>
-      </div>
+        {drillLink && (
+          <button className="mb-3 text-xs text-primary hover:underline" onClick={() => { setDrillOpen(false); navigate(drillLink); }}>View all &rarr;</button>
+        )}
+        {drillList.length ? drillList.map((item, idx) => (
+          <div key={idx} className={cn('border-b border-border py-2.5 last:border-0', item.id && 'cursor-pointer hover:bg-accent/40')} onClick={() => item.id && navigate(storeScorecardLink(item.id, role))}>
+            <div className="mb-1 text-[12.5px] font-semibold text-foreground">{item.title}</div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {item.badges.map((b, bi) => <Badge key={bi} className={b.cls}>{b.text}</Badge>)}
+              {item.sub && <span className="text-[11px] text-muted-foreground">{item.sub}</span>}
+              {item.score != null && <span className="text-[11px] font-bold" style={{color:sColor(item.score)}}>{item.score}%</span>}
+            </div>
+          </div>
+        )) : <div className="p-5 text-center text-xs text-muted-foreground">No items in this category</div>}
+      </Drawer>
 
       {/* Power BI Modal */}
       <div className={cn('fixed inset-0 z-[1000] items-center justify-center bg-black/40', pbiOpen ? 'flex' : 'hidden')} onClick={e => { if(e.target === e.currentTarget) setPbiOpen(false); }}>
@@ -475,7 +484,7 @@ export default function Dashboard() {
                 <span style={{padding:'3px 7px',borderBottom:'2px solid #0e9f6e',color:'#0e9f6e',fontWeight:700}}>KPI 2 - Summary</span>
                 <span style={{padding:'3px 7px'}}>KPI 2 Drill-through</span>
                 <span style={{padding:'3px 7px'}}>KPI 3</span>
-                <span style={{padding:'3px 7px'}}>Duplicate of KPI 3</span>
+                <span style={{padding:'3px 7px'}}>Preview: KPI 3</span>
                 <span style={{padding:'3px 7px'}}>KPI 1 Summary</span>
               </div>
             </div>
@@ -483,5 +492,33 @@ export default function Dashboard() {
         </div>
       </div>
     </>
+  );
+}
+
+const TABS = [
+  { value: 'overview', label: 'Overview' },
+  { value: 'sop', label: 'SOP Audits' },
+];
+
+// Dashboard & Analytics: the original overview plus the SOP audit scores.
+// The tab lives in the URL (?tab=sop) so links and the back button work.
+export default function Dashboard() {
+  const [params, setParams] = useSearchParams();
+  const requested = params.get('tab');
+  const tab = TABS.some((t) => t.value === requested) ? requested : 'overview';
+
+  function changeTab(value) {
+    // Filters belong to a tab, so switching tabs starts clean.
+    setParams(value === 'overview' ? {} : { tab: value }, { replace: true });
+  }
+
+  return (
+    <Tabs value={tab} onValueChange={changeTab} className="space-y-4">
+      <TabsList>
+        {TABS.map((t) => <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>)}
+      </TabsList>
+      <TabsContent value="overview" className="mt-0"><OverviewDashboard /></TabsContent>
+      <TabsContent value="sop" className="mt-0"><SopDashboard /></TabsContent>
+    </Tabs>
   );
 }

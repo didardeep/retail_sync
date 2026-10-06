@@ -1,36 +1,58 @@
 const BASE = import.meta.env.VITE_API_BASE || '/api'
 const SESSION_KEY = 'rs_session'
 
+// The session lives in localStorage (not sessionStorage) so the mobile app
+// can be killed and reopened without losing the login -- an auditor working
+// offline must be able to get back to their unsynced audits. The JWT itself
+// still expires server-side after 12 hours.
 export function loadSession() {
   try {
-    return JSON.parse(sessionStorage.getItem(SESSION_KEY)) || null
+    return JSON.parse(localStorage.getItem(SESSION_KEY)) || null
   } catch {
     return null
   }
 }
 
 export function saveSession(session) {
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify(session))
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session))
 }
 
 export function clearSession() {
-  sessionStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem(SESSION_KEY)
 }
 
-async function request(path, { method = 'GET', body } = {}) {
+function authHeaders() {
   const session = loadSession()
-  const res = await fetch(BASE + path, {
+  return session?.token ? { Authorization: `Bearer ${session.token}` } : {}
+}
+
+// Errors carry the HTTP status and parsed body so callers (the offline sync
+// layer in particular) can tell "offline" from "rejected" from "logged out".
+async function throwFor(res, fallback) {
+  const detail = await res.json().catch(() => ({}))
+  const err = new Error(detail.error || `${fallback} (${res.status})`)
+  err.status = res.status
+  err.detail = detail
+  throw err
+}
+
+async function send(path, options) {
+  try {
+    return await fetch(BASE + path, options)
+  } catch {
+    const err = new Error('You appear to be offline')
+    err.offline = true
+    throw err
+  }
+}
+
+export async function request(path, { method = 'GET', body } = {}) {
+  const res = await send(path, {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}),
-    },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: body ? JSON.stringify(body) : undefined,
   })
-  if (!res.ok) {
-    const detail = await res.json().catch(() => ({}))
-    throw new Error(detail.error || `Request failed (${res.status})`)
-  }
+  if (!res.ok) await throwFor(res, 'Request failed')
   return res.status === 204 ? null : res.json()
 }
 
@@ -71,6 +93,33 @@ export const api = {
   cashDepositPickups: (q = '') => request('/cash-deposit-pickups' + q),
   expiredInventory: (q = '') => request('/expired-inventory' + q),
   storeScores: (q = '') => request('/store-scores' + q),
+  // SOP audits (offline-first; see src/lib/offline)
+  sopTemplates: () => request('/sop-audits/templates'),
+  sopTemplate: (id) => request(`/sop-audits/templates/${id}`),
+  sopAudits: (q = '') => request('/sop-audits' + q),
+  sopAudit: (id) => request(`/sop-audits/${id}`),
+  sopSaveAudit: (id, body) => request(`/sop-audits/${id}`, { method: 'PUT', body }),
+  sopSubmit: (id, body = {}) =>
+    request(`/sop-audits/${id}/submit`, { method: 'POST', body }),
+  sopUploadAttachment: async (auditId, id, criterionId, blob) => {
+    const fd = new FormData()
+    fd.append('id', id)
+    fd.append('criterion_id', criterionId)
+    fd.append('file', blob, `${id}.jpg`)
+    const res = await send(`/sop-audits/${auditId}/attachments`, {
+      method: 'POST', headers: authHeaders(), body: fd,
+    })
+    if (!res.ok) await throwFor(res, 'Upload failed')
+    return res.json()
+  },
+  sopDeleteAttachment: (auditId, id) =>
+    request(`/sop-audits/${auditId}/attachments/${id}`, { method: 'DELETE' }),
+  // Attachments need the auth header, so <img src> can't point at them directly.
+  sopAttachmentBlob: async (url) => {
+    const res = await send(url.replace(/^\/api/, ''), { headers: authHeaders() })
+    if (!res.ok) await throwFor(res, 'Download failed')
+    return res.blob()
+  },
   // CRUD
   createStore: (body) => request('/stores', { method: 'POST', body }),
   updateStore: (id, body) => request(`/stores/${id}`, { method: 'PUT', body }),
@@ -84,19 +133,11 @@ export const api = {
     request('/chat', { method: 'POST', body: { messages, conversation_id } }),
   // File upload
   uploadFile: async (file, section) => {
-    const session = loadSession()
     const fd = new FormData()
     fd.append('file', file)
     fd.append('section', section)
-    const res = await fetch(BASE + '/upload', {
-      method: 'POST',
-      headers: session?.token ? { Authorization: `Bearer ${session.token}` } : {},
-      body: fd,
-    })
-    if (!res.ok) {
-      const detail = await res.json().catch(() => ({}))
-      throw new Error(detail.error || `Upload failed (${res.status})`)
-    }
+    const res = await send('/upload', { method: 'POST', headers: authHeaders(), body: fd })
+    if (!res.ok) await throwFor(res, 'Upload failed')
     return res.json()
   },
 }
