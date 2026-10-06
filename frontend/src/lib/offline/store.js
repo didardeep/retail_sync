@@ -302,6 +302,21 @@ export async function hydrateFromServer(id) {
   return { template }
 }
 
+// Remove an audit and its answers and photos from this device. Only for
+// audits that were never edited here (see assigned.js).
+export async function deleteLocalAudit(id) {
+  const db = await getDb()
+  const [scoreKeys, attKeys] = await Promise.all([
+    db.getAllKeysFromIndex('scores', 'by_audit', id),
+    db.getAllKeysFromIndex('attachments', 'by_audit', id),
+  ])
+  const tx = db.transaction(['audits', 'scores', 'attachments'], 'readwrite')
+  scoreKeys.forEach((k) => tx.objectStore('scores').delete(k))
+  attKeys.forEach((k) => tx.objectStore('attachments').delete(k))
+  tx.objectStore('audits').delete(id)
+  await tx.done
+}
+
 // --------------------------------------------------------------------------
 // Sync bookkeeping (used by sync.js)
 // --------------------------------------------------------------------------
