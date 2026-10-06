@@ -10,8 +10,8 @@ from ..models import (
     Audit, AuditResponse, ChecklistItem, Store, User,
 )
 from ..schemas import (
-    AnswerQuestionRequest, AuditApproveRequest, AuditRatingRequest,
-    AuditScheduleRequest,
+    AnswerQuestionRequest, AuditApproveRequest, AuditPatchRequest,
+    AuditRatingRequest, AuditScheduleRequest,
 )
 from ..services import (
     auditor_conflict, compute_audit_score, log_action, next_audit_id,
@@ -85,6 +85,79 @@ def schedule_audit(
     return audit.to_dict()
 
 
+def _planned_audit(db, aid):
+    audit = db.get(Audit, aid)
+    if not audit:
+        raise HTTPException(status_code=404, detail={"error": "not found"})
+    if audit.status != "Planned":
+        raise HTTPException(status_code=409, detail={
+            "error": f"audit is {audit.status.lower()}; only a planned audit can be changed",
+            "status": audit.status})
+    return audit
+
+
+@router.patch("/{aid}")
+def reschedule_audit(
+    aid: str,
+    body: AuditPatchRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+):
+    """Reschedule, reassign or edit notes while the audit is still Planned."""
+    audit = _planned_audit(db, aid)
+    d = body.model_dump(exclude_unset=True)
+    when = audit.scheduled_at
+    if d.get("scheduled_at"):
+        try:
+            when = dt.datetime.fromisoformat(d["scheduled_at"].replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=422, detail={
+                "error": "scheduled_at must be an ISO date-time"})
+        if when.tzinfo is not None:
+            when = when.astimezone(dt.timezone.utc).replace(tzinfo=None)
+    auditor_id = d.get("auditor_id") or audit.auditor_id
+    if auditor_id != audit.auditor_id:
+        auditor = db.get(User, auditor_id)
+        if not auditor or not auditor.active or auditor.role != ROLE_AUDITOR:
+            raise HTTPException(status_code=422, detail={
+                "error": "auditor must be an active user with the AUDITOR role"})
+    if auditor_id and when is not None:
+        conflict = auditor_conflict(db, auditor_id, when.date(), audit.store_id,
+                                    exclude_audit_id=audit.id)
+        if conflict:
+            raise HTTPException(status_code=409, detail=conflict)
+
+    changes = {}
+    if when != audit.scheduled_at:
+        changes["scheduled_at"] = when.isoformat() if when else None
+    if auditor_id != audit.auditor_id:
+        changes["auditor_id"] = auditor_id
+    if "notes" in d and d["notes"] != audit.notes:
+        changes["notes"] = d["notes"]
+        audit.notes = d["notes"]
+    audit.scheduled_at, audit.auditor_id = when, auditor_id
+    if changes:
+        log_action(db, user.id, "reschedule_audit", "audit", audit.id, changes)
+    db.commit()
+    db.refresh(audit)
+    return audit.to_dict()
+
+
+@router.post("/{aid}/cancel")
+def cancel_audit(
+    aid: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+):
+    """A scheduled audit that will not happen. Kept for the record, never deleted."""
+    audit = _planned_audit(db, aid)
+    audit.status = "Cancelled"
+    log_action(db, user.id, "cancel_audit", "audit", audit.id,
+               {"store_id": audit.store_id, "auditor_id": audit.auditor_id})
+    db.commit()
+    return audit.to_dict()
+
+
 @router.put("/{aid}/responses/{rid}")
 def answer_question(
     aid: str,
@@ -100,7 +173,7 @@ def answer_question(
         raise HTTPException(status_code=404, detail={"error": "not found"})
     if user.role == ROLE_AUDITOR and audit.auditor_id != user.id:
         raise HTTPException(status_code=403, detail={"error": "forbidden"})
-    if audit.status in ("Completed", "Approved"):
+    if audit.status in ("Completed", "Approved", "Cancelled"):
         raise HTTPException(status_code=409, detail={"error": "audit already submitted"})
 
     d = body.model_dump(exclude_unset=True)
