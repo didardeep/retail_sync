@@ -16,6 +16,7 @@ const TITLES = {
   '/stores': 'Store Management',
   '/email': 'Email Communications',
   '/audit-log': 'Audit Log',
+  '/sop-audits': 'SOP Audits',
 };
 
 const NAV = [
@@ -27,6 +28,7 @@ const NAV = [
   ['/questions', 'questions', 'Audit Questions', <svg key="q" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="3" width="16" height="18" rx="1"/><polyline points="8,9 10,11 14,7"/><line x1="8" y1="15" x2="16" y2="15"/></svg>],
   ['/stores', 'stores', 'Store Management', <svg key="st" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="1"/><path d="M16 21V7a4 4 0 00-8 0v14"/></svg>],
   ['/email', 'email', 'Email Communications', <svg key="e" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="14" rx="1"/><polyline points="3,7 12,13 21,7"/></svg>],
+  ['/sop-audits', 'sop-audits', 'SOP Audits', <svg key="sop" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 3v2h6V3"/><polyline points="8,11 10,13 14,9"/><line x1="8" y1="17" x2="16" y2="17"/></svg>],
   ['/audit-log', 'audit-log', 'Audit Log', <svg key="al" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12h6M9 16h6M9 8h6"/><rect x="4" y="3" width="16" height="18" rx="1"/></svg>],
 ];
 
@@ -81,7 +83,8 @@ function SidebarContent({ user, onLogout, nav, onNavigate }) {
 
 export default function Layout({ user, onLogout, children }) {
   const loc = useLocation();
-  const title = TITLES[loc.pathname] || 'Store Audit and Analysis';
+  const title = TITLES[loc.pathname]
+    || (loc.pathname.startsWith('/sop-audits') ? TITLES['/sop-audits'] : 'Store Audit and Analysis');
   const initial = (user?.name || user?.email || 'U')[0].toUpperCase();
   const nav = NAV.filter(([, page]) => canAccess(user?.role, page));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);

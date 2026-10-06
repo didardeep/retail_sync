@@ -23,6 +23,27 @@ export function ModalActions({ children }) {
   return <div className="mt-4.5 flex justify-end gap-1.5">{children}</div>;
 }
 
+/** Bottom sheet for phone-first flows (e.g. adding audit proof). */
+export function BottomSheet({ open, onClose, className, children }) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/40 md:items-center"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
+    >
+      <div
+        className={cn(
+          'max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-card p-5 shadow-2xl md:rounded-2xl',
+          className,
+        )}
+        style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /** Sliding drawer (right by default), replacing the old .drawer-ov/.drawer CSS pair. */
 export function Drawer({ open, onClose, className, children, side = 'right' }) {
   const isLeft = side === 'left';
