@@ -51,3 +51,7 @@ test('stageBadgeClass colours', () => {
   assert.match(stageBadgeClass('scheduled'), /muted/);
   assert.match(stageBadgeClass('cancelled'), /muted/);
 });
+
+test('a cancelled classic audit is in the cancelled stage', () => {
+  assert.equal(stageOf('legacy', 'Cancelled'), 'cancelled');
+});

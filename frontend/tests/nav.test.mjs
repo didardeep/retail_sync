@@ -35,13 +35,15 @@ test('each role lands on a page it can open', () => {
     const first = firstAllowedPage(role);
     assert.ok(canAccess(role, first), `${role} lands on "${first}" but cannot open it`);
   }
-  assert.equal(firstAllowedPage('AUDITOR'), 'sop-audits');
+  assert.equal(firstAllowedPage('AUDITOR'), 'my-dashboard');
 });
 
 test('titles resolve for nested and detail routes', () => {
-  assert.equal(titleFor('/sop-audits/abc/review'), 'SOP Audits');
+  assert.equal(titleFor('/sop-audits/abc/review'), 'Audit');
   assert.equal(titleFor('/questions/sop-tools/CASH'), 'Audit Questions');
-  assert.equal(titleFor('/audits/AUD-1001'), 'Audit Status');
+  assert.equal(titleFor('/audits/AUD-1001'), 'Audit');
+  assert.equal(titleFor('/audits'), 'Audit');
+  assert.equal(titleFor('/sop-audits'), 'Audit');
   assert.equal(titleFor('/my-store'), 'My Store');
   assert.equal(titleFor('/nowhere'), 'Store Audit and Analysis');
 });
@@ -52,4 +54,36 @@ test('user management is for ADMIN only (the user API refuses everyone else)', (
     assert.equal(canAccess(role, 'user-management'), false, role);
   }
   assert.equal(canAccess('AUDIT_MANAGER', 'stores'), true);
+});
+
+test('auditors cannot open Audit Questions (managers and admins only)', () => {
+  assert.equal(canAccess('AUDITOR', 'questions'), false);
+  assert.equal(canAccess('AUDIT_MANAGER', 'questions'), true);
+  assert.equal(canAccess('ADMIN', 'questions'), true);
+});
+
+test('Audit is one sidebar item for every role that had either page', () => {
+  assert.equal(NAV_ITEMS.filter((n) => n.label === 'Audit').length, 1);
+  assert.ok(!pages.has('sop-audits'));
+  for (const role of ['ADMIN', 'AUDIT_MANAGER', 'AUDITOR', 'STORE_MANAGER']) {
+    assert.equal(canAccess(role, 'audits'), true, role);
+  }
+});
+
+test('auditor sees Dashboard, Audit and Email only; managers do not get the auditor dashboard', () => {
+  const auditorPages = NAV_ITEMS.filter((n) => canAccess('AUDITOR', n.page)).map((n) => n.label);
+  assert.deepEqual(auditorPages, ['Dashboard', 'Audit', 'Email Communications']);
+  assert.equal(canAccess('AUDIT_MANAGER', 'my-dashboard'), false);
+  assert.equal(canAccess('ADMIN', 'my-dashboard'), false);
+  assert.equal(canAccess('STORE_MANAGER', 'my-dashboard'), false);
+});
+
+test('My Store is for store managers only; admin and manager use the Dashboard store selector', () => {
+  assert.equal(canAccess('STORE_MANAGER', 'my-store'), true);
+  for (const role of ['ADMIN', 'AUDIT_MANAGER', 'AUDITOR']) {
+    assert.equal(canAccess(role, 'my-store'), false, role);
+    const labels = NAV_ITEMS.filter((n) => canAccess(role, n.page)).map((n) => n.label);
+    assert.ok(!labels.includes('My Store'), role);
+  }
+  assert.equal(canAccess('ADMIN', 'dashboard'), true);
 });

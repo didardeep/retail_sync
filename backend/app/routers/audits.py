@@ -1,17 +1,18 @@
 import datetime as dt
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_user, require_roles
 from ..db import get_db
 from ..models import (
     ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
-    Audit, AuditResponse, AuditorAvailability, ChecklistItem, Store, User,
+    Audit, AuditResponse, AuditorAvailability, Checklist, ChecklistItem, Store, User,
 )
 from ..schemas import (
     AnswerQuestionRequest, AuditApproveRequest, AuditPatchRequest,
-    AuditRatingRequest, AuditScheduleRequest,
+    AuditRatingRequest, AuditScheduleRequest, AuditStartRequest,
 )
 from ..services import (
     auditor_conflict, compute_audit_score, log_action, next_audit_id,
@@ -19,6 +20,32 @@ from ..services import (
 )
 
 router = APIRouter(prefix="/api/audits", tags=["audits"])
+
+ANSWERS = ("Yes", "No", "Partial", "NA")
+RISKS = ("None", "Low", "Medium", "High", "Critical")
+CLASSIC_AUDIT_TYPE = "Checklist based Audit"
+
+
+def _progress_by_audit(db, audit_ids):
+    """{audit_id: {"answered": n, "total": n}} in one grouped query."""
+    if not audit_ids:
+        return {}
+    rows = db.query(
+        AuditResponse.audit_id,
+        func.count(AuditResponse.id),
+        func.sum(case((func.coalesce(AuditResponse.answer, "") != "", 1), else_=0)),
+    ).filter(AuditResponse.audit_id.in_(audit_ids)).group_by(AuditResponse.audit_id).all()
+    return {aid: {"answered": int(ans or 0), "total": int(total)} for aid, total, ans in rows}
+
+
+def _copy_checklist_items(db, audit):
+    """Materialise the checklist so the auditor sees a fixed question set."""
+    if not audit.checklist_id:
+        return
+    items = db.query(ChecklistItem).filter_by(
+        checklist_id=audit.checklist_id).order_by(ChecklistItem.sort_order).all()
+    for it in items:
+        db.add(AuditResponse(audit_id=audit.id, question_id=it.question_id))
 
 
 @router.get("")
@@ -35,7 +62,14 @@ def list_audits(
         q = q.filter(Audit.store_id.in_(store_ids))
     if status:
         q = q.filter(Audit.status == status)
-    return [a.to_dict() for a in q.order_by(Audit.scheduled_at.desc()).all()]
+    audits = q.order_by(Audit.scheduled_at.desc()).all()
+    progress = _progress_by_audit(db, [a.id for a in audits])
+    out = []
+    for a in audits:
+        d = a.to_dict()
+        d["progress"] = progress.get(a.id, {"answered": 0, "total": 0})
+        out.append(d)
+    return out
 
 
 @router.get("/{aid}")
@@ -73,16 +107,52 @@ def schedule_audit(
     db.add(audit)
     db.flush()
 
-    # Materialise the checklist so the auditor sees a fixed question set.
-    if audit.checklist_id:
-        items = db.query(ChecklistItem).filter_by(
-            checklist_id=audit.checklist_id).order_by(ChecklistItem.sort_order).all()
-        for it in items:
-            db.add(AuditResponse(audit_id=audit.id, question_id=it.question_id))
+    _copy_checklist_items(db, audit)
     log_action(db, user.id, "schedule_audit", "audit", audit.id,
                {"store_id": audit.store_id, "auditor_id": auditor_id})
     db.commit()
     return audit.to_dict()
+
+
+@router.post("/start")
+def start_audit(
+    body: AuditStartRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDITOR)),
+):
+    """An auditor starts a classic checklist audit on the spot.
+
+    Returns the caller's open (Planned/Ongoing) audit for the same store and
+    checklist if there is one, otherwise creates an Ongoing audit.
+    """
+    if not db.get(Store, body.store_id):
+        raise HTTPException(status_code=404, detail={"error": "unknown store"})
+    checklist = db.get(Checklist, body.checklist_id)
+    if not checklist or not checklist.is_active:
+        raise HTTPException(status_code=404, detail={"error": "unknown or inactive checklist"})
+
+    audit = db.query(Audit).filter(
+        Audit.auditor_id == user.id, Audit.store_id == body.store_id,
+        Audit.checklist_id == body.checklist_id,
+        Audit.status.in_(["Planned", "Ongoing"]),
+    ).order_by(Audit.scheduled_at.desc()).first()
+    if not audit:
+        audit = Audit(
+            id=next_audit_id(db), store_id=body.store_id,
+            checklist_id=body.checklist_id, auditor_id=user.id,
+            created_by_id=user.id, scheduled_at=dt.datetime.utcnow(),
+            audit_type=CLASSIC_AUDIT_TYPE, status="Ongoing",
+        )
+        db.add(audit)
+        db.flush()
+        _copy_checklist_items(db, audit)
+        log_action(db, user.id, "start_audit", "audit", audit.id,
+                   {"store_id": audit.store_id, "checklist_id": audit.checklist_id})
+        db.commit()
+        db.refresh(audit)
+    d = audit.to_dict(with_responses=True)
+    d["progress"] = _progress_by_audit(db, [audit.id]).get(audit.id, {"answered": 0, "total": 0})
+    return d
 
 
 def _planned_audit(db, aid):
@@ -213,6 +283,12 @@ def answer_question(
         raise HTTPException(status_code=409, detail={"error": "audit already submitted"})
 
     d = body.model_dump(exclude_unset=True)
+    if d.get("answer") and d["answer"] not in ANSWERS:
+        raise HTTPException(status_code=422, detail={
+            "error": f"answer must be one of {', '.join(ANSWERS)} or empty"})
+    if d.get("risk") and d["risk"] not in RISKS:
+        raise HTTPException(status_code=422, detail={
+            "error": f"risk must be one of {', '.join(RISKS)} or empty"})
     for field in ("answer", "remarks", "risk"):
         if field in d:
             setattr(resp, field, d[field])
@@ -236,6 +312,14 @@ def submit_audit(
     if not audit or audit.auditor_id != user.id:
         raise HTTPException(status_code=404, detail={"error": "not found"})
     unanswered = [r for r in audit.responses if not r.answer]
+    if audit.status not in ("Ongoing", "Planned"):
+        raise HTTPException(status_code=409, detail={
+            "error": f"audit is {audit.status.lower()}; it cannot be submitted again",
+            "status": audit.status})
+    if audit.status == "Planned" and unanswered:
+        raise HTTPException(status_code=409, detail={
+            "error": "audit has not been started; answer the questions first",
+            "status": audit.status})
     if unanswered:
         raise HTTPException(status_code=400, detail={
             "error": "unanswered questions", "count": len(unanswered),

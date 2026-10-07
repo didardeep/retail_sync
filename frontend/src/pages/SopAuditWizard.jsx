@@ -170,7 +170,7 @@ export default function SopAuditWizard() {
     if (!(await flush())) return;
     await setHeader(id, { position: idx });
     toast('Saved on this device');
-    navigate('/sop-audits');
+    navigate('/audits');
   }
 
   // Jump to the review screen from anywhere (used after fixing a question the review flagged).

@@ -1,21 +1,25 @@
 import { useState, useEffect } from 'react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, loadSession } from '../api/client';
+import { Loading } from '@/components/Loader';
+import StorePicker from '@/components/StorePicker';
+import { StoreView } from '@/components/store-dashboard/StoreView';
 import { avC, sColor, sBadge, pbClass, prC, stC } from '../utils/helpers';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Drawer } from '../components/Modal';
-import { auditsLink, issuesLink, storesLink, storeScorecardLink } from '@/lib/links';
+import { auditsLink, issuesLink, sopDashboardLink, storesLink, storeScorecardLink } from '@/lib/links';
 import {
   UNASSIGNED_REGION, averageScore, bucketScoredStores, formatAverages, groupAuditsByRegion,
   groupObservationsByRisk, legacyStageCounts, rankScored, scoreFor, scoreStores,
 } from '@/lib/overviewStats';
 import SopDashboard from './SopDashboard';
 
-function OverviewDashboard() {
+// `picker` is the store selector rendered by Dashboard; it sits in the header.
+function OverviewDashboard({ picker }) {
   const navigate = useNavigate();
   const role = loadSession()?.user?.role;
   const [obsTab, setObsTab] = useState('top');
@@ -60,9 +64,9 @@ function OverviewDashboard() {
   const ranked = rankScored(scored);
   const qLabel = selectedQ.toUpperCase();
 
-  // KPI tiles count classic (checklist) audits only and link to Audit Status
+  // KPI tiles count classic (checklist) audits only and link to the Audit page
   // with kind=legacy, so the tile number equals the number of rows shown there.
-  // Approved is its own tile because Audit Status keeps it as its own stage.
+  // Approved is its own tile because the Audit page keeps it as its own stage.
   const stageCounts = legacyStageCounts(audits);
 
   // Real trend: average of every store quarterly score (stores with no score are skipped).
@@ -178,6 +182,7 @@ function OverviewDashboard() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
         <div><h2 className="text-xl font-bold text-foreground">Audit Operations</h2><p className="mt-0.5 text-xs text-muted-foreground">Consolidated View &bull; {selectedQ.toUpperCase()}</p></div>
         <div className="flex flex-wrap items-center gap-1.5">
+          {picker}
           {['q1','q2','q3','q4'].map(q => (
             <Button key={q} size="sm" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
           ))}
@@ -185,7 +190,7 @@ function OverviewDashboard() {
         </div>
       </div>
 
-      {/* KPIs: classic (checklist) audits; same rows as Audit Status with kind=legacy */}
+      {/* KPIs: classic (checklist) audits; same rows as the Audit page with kind=legacy */}
       <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
         {[
           { label: 'Planned', stage: 'scheduled', bg: '#e8eefa', icon: '\u{1F4CB}' },
@@ -463,14 +468,57 @@ const TABS = [
 
 // Dashboard & Analytics: the original overview plus the SOP audit scores.
 // The tab lives in the URL (?tab=sop) so links and the back button work.
+// The store selector (?store=<id>) swaps the chain-wide Overview for one
+// store's view; with ?tab=sop the SOP tab keeps its own store filter instead.
 export default function Dashboard() {
   const [params, setParams] = useSearchParams();
+  const role = loadSession()?.user?.role;
   const requested = params.get('tab');
   const tab = TABS.some((t) => t.value === requested) ? requested : 'overview';
+  const storeId = params.get('store') || '';
+  const [stores, setStores] = useState(null);
+
+  useEffect(() => {
+    api.stores().catch(() => []).then((s) => setStores(s || []));
+  }, []);
 
   function changeTab(value) {
     // Filters belong to a tab, so switching tabs starts clean.
     setParams(value === 'overview' ? {} : { tab: value }, { replace: true });
+  }
+
+  function changeStore(value) {
+    setParams(value ? { store: value } : {}, { replace: true });
+  }
+
+  const picker = (
+    <StorePicker stores={stores || []} value={storeId} onChange={changeStore} allowAll />
+  );
+
+  if (tab === 'overview' && storeId) {
+    if (stores === null) return <Loading what="store" />;
+    const store = stores.find((s) => s.id === storeId);
+    if (store) {
+      return (
+        <div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
+            <div>
+              <h2 className="text-xl font-bold text-foreground">Audit Operations</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {store.name}{store.city ? `, ${store.city}` : ''}{store.region ? ` - ${store.region}` : ''}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link to={sopDashboardLink({ store: store.id })} className="text-xs text-primary hover:underline">
+                Open SOP scores for this store
+              </Link>
+              {picker}
+            </div>
+          </div>
+          <StoreView key={store.id} store={store} role={role} />
+        </div>
+      );
+    }
   }
 
   return (
@@ -478,7 +526,7 @@ export default function Dashboard() {
       <TabsList>
         {TABS.map((t) => <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>)}
       </TabsList>
-      <TabsContent value="overview" className="mt-0"><OverviewDashboard /></TabsContent>
+      <TabsContent value="overview" className="mt-0"><OverviewDashboard picker={picker} /></TabsContent>
       <TabsContent value="sop" className="mt-0"><SopDashboard /></TabsContent>
     </Tabs>
   );

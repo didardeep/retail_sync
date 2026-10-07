@@ -110,7 +110,7 @@ export default function SopAuditReview() {
       await saveRemarks();
       await requestSubmit(id);
       toast(online ? 'Audit submitted' : 'Audit submitted - will sync when you are back online');
-      navigate('/sop-audits');
+      navigate('/audits');
     } catch (e) {
       toast.error(e.message);
       setConfirmOpen(false);

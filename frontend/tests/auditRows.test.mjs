@@ -122,3 +122,18 @@ test('distinctOptions comes from the data and skips blanks', () => {
   assert.deepEqual(distinctOptions(rows, 'auditor_id', 'auditor').map((o) => o.label),
     ['Asha', 'Ravi'])
 })
+
+test('normalizeLegacy and normalizeSop pass progress and checklist_id through', () => {
+  const l = normalizeLegacy({ ...legacy[0], checklist_id: 'CL1', progress: { answered: 2, total: 5 } })
+  assert.deepEqual(l.progress, { answered: 2, total: 5 })
+  assert.equal(l.checklist_id, 'CL1')
+  const s = normalizeSop({ ...sop[2], progress: { answered: 1, total: 4 } })
+  assert.deepEqual(s.progress, { answered: 1, total: 4 })
+  assert.equal(normalizeSop(sop[0]).progress, null)
+  assert.equal(normalizeLegacy(legacy[0]).progress, null)
+  assert.equal(normalizeLegacy(legacy[0]).checklist_id, null)
+})
+
+test('a Cancelled classic audit normalizes to the cancelled stage', () => {
+  assert.equal(normalizeLegacy({ ...legacy[0], status: 'Cancelled' }).stage, 'cancelled')
+})

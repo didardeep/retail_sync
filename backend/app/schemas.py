@@ -116,6 +116,11 @@ class AnswerQuestionRequest(ORMBase):
     evidence: list[Any] | None = None
 
 
+class AuditStartRequest(ORMBase):
+    store_id: str
+    checklist_id: str
+
+
 class AuditApproveRequest(ORMBase):
     score: float | None = None
 

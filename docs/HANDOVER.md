@@ -289,7 +289,7 @@ Run from the repo root unless stated.
 
 ## 11. Open questions (the user has not decided)
 - Should reports count Approved audits only once the review step exists?
-- Should the orphaned `frontend/src/pages/MyAudits.jsx` be deleted? (Not routed; old CSS classes.)
+- (Done) The orphaned `frontend/src/pages/MyAudits.jsx` was deleted when Audit and Audit Status were merged (D24).
 - Should `track-b-dashboard` become a PR into `main`? `main` is 13 commits behind `origin/main` and was last merged
   elsewhere; the SOP work has never been merged to `main`.
 - Where will the backend run for the phone app (HTTPS host)?

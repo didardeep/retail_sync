@@ -167,7 +167,13 @@ def list_sop_audits(
         q = q.filter(SopAudit.status == status)
     if template_id:
         q = q.filter(SopAudit.template_id == template_id)
-    return [a.to_dict() for a in q.order_by(SopAudit.updated_at.desc()).all()]
+    out = []
+    for a in q.order_by(SopAudit.updated_at.desc()).all():
+        d = a.to_dict()
+        summary = compute_sop_score(a)
+        d["progress"] = {"answered": summary["answered"], "total": summary["applicable"]}
+        out.append(d)
+    return out
 
 
 @router.get("/{aid}")

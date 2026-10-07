@@ -1,13 +1,14 @@
 import datetime as dt
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_user, require_roles
 from ..db import get_db
 from ..models import (
     ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
-    Audit, Issue, Store, User,
+    Audit, Issue, SopAudit, Store, User,
 )
 from ..schemas import IssueCreate, IssueUpdate
 from ..services import log_action
@@ -60,6 +61,12 @@ def list_issues(
     q = db.query(Issue)
     if user.role == ROLE_STORE_MANAGER:
         q = q.filter(Issue.assignee_id == user.id)
+    elif user.role == ROLE_AUDITOR:
+        # Only issues from the auditor's own classic and SOP audits.
+        q = q.filter(or_(
+            Issue.audit_id.in_(db.query(Audit.id).filter(Audit.auditor_id == user.id)),
+            Issue.sop_audit_id.in_(db.query(SopAudit.id).filter(SopAudit.auditor_id == user.id)),
+        ))
     if status:
         q = q.filter(Issue.status == status)
     if store_id:

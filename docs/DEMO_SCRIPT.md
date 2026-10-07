@@ -191,8 +191,8 @@ appears, you left an edit behind; see section 8.
 ## 7. Act 4: The auditor in the store (Auditor, Window B, 3 min)
 
 **Do**
-1. In Window B, sign in as Amit Singh. You land on **SOP Audits**.
-2. Under **Assigned to me** tap **Start** on **South City**.
+1. In Window B, sign in as Amit Singh. You land on his **Dashboard** (scheduled, in progress, submitted, overdue, next up). Open **Audit** in the sidebar.
+2. Under **Scheduled for you** or by **New audit** > **South City** in the stores list, tap **Start** on the **Cash Audit Tool**.
 3. Question 1: type **99**. Read the error, tap **Next** (it will not move). Change it to **1.5**, tap **Next**.
 4. Question 2, **Float Cash**: read "A photo is required for this question". Type **2**. Tap **Add proof /
    comment**, then **Take photo** (on a real phone this opens the camera; in the emulator pick
@@ -216,7 +216,7 @@ appears, you left an edit behind; see section 8.
 - (Save & exit) "He can stop any time; the audit waits as In progress."
 
 **You should see**
-- Assigned to me: Cash Audit Tool v2 / Pacific Hub / **Overdue** (red) and Cash Audit Tool v2 / South City
+- Scheduled for you: Pacific Hub / **Overdue** (red) and the Cash Audit Tool v2 audit at South City
   with the manager's note.
 - The error "Maximum is 2"; the red box around the score; the page staying on question 1.
 - The warning "A photo is required for this question", disappearing after the photo.
@@ -261,14 +261,14 @@ appears, you left an edit behind; see section 8.
 1. Window A: Dashboard and Analytics, **SOP Audits** tab, press **Refresh**.
 2. Point at the ranking. Then search or click **Ub City** to focus on it.
 3. In the audits table click the newest Ub City row (06 Oct 2026, 90.9%).
-4. Press **Back**. Open **Audit Status** and **Audit Scheduling** for a moment.
+4. Press **Back**. Open **Audit** and **Audit Scheduling** for a moment.
 5. (Optional) **Export CSV** on the dashboard.
 
 **Say**
 - "The submission is in the numbers immediately. Ub City went from fourth to first, 77.9% to 90.9%."
 - "Here is its history: 66, 70, 71, 78, now 91. Each row opens the full report: every question's score, the
   photo and the comment as proof."
-- "The same audit now shows as Submitted on Audit Status, next to the audits already scheduled, so planning
+- "The same audit now shows as Submitted on the Audit page, next to the audits already scheduled, so planning
   and results live in one list."
 - "South City is on the schedule for 9 October. Once Amit submits it, it drops off the coverage panel."
 

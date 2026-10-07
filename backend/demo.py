@@ -28,7 +28,8 @@ from pathlib import Path
 import seed
 from app.db import SessionLocal, init_db
 from app.models import (
-    ROLE_AUDIT_MANAGER, SopAttachment, SopAudit, SopAuditScore, SopTemplate, Store, User,
+    ROLE_AUDIT_MANAGER, Audit, AuditResponse, Issue, Observation, SopAttachment, SopAudit,
+    SopAuditScore, SopTemplate, Store, User,
 )
 from app.routers.sop_audits import ATTACHMENT_FOLDER
 from app.services import compute_sop_score
@@ -55,10 +56,13 @@ def _now():
     return dt.datetime.utcnow()
 
 
-def _baseline(new):
+def _baseline(db, new):
+    """Returns (time, ids of checklist audits that existed when the baseline was set)."""
     if new or not BASELINE_FILE.exists():
-        BASELINE_FILE.write_text(json.dumps({"created_at": _now().isoformat()}))
-    return dt.datetime.fromisoformat(json.loads(BASELINE_FILE.read_text())["created_at"])
+        ids = [a.id for a in db.query(Audit)]
+        BASELINE_FILE.write_text(json.dumps({"created_at": _now().isoformat(), "classic_ids": ids}))
+    data = json.loads(BASELINE_FILE.read_text())
+    return dt.datetime.fromisoformat(data["created_at"]), data.get("classic_ids")
 
 
 def _repair_history_dates(db, baseline):
@@ -83,6 +87,21 @@ def _delete_audits(db, audits):
     db.query(SopAudit).filter(SopAudit.id.in_(ids)).delete(synchronize_session=False)
     for audit_id in ids:
         shutil.rmtree(ATTACHMENT_FOLDER / audit_id, ignore_errors=True)
+    return len(ids)
+
+
+def _delete_classic_audits(db, keep_ids):
+    """Checklist audits an auditor started or submitted during a demo, with their answers and the
+    issues they raised. Everything not in the baseline list goes (nothing if there is no list)."""
+    if keep_ids is None:
+        return 0
+    ids = [a.id for a in db.query(Audit) if a.id not in set(keep_ids)]
+    if not ids:
+        return 0
+    db.query(Issue).filter(Issue.audit_id.in_(ids)).delete(synchronize_session=False)
+    db.query(Observation).filter(Observation.audit_id.in_(ids)).delete(synchronize_session=False)
+    db.query(AuditResponse).filter(AuditResponse.audit_id.in_(ids)).delete(synchronize_session=False)
+    db.query(Audit).filter(Audit.id.in_(ids)).delete(synchronize_session=False)
     return len(ids)
 
 
@@ -129,10 +148,10 @@ def prepare(new_baseline=False):
         if not (manager and auditor and store):
             sys.exit("Run `python seed.py --reset` first: the demo users or stores are missing.")
 
-        baseline = _baseline(new_baseline)
+        baseline, classic_ids = _baseline(db, new_baseline)
         leftovers = db.query(SopAudit).filter(
             (SopAudit.id == STORY_ID) | (SopAudit.created_at > baseline)).all()
-        removed = _delete_audits(db, leftovers)
+        removed = _delete_audits(db, leftovers) + _delete_classic_audits(db, classic_ids)
         repaired = _repair_history_dates(db, baseline)
         db.commit()
 
