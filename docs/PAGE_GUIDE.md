@@ -20,10 +20,10 @@ only the admin can really use. The admin cannot fill in audits (that is the audi
 
 | Role | Pages in the sidebar |
 |------|----------------------|
-| ADMIN | all 13 (My Store and the auditor Dashboard are not shown) |
-| AUDIT_MANAGER | 12 (as admin, without User Management, which only the admin can open) |
+| ADMIN | all 12 (My Store and the auditor Dashboard are not shown) |
+| AUDIT_MANAGER | 11 (as admin, without User Management, which only the admin can open) |
 | AUDITOR | Dashboard, Audit, Email |
-| STORE_MANAGER | My Store, Audit Checklist, Compliance Metrics, Action Taken Tracking, Audit Status, SOP Audits, Email |
+| STORE_MANAGER | My Store, Audit Checklist, Compliance Metrics, Action Taken Tracking, Audit, Email |
 
 Two kinds of audit exist side by side:
 
@@ -44,9 +44,8 @@ Two kinds of audit exist side by side:
 | Page (route) | For | Main users | Data |
 |---|---|---|---|
 | Dashboard and Analytics (`/dashboard`) | Management summary; SOP tab for deep analysis; store selector for one store's view | Admin, Audit Manager | Overview partly sample; SOP tab real |
-| SOP Audits (`/sop-audits`) | Auditor's launchpad; manager's list of finished SOP audits | Auditor (also all roles to read) | Real |
 | SOP audit wizard / review (`/sop-audits/:id`) | Do the audit; check and submit; read the report | Auditor; everyone reads | Real |
-| Audit Status (`/audits`) | One list of all audits, both kinds | All roles | Real |
+| Audit (`/audits`) | One list of all audits, both kinds; auditors start and resume from it | All roles | Real |
 | Audit Scheduling (`/scheduling`) | Plan and assign audits | Admin, Audit Manager | Real |
 | Audit Questions (`/questions`) | Question bank; SOP tool editor | Admin, Audit Manager | Bank edits mostly not saved; SOP tools real |
 | Store Audit Scores (`/scores`) | Quarterly store scores | Admin, Audit Manager | Real |
@@ -68,7 +67,7 @@ Two kinds of audit exist side by side:
 Two tabs, plus a store selector at the top ("All stores" by default; kept in the address as `?store=<id>`).
 - **Purpose.** Overview: a summary of audits, store scores and issues. SOP Audits tab: where are we weak, which stores are overdue.
 - **Store selector.** "All stores" shows the chain-wide Overview and SOP tab described here. Picking a store (`/dashboard?store=<id>`) replaces the tab strip with that store's view: quarter score with Q1-Q4 selector, score trend with the 90% benchmark, open issues by priority, audit results over time, audits by status, recent audits and open issues (the same view a store manager sees as My Store); every tile and chart opens a list with the same count. A small link "Open SOP scores for this store" goes to `/dashboard?tab=sop&store=<id>`; with `tab=sop` the SOP tab is shown, filtered to that store, as before.
-- **Do.** *Overview:* click Q1-Q4 to change the quarter; click Planned/Ongoing/Completed tiles to open Audit Status filtered; click donut slices (risk, region, score bands) for a side list; click a store bar, Top/Bottom row or score-band list row to open that store's view; "Power BI" button opens a pop-up.
+- **Do.** *Overview:* click Q1-Q4 to change the quarter; click Planned/Ongoing/Completed tiles to open the Audit page filtered; click donut slices (risk, region, score bands) for a side list; click a store bar, Top/Bottom row or score-band list row to open that store's view; "Power BI" button opens a pop-up.
   *SOP tab:* tool chips, region, search; click a store in the ranking or coverage panel, a section in "Gap by section", a bar in "Where marks are lost" to filter everything; filter chips with "Clear all"; Refresh; Export CSV; click a table row to open the report. Filters live in the web address.
 - **See.** SOP tab: Audits submitted, Average score (target 80%), Stores below 70%, change vs last audit; store ranking; gap by section; top 10 questions losing marks; coverage (stores not audited for 30+ days); monthly trend; audits table.
 - **Data.** SOP tab: all real, from one request. Overview: store scores, issues, observations are real but come from the older audit tables, not SOP audits. **Sample/fake on Overview:** the "Performance Trends" line is invented from the current average; the Power BI pop-up is a hard-coded mock-up with controls that do nothing; "Recent Communications" is always empty; "Top 5 Repeat" is just the first five issue titles; if the database is empty it silently shows sample numbers.
@@ -104,20 +103,17 @@ Two tabs, plus a store selector at the top ("All stores" by default; kept in the
 - **See.** Tiles and charts (every number opens the Audit list with the same count): Scheduled, In progress, Submitted, Cancelled, Overdue; Score trend against the 80% target; My audits by status (donut); Scheduled vs completed by month; My stores (latest score, coloured by band). Panels: Next up (nearest scheduled audit with note and Start), Finish these (drafts with percent done), Recently submitted (score, date), My numbers (average score, audits and stores this month, issues raised from my audits, waiting to sync). Real data only.
 - **Who.** Auditors only (managers use Dashboard and Analytics).
 
-### Audit (`/sop-audits`)
-- **Purpose.** One page for both kinds of audit (scored tools and Yes/No/Partial checklists), for the auditor: what is scheduled, which stores to visit, start or resume. Managers see the list of submitted audits on the same page.
-- **Do.** Scheduled audits are shown first (overdue on top). Below, a filterable store list (search, region, Scheduled / In progress / Not started) with badges and the last audit score; select a store to see its options: each scored tool and checklist with a type chip, state (Not started, Scheduled, In progress with percent done, Submitted with score) and Start / Resume / View, plus New audit to start another. A history list shows draft progress and submitted scores.
-- **Limits.** Checklist audits need a connection; scored audits work offline.
+### Audit (`/audits`)
+- **Purpose.** The one audit page for every role (it replaces the old "Audit" and "Audit Status" pages). One table of classic checklist and scored (SOP) audits with status, score, auditor and issue count. Old `/sop-audits?...` links redirect here and keep their query.
+- **Do.** Filter by search, status (Scheduled, In progress, Completed, Approved, Cancelled, Overdue), type, tool, region, store, auditor, dates; the filters live in the address (`stage`, `status`, `view`, `tool`, `kind`, `store`, `region`, `auditor`, `q`, `id`). A "Filter: ... (clear)  N shown" chip shows when a status filter is on, so a dashboard number equals the rows shown. Click a row for a details pop-up. Each row has a Scored or Checklist chip, and in-progress rows show a progress bar and "x% done".
+- **Auditor.** Sees only their own audits (including drafts saved on the device, and a sync chip). Scheduled for you is on top (overdue first, Start). **New audit** opens the store list and the per-store options to start an unscheduled scored or checklist audit. The Actions column has Start / Resume / View (also in the pop-up).
+- **Admin / Audit Manager.** View scores and Schedule an audit in the page header; Actions column with Edit (status, date, auditor on classic audits) and "Mark as" any status.
+- **Store manager.** Read-only list of the audits of their own stores.
+- **Data.** Real. Scored parts work offline for auditors; checklist audits need a connection.
+- **Limits.** "Mark as Approved" only flips a status; there is no real approval screen. An auditor can start an unscheduled audit for any store.
 
 ### Checklist audit wizard (`/audits/:id`, review at `/audits/:id/review`)
 - One question per screen with Yes / Partial / No / N/A buttons, remarks, risk level and an evidence link; saved on the server as you go. A critical question answered No warns that it will raise an issue. Review lists unanswered questions, then Submit shows the score and the issues raised. Only the owning auditor can edit; everyone else sees a read-only view.
-
-### Scored audit list (earlier name: SOP Audits)
-- **Purpose.** Auditor: see assigned audits and start one. Manager: list of submitted SOP audits.
-- **Do.** Auditor: "Assigned to me" with Start/Resume and Overdue badges; or pick a store and a tool and start; "My audits" list with filters; a sync chip shows offline state. Manager: submitted list, "View scores", "Schedule an SOP audit".
-- **Data.** Real, merged with copies kept on the device so it works offline after one online visit.
-- **Who.** Auditor mainly; store managers see finished audits of their own stores; managers read.
-- **Limits.** An auditor can start an unscheduled audit for any store. Managers cannot fill in SOP audits.
 
 ### SOP audit wizard (`/sop-audits/:id`)
 - **Purpose.** Score one audit, one question per screen, built for phones.
@@ -129,14 +125,8 @@ Two tabs, plus a store selector at the top ("All stores" by default; kept in the
 - **Purpose.** Auditor: check before submitting (lists unanswered, missing comment, missing photo; tap one to fix; Submit with confirmation). Everyone else: read-only report with per-section subtotals, comments and photos.
 - **Limits.** No manager approve or return buttons yet (statuses Approved/Returned are never set). No issues are created from low SOP scores.
 
-### Audit Status (`/audits`)
-- **Purpose.** One list of classic and SOP audits with status, score, auditor, issue count.
-- **Do.** Filter by search, status, type, region, store, auditor, dates (kept in the address); click a row for a details pop-up; Admin/Manager get an Actions column (Edit status/date/auditor on classic audits; "Mark as" any status).
-- **Data.** Real. **Who.** All roles, each seeing what they are allowed to (auditor: own; store manager: own stores).
-- **Limits.** "Mark as Approved" only flips a status; there is no real approval screen.
-
 ### Classic audit screen (`/audits/:id`)
-Built to let an auditor answer Yes/No/Partial/NA and submit, but the route is mounted **read-only** and nothing links to it. Classic audits therefore cannot be filled in from the website today; the Audit Status pop-up shows the answers.
+Built to let an auditor answer Yes/No/Partial/NA and submit, but the route is mounted **read-only** and nothing links to it. Classic audits therefore cannot be filled in from the website today; the Audit page pop-up shows the answers.
 
 ### Audit Scheduling (`/scheduling`)
 - **Purpose.** Plan and assign audits of both kinds. **[verified in the demo rehearsal]**

@@ -5,8 +5,8 @@
 export const ROLE_PAGES = {
   ADMIN: null,            // sees everything
   AUDIT_MANAGER: null,    // sees everything except the ADMIN-only pages below
-  AUDITOR: ['my-dashboard', 'sop-audits', 'email'],
-  STORE_MANAGER: ['my-store', 'checklist', 'compliance', 'issues', 'audits', 'sop-audits', 'email'],
+  AUDITOR: ['my-dashboard', 'audits', 'email'],
+  STORE_MANAGER: ['my-store', 'checklist', 'compliance', 'issues', 'audits', 'email'],
 }
 
 // 'audit-log', 'scheduling', 'stores', 'scores', 'dashboard'

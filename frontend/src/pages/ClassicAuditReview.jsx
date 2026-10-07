@@ -120,7 +120,7 @@ export default function ClassicAuditReview() {
               ? `${result.issues} ${result.issues > 1 ? 'issues were' : 'issue was'} raised for the store manager.`
               : 'No issues were raised.'}
           </div>
-          <Button className="mt-5 h-11 w-full" onClick={() => navigate('/sop-audits')}>Back to audits</Button>
+          <Button className="mt-5 h-11 w-full" onClick={() => navigate('/audits')}>Back to audits</Button>
         </div>
       </div>
     );
@@ -219,7 +219,7 @@ export default function ClassicAuditReview() {
             <Button className="h-11 flex-1" disabled={unanswered.length > 0} onClick={() => setConfirmOpen(true)}>Submit audit</Button>
           </>
         ) : (
-          <Button variant="outline" className="h-11 flex-1" onClick={() => navigate('/sop-audits')}>Back to audits</Button>
+          <Button variant="outline" className="h-11 flex-1" onClick={() => navigate('/audits')}>Back to audits</Button>
         )}
       </div>
 

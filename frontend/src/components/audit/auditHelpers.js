@@ -1,7 +1,7 @@
 // Pure helpers for the auditor's Audit page. No React, no browser APIs, so
 // they can be tested with node:test.
 import { isOverdue } from '../../lib/auditRows.js'
-import { STAGES, stageOf } from '../../lib/statuses.js'
+import { STAGES, isAuditorEditable, stageOf } from '../../lib/statuses.js'
 
 // ---- URL keys -------------------------------------------------------------
 
@@ -47,6 +47,37 @@ const STATUS_LABELS = {
 // Label of the "Filter: ... (clear)" chip; '' when there is no status filter.
 export function statusFilterLabel(status) {
   return STATUS_LABELS[normalizeStatus(status)] || ''
+}
+
+// The merged Audit page reads the status filter from `stage` (exact stage, as
+// the manager Dashboard tiles link it), `status` (dashboard and old links:
+// raw statuses allowed, `completed` includes approved) or the old store chip
+// `view` (assigned/scheduled, in_progress). `overdue` works for stage and status.
+// Priority: status, then stage, then view.
+export function viewStage(view) {
+  const v = normalizeView(view)
+  return v === 'scheduled' || v === 'in_progress' ? v : ''
+}
+
+export function filterStatusValue({ stage = '', status = '', view = '' } = {}) {
+  return normalizeStatus(status) || stage || viewStage(view)
+}
+
+export function rowMatchesStatusFilter(row, { stage = '', status = '', view = '' } = {}, now = new Date()) {
+  if (status) return statusMatches(row, status, now)
+  if (stage === 'overdue') return isOverdue(row, now)
+  if (stage) return row.stage === stage
+  const vs = viewStage(view)
+  return vs ? row.stage === vs : true
+}
+
+// Label of the "Filter: ... (clear)" chip; '' when no status filter is active.
+export function statusChipLabel({ stage = '', status = '', view = '' } = {}) {
+  if (status) return statusFilterLabel(status)
+  const value = stage || viewStage(view)
+  if (value === 'overdue') return STATUS_LABELS.overdue
+  const found = STAGES.find((s) => s.value === value)
+  return found ? found.label : ''
 }
 
 // ---- Wizard link for classic (checklist) audits ---------------------------
@@ -106,6 +137,18 @@ export function attachExtras(rows, sopRaw, legacyRaw) {
 }
 
 export const isMine = (row, userId) => !!userId && row.auditor_id === userId
+
+// What the auditor's action button does for a row: start or resume while it is
+// theirs and still editable (scored: Planned or Draft; checklist: scheduled or
+// in progress), otherwise view.
+export function rowAction(row, userId) {
+  if (!isMine(row, userId)) return 'view'
+  const editable = row.kind === 'legacy'
+    ? row.stage === 'scheduled' || row.stage === 'in_progress'
+    : isAuditorEditable(row.status)
+  if (!editable) return 'view'
+  return row.stage === 'scheduled' ? 'start' : 'resume'
+}
 
 // ---- Progress -------------------------------------------------------------
 

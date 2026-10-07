@@ -42,6 +42,8 @@ test('titles resolve for nested and detail routes', () => {
   assert.equal(titleFor('/sop-audits/abc/review'), 'Audit');
   assert.equal(titleFor('/questions/sop-tools/CASH'), 'Audit Questions');
   assert.equal(titleFor('/audits/AUD-1001'), 'Audit');
+  assert.equal(titleFor('/audits'), 'Audit');
+  assert.equal(titleFor('/sop-audits'), 'Audit');
   assert.equal(titleFor('/my-store'), 'My Store');
   assert.equal(titleFor('/nowhere'), 'Store Audit and Analysis');
 });
@@ -58,6 +60,14 @@ test('auditors cannot open Audit Questions (managers and admins only)', () => {
   assert.equal(canAccess('AUDITOR', 'questions'), false);
   assert.equal(canAccess('AUDIT_MANAGER', 'questions'), true);
   assert.equal(canAccess('ADMIN', 'questions'), true);
+});
+
+test('Audit is one sidebar item for every role that had either page', () => {
+  assert.equal(NAV_ITEMS.filter((n) => n.label === 'Audit').length, 1);
+  assert.ok(!pages.has('sop-audits'));
+  for (const role of ['ADMIN', 'AUDIT_MANAGER', 'AUDITOR', 'STORE_MANAGER']) {
+    assert.equal(canAccess(role, 'audits'), true, role);
+  }
 });
 
 test('auditor sees Dashboard, Audit and Email only; managers do not get the auditor dashboard', () => {

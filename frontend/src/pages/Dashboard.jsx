@@ -64,9 +64,9 @@ function OverviewDashboard({ picker }) {
   const ranked = rankScored(scored);
   const qLabel = selectedQ.toUpperCase();
 
-  // KPI tiles count classic (checklist) audits only and link to Audit Status
+  // KPI tiles count classic (checklist) audits only and link to the Audit page
   // with kind=legacy, so the tile number equals the number of rows shown there.
-  // Approved is its own tile because Audit Status keeps it as its own stage.
+  // Approved is its own tile because the Audit page keeps it as its own stage.
   const stageCounts = legacyStageCounts(audits);
 
   // Real trend: average of every store quarterly score (stores with no score are skipped).
@@ -190,7 +190,7 @@ function OverviewDashboard({ picker }) {
         </div>
       </div>
 
-      {/* KPIs: classic (checklist) audits; same rows as Audit Status with kind=legacy */}
+      {/* KPIs: classic (checklist) audits; same rows as the Audit page with kind=legacy */}
       <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
         {[
           { label: 'Planned', stage: 'scheduled', bg: '#e8eefa', icon: '\u{1F4CB}' },

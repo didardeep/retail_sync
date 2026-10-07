@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import {
   attachExtras, classicAuditLink, filterStoreSummaries, formatDay, mergeSopSources,
   normalizeStatus, normalizeView, optionStateLine, percentOf, regionList,
-  scheduledForYou, statusFilterLabel, statusMatches,
+  filterStatusValue, rowAction, rowMatchesStatusFilter, scheduledForYou, statusChipLabel,
+  statusFilterLabel, statusMatches,
 } from '../src/components/audit/auditHelpers.js';
 import { mergeRows } from '../src/lib/auditRows.js';
 
@@ -141,4 +142,53 @@ test('optionStateLine reads naturally', () => {
 test('classicAuditLink encodes the id', () => {
   assert.equal(classicAuditLink('AUD-1'), '/audits/AUD-1');
   assert.equal(classicAuditLink('a/b'), '/audits/a%2Fb');
+});
+
+test('merged Audit page: stage, status and view all filter, and the chip names the filter', () => {
+  const now = new Date(2031, 4, 15, 12, 0, 0);
+  const past = new Date(2031, 4, 10, 9, 0, 0).toISOString();
+  const rows = [
+    { stage: 'scheduled', date: past },
+    { stage: 'scheduled', date: null },
+    { stage: 'in_progress' },
+    { stage: 'completed' },
+    { stage: 'approved' },
+    { stage: 'cancelled' },
+  ];
+  const count = (f) => rows.filter((r) => rowMatchesStatusFilter(r, f, now)).length;
+  assert.equal(count({}), 6);
+  assert.equal(count({ stage: 'scheduled' }), 2);
+  assert.equal(count({ stage: 'overdue' }), 1);
+  assert.equal(count({ stage: 'completed' }), 1);        // exact stage (manager tiles)
+  assert.equal(count({ status: 'completed' }), 2);       // includes approved (auditor dashboard)
+  assert.equal(count({ status: 'Planned' }), 2);
+  assert.equal(count({ status: 'Draft' }), 1);
+  assert.equal(count({ status: 'overdue' }), 1);
+  assert.equal(count({ view: 'assigned' }), 2);
+  assert.equal(count({ view: 'not_started' }), 6);
+  assert.equal(count({ status: 'Submitted', stage: 'cancelled' }), 2); // status wins
+
+  assert.equal(statusChipLabel({}), '');
+  assert.equal(statusChipLabel({ status: 'Planned' }), 'Scheduled');
+  assert.equal(statusChipLabel({ status: 'completed' }), 'Submitted');
+  assert.equal(statusChipLabel({ stage: 'completed' }), 'Completed');
+  assert.equal(statusChipLabel({ stage: 'overdue' }), 'Overdue');
+  assert.equal(statusChipLabel({ view: 'assigned' }), 'Scheduled');
+  assert.equal(filterStatusValue({ status: 'Draft' }), 'in_progress');
+  assert.equal(filterStatusValue({ stage: 'overdue' }), 'overdue');
+  assert.equal(filterStatusValue({}), '');
+});
+
+test('rowAction: start or resume own editable audits, otherwise view', () => {
+  const sop = (status, stage, auditor_id = 'u1') => ({ kind: 'sop', status, stage, auditor_id });
+  assert.equal(rowAction(sop('Planned', 'scheduled'), 'u1'), 'start');
+  assert.equal(rowAction(sop('Draft', 'in_progress'), 'u1'), 'resume');
+  assert.equal(rowAction(sop('Submitted', 'completed'), 'u1'), 'view');
+  assert.equal(rowAction(sop('Planned', 'scheduled', 'u2'), 'u1'), 'view');
+  assert.equal(rowAction(sop('Planned', 'scheduled'), ''), 'view');
+  const legacy = (stage) => ({ kind: 'legacy', stage, auditor_id: 'u1' });
+  assert.equal(rowAction(legacy('scheduled'), 'u1'), 'start');
+  assert.equal(rowAction(legacy('in_progress'), 'u1'), 'resume');
+  assert.equal(rowAction(legacy('approved'), 'u1'), 'view');
+  assert.equal(rowAction(legacy('cancelled'), 'u1'), 'view');
 });

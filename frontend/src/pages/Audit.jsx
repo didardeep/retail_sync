@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { Plus, X } from 'lucide-react';
 
 import { api, loadSession } from '../api/client';
-import { fetchAuditRows } from '../api/sopSchedule';
 import { avC, prC, stC } from '../utils/helpers';
 import { cn, fieldClass } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -12,15 +12,29 @@ import { Button } from '@/components/ui/button';
 import { Modal, ModalActions } from '../components/Modal';
 import { useToast } from '../components/Toast';
 import AuditRowStatus from '@/components/AuditRowStatus';
+import SyncChip from '@/components/SyncChip';
+import AuditTypeChip from '@/components/audit/AuditTypeChip';
+import NewAuditSection from '@/components/audit/NewAuditSection';
+import ScheduledForYou from '@/components/audit/ScheduledForYou';
+import useAuditorWorkspace from '@/components/audit/useAuditorWorkspace';
+import {
+  ACTION_LABELS, attachExtras, filterStatusValue, isMine, mergeSopSources, rowAction,
+  rowMatchesStatusFilter, scheduledForYou, statusChipLabel,
+} from '@/components/audit/auditHelpers';
 import {
   distinctOptions, filterRows, formatDate, formatTime, mergeRows, scoreLabel,
 } from '@/lib/auditRows';
-import { auditsLink, sopAuditReviewLink, sopAuditRunLink } from '@/lib/links';
+import { progressPercent } from '@/lib/auditorStats';
+import {
+  auditsLink, schedulingLink, sopAuditReviewLink, sopAuditRunLink, sopDashboardLink,
+} from '@/lib/links';
 import { STAGES, isAuditorEditable } from '@/lib/statuses';
 import { useUrlFilters } from '@/lib/useUrlFilters';
 
-const FILTER_KEYS = ['stage', 'kind', 'store', 'region', 'auditor', 'q', 'id'];
-const KIND_LABEL = { legacy: 'Checklist audit', sop: 'SOP tool' };
+// stage / status / view all filter by status (see components/audit/auditHelpers
+// rowMatchesStatusFilter); tool is an SOP tool code; id opens the detail.
+const FILTER_KEYS = ['stage', 'status', 'view', 'tool', 'kind', 'store', 'region', 'auditor', 'q', 'id'];
+const STATUS_OPTIONS = [...STAGES, { value: 'overdue', label: 'Overdue' }];
 // Statuses a manager or admin may set by hand on a checklist audit (same list as the API).
 const EDIT_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Approved', 'Cancelled'];
 const MANAGER_ROLES = ['AUDIT_MANAGER', 'ADMIN'];
@@ -43,6 +57,20 @@ function ScoreCircle({ row, size = 34 }) {
     >
       {scoreLabel(row)}
     </span>
+  );
+}
+
+// Progress bar and "x% done" for an audit that is in progress (only when known).
+function RowProgress({ row }) {
+  const pct = row.stage === 'in_progress' ? progressPercent(row) : null;
+  if (pct === null) return null;
+  return (
+    <div className="mt-1 flex items-center gap-1.5">
+      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-amber-500" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-[11px] font-semibold text-foreground">{pct}% done</span>
+    </div>
   );
 }
 
@@ -70,42 +98,68 @@ function answerBadge(answer) {
   return 'bg-muted text-muted-foreground border border-border';
 }
 
-export default function AuditStatus() {
-  const { filters, setFilter, clearAll } = useUrlFilters(FILTER_KEYS);
+export default function Audit() {
+  const { filters, setFilter, setMany, clearAll } = useUrlFilters(FILTER_KEYS);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const me = loadSession()?.user;
   const toast = useToast();
   const canEdit = MANAGER_ROLES.includes(me?.role);
+  const isAuditor = me?.role === 'AUDITOR';
+  const ws = useAuditorWorkspace();
+  const { loadLocal, prepare } = ws;
 
   const [editRow, setEditRow] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [editSaving, setEditSaving] = useState(false);
   const [auditors, setAuditors] = useState([]);
-  const [legacy, setLegacy] = useState([]);
-  const [sop, setSop] = useState([]);
+  const [legacy, setLegacy] = useState(null);
+  const [sop, setSop] = useState(null);
+  const [remoteError, setRemoteError] = useState(null);
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showNew, setShowNew] = useState(false);
+
+  // The two server lists load separately so one failing does not hide the other.
+  const loadRemote = useCallback(async () => {
+    const [l, s] = await Promise.allSettled([api.audits(), api.sopAudits()]);
+    if (l.status === 'fulfilled') setLegacy(l.value);
+    if (s.status === 'fulfilled') setSop(s.value);
+    const failed = [l, s].find((x) => x.status === 'rejected');
+    setRemoteError(failed ? failed.reason : null);
+  }, []);
 
   useEffect(() => {
-    Promise.all([
-      fetchAuditRows().catch(() => [[], []]),
-      api.issues().catch(() => []),
-      canEdit ? api.users('AUDITOR').catch(() => []) : Promise.resolve([]),
-    ]).then(([[l, s], i, u]) => {
-      setLegacy(l || []);
-      setSop(s || []);
-      setIssues(i || []);
-      setAuditors(u || []);
-      setLoading(false);
-    });
-  }, [canEdit]);
+    let cancelled = false;
+    async function init() {
+      if (isAuditor) {
+        await loadLocal().catch(() => {});
+        if (!cancelled) setLoading(false); // show the on-device audits immediately
+      }
+      if (navigator.onLine) {
+        if (isAuditor) await prepare();
+        await Promise.all([
+          loadRemote(),
+          api.issues().then((i) => { if (!cancelled) setIssues(i || []); }).catch(() => {}),
+          canEdit
+            ? api.users('AUDITOR').then((u) => { if (!cancelled) setAuditors(u || []); }).catch(() => {})
+            : Promise.resolve(),
+        ]);
+      }
+      if (!cancelled) setLoading(false);
+    }
+    init();
+    return () => { cancelled = true; };
+  }, [canEdit, isAuditor, loadLocal, prepare, loadRemote]);
 
-  async function reloadAudits() {
-    const [l, s] = await fetchAuditRows().catch(() => [null, null]);
-    if (l) setLegacy(l);
-    if (s) setSop(s);
-  }
+  // Auditors: re-read after each sync pass so statuses flip to Submitted etc.
+  useEffect(() => {
+    if (!isAuditor) return;
+    loadLocal().catch(() => {});
+    if (ws.online) loadRemote();
+  }, [ws.sync.lastSync, ws.sync.pending]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const reloadAudits = loadRemote;
 
   function openEdit(row) {
     setEditRow(row);
@@ -148,29 +202,46 @@ export default function AuditStatus() {
     }
   }
 
-  const rows = useMemo(() => mergeRows(legacy, sop), [legacy, sop]);
+  // Auditors: the on-device SOP drafts are merged into the server rows (the
+  // device copy wins) and only their own audits are listed.
+  const sopRaw = useMemo(
+    () => mergeSopSources(isAuditor ? ws.local : [], sop, ws.localProgress),
+    [isAuditor, ws.local, sop, ws.localProgress],
+  );
+  const rows = useMemo(() => {
+    const all = attachExtras(mergeRows(legacy || [], sopRaw), sopRaw, legacy || []);
+    return isAuditor ? all.filter((r) => isMine(r, ws.userId)) : all;
+  }, [legacy, sopRaw, isAuditor, ws.userId]);
+  const scheduled = useMemo(() => scheduledForYou(rows), [rows]);
   const regionOptions = useMemo(() => distinctOptions(rows, 'region', 'region'), [rows]);
   const storeOptions = useMemo(() => distinctOptions(rows, 'store_id', 'store'), [rows]);
   const auditorOptions = useMemo(() => distinctOptions(rows, 'auditor_id', 'auditor'), [rows]);
+  const toolOptions = useMemo(() => distinctOptions(rows, 'tool_code', 'tool'), [rows]);
 
   const filtered = useMemo(() => {
     const from = startDate ? new Date(`${startDate}T00:00:00`) : null;
     const to = endDate ? new Date(`${endDate}T23:59:59`) : null;
+    const statusKeys = { stage: filters.stage, status: filters.status, view: filters.view };
     return filterRows(rows, {
-      stage: filters.stage, kind: filters.kind, store: filters.store,
+      kind: filters.kind, store: filters.store,
       region: filters.region, auditor: filters.auditor, q: filters.q,
     }).filter((r) => {
+      if (filters.tool && r.tool_code !== filters.tool) return false;
+      if (!rowMatchesStatusFilter(r, statusKeys)) return false;
       if (!from && !to) return true;
       const d = r.date ? new Date(r.date) : null;
       if (!d || Number.isNaN(d.getTime())) return false;
       return !(from && d < from) && !(to && d > to);
     });
-  }, [rows, filters.stage, filters.kind, filters.store, filters.region, filters.auditor, filters.q, startDate, endDate]);
+  }, [rows, filters.stage, filters.status, filters.view, filters.tool, filters.kind, filters.store, filters.region, filters.auditor, filters.q, startDate, endDate]);
+  const statusValue = filterStatusValue(filters);
+  const chipLabel = statusChipLabel(filters);
 
   const issueCount = (row) => issues.filter((i) => (row.kind === 'sop' ? i.sop_audit_id : i.audit_id) === row.id).length;
 
   const detailRow = filters.id ? rows.find((r) => r.id === filters.id) : null;
   const legacyDetail = useLegacyDetail(detailRow);
+  const detailAction = detailRow ? rowAction(detailRow, ws.userId) : 'view';
   const detailIssues = detailRow
     ? issues.filter((i) => (detailRow.kind === 'sop' ? i.sop_audit_id : i.audit_id) === detailRow.id)
     : [];
@@ -194,19 +265,69 @@ export default function AuditStatus() {
 
   return (
     <>
+      {/* Header: sync state and New audit for auditors, shortcuts for managers */}
+      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">{isAuditor && <SyncChip />}</div>
+        <div className="flex gap-2">
+          {isAuditor && (
+            <Button size="sm" onClick={() => setShowNew((v) => !v)} aria-expanded={showNew}>
+              <Plus className="size-4" />New audit
+            </Button>
+          )}
+          {canEdit && (
+            <>
+              <Button asChild size="sm" variant="outline"><Link to={sopDashboardLink({})}>View scores</Link></Button>
+              <Button asChild size="sm"><Link to={schedulingLink({ newKind: 'sop' })}>Schedule an audit</Link></Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {remoteError && (
+        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          {ws.online
+            ? `Some audits could not be loaded: ${remoteError.message}`
+            : 'You are offline. Showing the audits saved on this device.'}
+        </div>
+      )}
+      {!remoteError && !ws.online && (
+        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          {isAuditor ? 'You are offline. Showing the audits saved on this device.' : 'You are offline. Connect to see audits.'}
+        </div>
+      )}
+
+      {isAuditor && <ScheduledForYou rows={scheduled} openingKey={ws.openingKey} onOpen={ws.openRow} />}
+      {isAuditor && showNew && (
+        <NewAuditSection
+          stores={ws.stores}
+          templates={ws.templates}
+          checklists={ws.checklists}
+          checklistsFailed={ws.checklistsFailed}
+          online={ws.online}
+          rows={rows}
+          openingKey={ws.openingKey}
+          onRun={ws.runOption}
+          onClose={() => setShowNew(false)}
+        />
+      )}
+
       {/* Filter bar */}
       <div className="mb-3.5 flex flex-wrap items-center gap-2">
         <div className="relative max-w-[260px] flex-1">
           <Input placeholder="Search by ID, store, tool or auditor..." value={filters.q} onChange={(e) => setFilter('q', e.target.value)} />
         </div>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.stage} onChange={(e) => setFilter('stage', e.target.value)} aria-label="Filter by status">
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={statusValue} onChange={(e) => setMany({ stage: e.target.value, status: '', view: '' })} aria-label="Filter by status">
           <option value="">Status</option>
-          {STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
         <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.kind} onChange={(e) => setFilter('kind', e.target.value)} aria-label="Filter by type">
           <option value="">All types</option>
-          <option value="legacy">Checklist audit</option>
-          <option value="sop">SOP tool</option>
+          <option value="legacy">Checklist</option>
+          <option value="sop">Scored (SOP tool)</option>
+        </select>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.tool} onChange={(e) => setFilter('tool', e.target.value)} aria-label="Filter by audit tool">
+          <option value="">Tool</option>
+          {toolOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.region} onChange={(e) => setFilter('region', e.target.value)} aria-label="Filter by region">
           <option value="">Region</option>
@@ -216,15 +337,35 @@ export default function AuditStatus() {
           <option value="">Store</option>
           {storeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.auditor} onChange={(e) => setFilter('auditor', e.target.value)} aria-label="Filter by auditor">
-          <option value="">Auditor</option>
-          <option value="unassigned">Unassigned</option>
-          {auditorOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+        {!isAuditor && (
+          <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.auditor} onChange={(e) => setFilter('auditor', e.target.value)} aria-label="Filter by auditor">
+            <option value="">Auditor</option>
+            <option value="unassigned">Unassigned</option>
+            {auditorOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        )}
         <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={startDate} onChange={(e) => setStartDate(e.target.value)} aria-label="From date" />
         <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={endDate} onChange={(e) => setEndDate(e.target.value)} aria-label="To date" />
         {anyFilter && <Button size="sm" variant="outline" onClick={clearFilters}>Clear filters</Button>}
       </div>
+
+      {chipLabel && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 font-medium text-foreground">
+            Filter: {chipLabel}
+            <button
+              type="button"
+              onClick={() => setMany({ stage: '', status: '', view: '' })}
+              className="inline-flex items-center gap-0.5 text-primary hover:underline"
+              aria-label="Clear status filter"
+            >
+              (clear)
+              <X className="size-3" />
+            </button>
+          </span>
+          <span className="text-muted-foreground">{filtered.length} shown</span>
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-hidden rounded-[10px] border border-border bg-card">
@@ -238,8 +379,8 @@ export default function AuditStatus() {
               <TableHead>Status</TableHead>
               <TableHead>Score</TableHead>
               <TableHead>Issues</TableHead>
-              <TableHead>Auditor</TableHead>
-              {canEdit && <TableHead>Actions</TableHead>}
+              {!isAuditor && <TableHead>Auditor</TableHead>}
+              {(canEdit || isAuditor) && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -254,7 +395,7 @@ export default function AuditStatus() {
                   <div className="font-medium">
                     {a.tool}{a.version > 1 ? <span className="ml-1 text-[10px] font-normal text-muted-foreground">v{a.version}</span> : null}
                   </div>
-                  <div className="text-[11px] text-muted-foreground">{KIND_LABEL[a.kind]}</div>
+                  <AuditTypeChip label={a.kind === 'sop' ? 'Scored' : 'Checklist'} className="mt-0.5" />
                 </TableCell>
                 <TableCell>
                   <div className="font-medium">{a.store}</div>
@@ -263,19 +404,36 @@ export default function AuditStatus() {
                 <TableCell>
                   {a.date ? <>{formatDate(a.date)}, {formatTime(a.date)}</> : <span className="text-muted-foreground">--</span>}
                 </TableCell>
-                <TableCell><AuditRowStatus row={a} /></TableCell>
+                <TableCell>
+                  <AuditRowStatus row={a} />
+                  <RowProgress row={a} />
+                  {a.sync_error && <div className="mt-0.5 max-w-[180px] truncate text-[11px] text-destructive">{a.sync_error}</div>}
+                </TableCell>
                 <TableCell><ScoreCircle row={a} /></TableCell>
                 <TableCell className="font-medium">
                   {(a.stage === 'completed' || a.stage === 'approved') ? issueCount(a) : '--'}
                 </TableCell>
-                <TableCell>
+                {!isAuditor && <TableCell>
                   {a.auditor ? (
                     <div className="flex items-center gap-1.5">
                       <div className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(a.auditor))}>{a.auditor[0]}</div>
                       <span className="text-xs">{a.auditor}</span>
                     </div>
                   ) : <span className="text-xs text-muted-foreground">Unassigned</span>}
-                </TableCell>
+                </TableCell>}
+                {isAuditor && (
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      size="sm"
+                      variant={rowAction(a, ws.userId) === 'view' ? 'outline' : 'default'}
+                      className="h-7 px-2.5 text-[11px]"
+                      disabled={ws.openingKey === a.key}
+                      onClick={() => ws.openRow(a)}
+                    >
+                      {ACTION_LABELS[rowAction(a, ws.userId)]}
+                    </Button>
+                  </TableCell>
+                )}
                 {canEdit && (
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     {a.kind === 'legacy' ? (
@@ -297,7 +455,7 @@ export default function AuditStatus() {
               </TableRow>
             )) : (
               <TableRow>
-                <TableCell colSpan={canEdit ? 9 : 8} className="p-10 text-center text-muted-foreground">No audits match your filters</TableCell>
+                <TableCell colSpan={7 + (isAuditor ? 0 : 1) + (canEdit || isAuditor ? 1 : 0)} className="p-10 text-center text-muted-foreground">No audits match your filters</TableCell>
               </TableRow>
             )}
           </TableBody>
@@ -329,6 +487,7 @@ export default function AuditStatus() {
             <div>
               <div className="mb-0.5 text-muted-foreground">Status</div>
               <AuditRowStatus row={detailRow} />
+              <RowProgress row={detailRow} />
             </div>
             <div>
               <div className="mb-0.5 text-muted-foreground">Auditor</div>
@@ -404,7 +563,13 @@ export default function AuditStatus() {
 
           <ModalActions>
             <Button variant="outline" onClick={() => setFilter('id', '')}>Close</Button>
-            {detailRow.kind === 'sop' && (
+            {isAuditor ? (
+              (detailRow.kind === 'sop' || detailAction !== 'view') && (
+                <Button disabled={ws.openingKey === detailRow.key} onClick={() => ws.openRow(detailRow)}>
+                  {ACTION_LABELS[detailAction]}
+                </Button>
+              )
+            ) : detailRow.kind === 'sop' && (
               <Button asChild><Link to={openLink(detailRow)}>Open audit</Link></Button>
             )}
           </ModalActions>

@@ -45,7 +45,7 @@ export function groupObservationsByRisk(observations = []) {
   }))
 }
 
-// Audits grouped by region name (exact name, as Audit Status filters it).
+// Audits grouped by region name (exact name, as the Audit page filters it).
 export function groupAuditsByRegion(audits = []) {
   const map = new Map()
   for (const a of audits) {
@@ -107,7 +107,7 @@ export function rankScored(scored = []) {
   return [...scored].sort((a, b) => b.score - a.score || String(a.store.name).localeCompare(String(b.store.name)))
 }
 
-// Classic (checklist) audit counts per stage, matching Audit Status when it is
+// Classic (checklist) audit counts per stage, matching the Audit page when it is
 // filtered with kind=legacy and the same stage.
 export function legacyStageCounts(audits = []) {
   const counts = { scheduled: 0, in_progress: 0, completed: 0, approved: 0 }

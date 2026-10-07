@@ -34,7 +34,7 @@ export const legacyScheduleApi = {
 // Create, patch or cancel by row kind ('legacy' or 'sop').
 export const scheduleApiFor = (kind) => (kind === 'sop' ? sopScheduleApi : legacyScheduleApi)
 
-// The two lists the Scheduling and Audit Status pages merge.
+// The two lists the Scheduling and Audit pages merge.
 export async function fetchAuditRows() {
   return Promise.all([api.audits(), api.sopAudits()])
 }

@@ -121,7 +121,7 @@ export function activeRows(rows) {
   return rows.filter((r) => r.stage === 'scheduled' || r.stage === 'in_progress')
 }
 
-// One slice per stage; rows are exactly what the Audit Status page lists for
+// One slice per stage; rows are exactly what the Audit page lists for
 // that stage and store.
 export function stageBreakdown(rows) {
   const total = rows.length

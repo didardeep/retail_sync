@@ -1,11 +1,11 @@
 // URL contract: every cross-page link in the app is built here so pages agree
 // on paths and query keys. See docs/URL_Contract.md for who reads each key.
 //
-//   /audits?stage&kind&store&region&id
+//   /audits?stage&status&view&tool&kind&store&region&auditor&q&id   (the one Audit page)
 //   /scheduling?stage&auditor&id&new=sop
 //   /issues?status&priority&store&audit&sop_audit&id
 //   /stores?region&format&id
-//   /sop-audits?store&tool&status&view
+//   /sop-audits?...            (old list URL: redirects to /audits with the same query)
 //   /sop-audits/:id            (run the audit wizard)
 //   /sop-audits/:id/review     (review screen)
 //   /dashboard?store              (one store's view; ignored when tab=sop)
@@ -40,8 +40,17 @@ export function storesLink({ region, format, id } = {}) {
   return buildLink('/stores', { region, format, id })
 }
 
+// The Audit page filtered the way the auditor dashboard and old links do:
+// status (scheduled, in_progress, completed, cancelled, overdue or a raw
+// status such as Planned/Draft/Submitted), store, tool (SOP tool code), view.
 export function sopAuditsLink({ store, tool, status, view } = {}) {
-  return buildLink('/sop-audits', { store, tool, status, view })
+  return buildLink('/audits', { store, tool, status, view })
+}
+
+// Where an old /sop-audits list URL goes: /audits with the query kept as is.
+export function auditListRedirectTarget(search = '') {
+  const q = search.startsWith('?') ? search.slice(1) : search
+  return q ? `/audits?${q}` : '/audits'
 }
 
 export function sopDashboardLink({ store, tool, section, criterion } = {}) {

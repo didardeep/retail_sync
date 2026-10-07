@@ -27,6 +27,18 @@ export function useUrlFilters(keys, options = {}) {
     }, { replace: true })
   }
 
+  // Several keys in one URL update (two setFilter calls in one tick would each
+  // start from the same URL and the first would be lost).
+  function setMany(values) {
+    setParams((prev) => {
+      const next = new URLSearchParams(prev)
+      for (const [key, value] of Object.entries(values)) {
+        if (value) next.set(key, value); else next.delete(key)
+      }
+      return next
+    }, { replace: true })
+  }
+
   const toggle = (key, value) => setFilter(key, filters[key] === value ? '' : value)
 
   function clearAll() {
@@ -37,5 +49,5 @@ export function useUrlFilters(keys, options = {}) {
     }, { replace: true })
   }
 
-  return { filters, setFilter, toggle, clearAll }
+  return { filters, setFilter, setMany, toggle, clearAll }
 }

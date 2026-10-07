@@ -383,7 +383,7 @@ export default function Scheduling() {
             className="text-[12.5px] font-medium text-primary"
             to={drawerItem.kind === 'sop' ? sopAuditReviewLink(drawerItem.id) : auditsLink({ id: drawerItem.id })}
           >
-            {drawerItem.kind === 'sop' ? 'Open audit' : 'View in Audit Status'}
+            {drawerItem.kind === 'sop' ? 'Open audit' : 'View in Audit'}
           </Link>
         </>}
       </Drawer>

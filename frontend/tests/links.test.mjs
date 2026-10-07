@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  auditsLink, entityLink, issuesLink, questionsLink, schedulingLink,
+  auditListRedirectTarget, auditsLink, entityLink, issuesLink, questionsLink, schedulingLink,
   sopAuditReviewLink, sopAuditRunLink, sopAuditsLink, sopDashboardLink,
   sopToolEditorLink, storeScorecardLink, storesLink,
 } from '../src/lib/links.js';
@@ -26,7 +26,7 @@ test('named builders', () => {
     '/issues?status=Open&priority=High&store=s1&audit=a&sop_audit=b&id=i');
   assert.equal(storesLink({ region: 'N', format: 'Mall', id: 's1' }), '/stores?region=N&format=Mall&id=s1');
   assert.equal(sopAuditsLink({ store: 's1', tool: 'T', status: 'Draft', view: 'assigned' }),
-    '/sop-audits?store=s1&tool=T&status=Draft&view=assigned');
+    '/audits?store=s1&tool=T&status=Draft&view=assigned');
   assert.equal(sopDashboardLink({ store: 's1', tool: 'T', section: 'A', criterion: 'c' }),
     '/dashboard?tab=sop&store=s1&tool=T&section=A&criterion=c');
   assert.equal(sopDashboardLink(), '/dashboard?tab=sop');
@@ -40,8 +40,8 @@ test('named builders', () => {
 test('storeScorecardLink depends on role', () => {
   assert.equal(storeScorecardLink('s1', 'AUDIT_MANAGER'), '/dashboard?store=s1');
   assert.equal(storeScorecardLink('s1', 'ADMIN'), '/dashboard?store=s1');
-  assert.equal(storeScorecardLink('s1', 'AUDITOR'), '/sop-audits?store=s1');
-  assert.equal(storeScorecardLink('s1', 'STORE_MANAGER'), '/sop-audits?store=s1');
+  assert.equal(storeScorecardLink('s1', 'AUDITOR'), '/audits?store=s1');
+  assert.equal(storeScorecardLink('s1', 'STORE_MANAGER'), '/audits?store=s1');
 });
 
 test('entityLink known and unknown types', () => {
@@ -54,4 +54,12 @@ test('entityLink known and unknown types', () => {
   assert.equal(entityLink('sop_criterion', 'c1'), null);
   assert.equal(entityLink('mystery', 'z'), null);
   assert.equal(entityLink('store', null), null);
+});
+
+test('old /sop-audits list URLs redirect to /audits and keep the query', () => {
+  assert.equal(auditListRedirectTarget(''), '/audits');
+  assert.equal(auditListRedirectTarget('?'), '/audits');
+  assert.equal(auditListRedirectTarget(), '/audits');
+  assert.equal(auditListRedirectTarget('?status=Planned&store=s1'), '/audits?status=Planned&store=s1');
+  assert.equal(auditListRedirectTarget('view=assigned'), '/audits?view=assigned');
 });

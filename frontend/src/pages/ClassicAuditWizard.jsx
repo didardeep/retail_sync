@@ -170,7 +170,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
   async function saveAndExit() {
     if (!(await ready())) return;
     toast('Saved');
-    navigate('/sop-audits');
+    navigate('/audits');
   }
 
   if (error) return <ErrorNote error={error} />;
