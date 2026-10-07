@@ -22,7 +22,7 @@ only the admin can really use. The admin cannot fill in audits (that is the audi
 |------|----------------------|
 | ADMIN | all 14 |
 | AUDIT_MANAGER | all 14 (but User Management shows an error: the server allows the admin only) |
-| AUDITOR | SOP Audits, Audit Status, Audit Questions (question bank only), Email |
+| AUDITOR | SOP Audits, Audit Status, Email |
 | STORE_MANAGER | My Store, Audit Checklist, Compliance Metrics, Action Taken Tracking, Audit Status, SOP Audits, Email |
 
 Two kinds of audit exist side by side:
@@ -48,7 +48,7 @@ Two kinds of audit exist side by side:
 | SOP audit wizard / review (`/sop-audits/:id`) | Do the audit; check and submit; read the report | Auditor; everyone reads | Real |
 | Audit Status (`/audits`) | One list of all audits, both kinds | All roles | Real |
 | Audit Scheduling (`/scheduling`) | Plan and assign audits | Admin, Audit Manager | Real |
-| Audit Questions (`/questions`) | Question bank; SOP tool editor | Admin, Audit Manager (auditor: bank only) | Bank edits mostly not saved; SOP tools real |
+| Audit Questions (`/questions`) | Question bank; SOP tool editor | Admin, Audit Manager | Bank edits mostly not saved; SOP tools real |
 | Store Audit Scores (`/scores`) | Quarterly store scores | Admin, Audit Manager | Real |
 | Action Taken Tracking (`/issues`) | Issues from audits through to resolution | Admin, Audit Manager, Store Manager | Reads real; most edits not saved |
 | Store Management (`/stores`) | Store master list | Admin, Audit Manager | Reads real; add/delete not saved |
@@ -132,7 +132,7 @@ Built to let an auditor answer Yes/No/Partial/NA and submit, but the route is mo
 ### Audit Questions (`/questions`)
 - **Tab "Question bank".** The classic question bank. **Saved:** a new question. **Not saved (page still says success):** edit, active toggle, delete, new process/type. Pending-question approval has no button.
 - **Tab "SOP tools".** **[verified]** One card per tool with version, marks, version history; the editor changes wording, marks, rubric text, proof flags, adds/removes/reorders; "Review changes" shows a summary and requires a note; Publish creates a new version. Finished audits keep their version. Drafts are autosaved in the browser only. Tools cannot be created from scratch, only edited.
-- **Who.** Admin, Audit Manager (auditors see the bank only). **Use case.** Raise the marks on a question and publish version 3; last month's reports keep version 2.
+- **Who.** Admin, Audit Manager (auditors cannot open it). **Use case.** Raise the marks on a question and publish version 3; last month's reports keep version 2.
 
 ---
 

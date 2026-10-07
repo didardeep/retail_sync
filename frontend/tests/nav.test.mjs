@@ -53,3 +53,9 @@ test('user management is for ADMIN only (the user API refuses everyone else)', (
   }
   assert.equal(canAccess('AUDIT_MANAGER', 'stores'), true);
 });
+
+test('auditors cannot open Audit Questions (managers and admins only)', () => {
+  assert.equal(canAccess('AUDITOR', 'questions'), false);
+  assert.equal(canAccess('AUDIT_MANAGER', 'questions'), true);
+  assert.equal(canAccess('ADMIN', 'questions'), true);
+});
