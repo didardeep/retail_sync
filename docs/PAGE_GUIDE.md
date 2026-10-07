@@ -152,7 +152,7 @@ Built to let an auditor answer Yes/No/Partial/NA and submit, but the route is mo
 ## 5. My store (store manager)
 
 ### My Store (`/my-store`)
-- **Purpose.** A store manager's view: quarter score, recent audits, open issues. Real data, classic audits only.
+- **Purpose.** The main dashboard, scoped to one store: quarter score with a Q1-Q4 selector, score trend with the 90% benchmark, open issues by priority (donut), audit results over time (bars), audits by status (donut), recent audits and open issues. Both kinds of audit are included; every tile and chart opens a list with the same count.
 - **Do.** Click Q1-Q4 only.
 - **Limits.** **[verified]** For admin and audit manager there is no store picker: the header and score are the first store (Phoenix Mall), while audit and issue lists are company-wide. Misleading for those roles; meant for store managers.
 
