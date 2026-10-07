@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Modal, ModalActions, Drawer } from '../components/Modal';
 import AuditRowStatus from '@/components/AuditRowStatus';
+import Tile from '@/components/Tile';
 import {
   UNASSIGNED, distinctOptions, filterRows, formatDate, formatTime, kpiCounts,
   mergeRows, scoreLabel,
@@ -53,27 +54,6 @@ function conflictText(c) {
   if (!c) return '';
   if (c.error === 'auditor unavailable') return `Auditor is unavailable on that day${c.reason ? ` (${c.reason})` : ''}.`;
   return `${clashText(c)}.`;
-}
-
-function Tile({ icon: Icon, tint, label, value, active, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 text-left transition-colors hover:bg-accent',
-        active && 'border-primary ring-1 ring-primary',
-      )}
-    >
-      <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg" style={{ background: tint }}>
-        <Icon className="size-4 text-foreground/70" />
-      </div>
-      <div>
-        <div className="mb-0.5 text-[11px] text-muted-foreground">{label}</div>
-        <div className="text-2xl font-bold leading-none text-foreground">{value}</div>
-      </div>
-    </button>
-  );
 }
 
 export default function Scheduling() {

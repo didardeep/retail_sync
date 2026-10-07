@@ -21,7 +21,7 @@ export default function NotificationBell({ role }) {
           const pending = (sopAudits || []).filter(a => a.status === 'Submitted');
           const overdue = (issues || []).filter(i => i.is_overdue && i.status !== 'Resolved' && i.status !== 'Closed');
           const notifs = [];
-          if (pending.length) notifs.push({ label: `${pending.length} SOP audit${pending.length > 1 ? 's' : ''} awaiting approval`, link: sopAuditsLink({ status: 'Submitted' }) });
+          if (pending.length) notifs.push({ label: `${pending.length} audit${pending.length > 1 ? 's' : ''} awaiting approval`, link: sopAuditsLink({ status: 'Submitted' }) });
           if (overdue.length) notifs.push({ label: `${overdue.length} overdue issue${overdue.length > 1 ? 's' : ''}`, link: issuesLink({ status: 'Open', priority: 'Critical' }) });
           setItems(notifs);
         } else if (role === 'AUDITOR') {

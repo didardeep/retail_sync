@@ -191,8 +191,8 @@ appears, you left an edit behind; see section 8.
 ## 7. Act 4: The auditor in the store (Auditor, Window B, 3 min)
 
 **Do**
-1. In Window B, sign in as Amit Singh. You land on **SOP Audits**.
-2. Under **Assigned to me** tap **Start** on **South City**.
+1. In Window B, sign in as Amit Singh. You land on his **Dashboard** (scheduled, in progress, submitted, overdue, next up). Open **Audit** in the sidebar.
+2. Under **Scheduled for you** or by selecting **South City** in the stores list, tap **Start** on the **Cash Audit Tool**.
 3. Question 1: type **99**. Read the error, tap **Next** (it will not move). Change it to **1.5**, tap **Next**.
 4. Question 2, **Float Cash**: read "A photo is required for this question". Type **2**. Tap **Add proof /
    comment**, then **Take photo** (on a real phone this opens the camera; in the emulator pick
@@ -216,7 +216,7 @@ appears, you left an edit behind; see section 8.
 - (Save & exit) "He can stop any time; the audit waits as In progress."
 
 **You should see**
-- Assigned to me: Cash Audit Tool v2 / Pacific Hub / **Overdue** (red) and Cash Audit Tool v2 / South City
+- Scheduled for you: Pacific Hub / **Overdue** (red) and the Cash Audit Tool v2 audit at South City
   with the manager's note.
 - The error "Maximum is 2"; the red box around the score; the page staying on question 1.
 - The warning "A photo is required for this question", disappearing after the photo.

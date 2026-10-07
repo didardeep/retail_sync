@@ -39,7 +39,8 @@ dashboards, and problems become tracked actions."
 | Audit Status | find the new audit | Planned and finished audits of both kinds live in one list |
 
 ### Step 3. Do the audit (Auditor, window B, phone size) - 4 min
-1. Sign in as Amit Singh. On **SOP Audits**, **Assigned to me** shows the audit just scheduled with the note.
+Also show a **Checklist** audit: select a store, **Start** a checklist (Cashiering Checklist), answer with Yes / Partial / No / N/A one question per screen (a critical "No" warns it will raise an issue), Review, Submit: the result card shows the score and issues raised. Checklist audits need a connection; the scored audits below work offline.
+1. Sign in as Amit Singh: he lands on a simple **Dashboard** (scheduled / in progress / submitted / cancelled / overdue, next up, drafts to finish, his numbers). Open **Audit**: **Scheduled for you** shows the audit just scheduled with the note; below it the **stores** list (select a store to see its audit options: Scored tools and Checklists, each with its state).
 2. Start it. Type a score above the maximum to show validation. Answer a few questions.
 3. A question with a required photo: add proof (use `docs/demo/sample-proof-float-cash.jpg`).
 4. DevTools > Network > **Offline**. Answer two more questions: the chip says it saved on the device.

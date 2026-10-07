@@ -17,6 +17,7 @@ export function normalizeLegacy(audit) {
   const score = typeof audit.score === 'number' ? audit.score : null
   return {
     key: `legacy:${audit.id}`,
+    checklist_id: audit.checklist_id || null,
     kind: 'legacy',
     id: audit.id,
     store_id: audit.store_id || null,
@@ -35,6 +36,7 @@ export function normalizeLegacy(audit) {
     percent: score,
     version: null,
     notes: audit.notes || null,
+    progress: audit.progress || null,
   }
 }
 
@@ -64,6 +66,7 @@ export function normalizeSop(audit) {
     percent,
     version: audit.template_version || null,
     notes: audit.notes || null,
+    progress: audit.progress || null,
   }
 }
 

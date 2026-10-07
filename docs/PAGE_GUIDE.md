@@ -22,7 +22,7 @@ only the admin can really use. The admin cannot fill in audits (that is the audi
 |------|----------------------|
 | ADMIN | all 14 |
 | AUDIT_MANAGER | all 14 (but User Management shows an error: the server allows the admin only) |
-| AUDITOR | SOP Audits, Audit Status, Email |
+| AUDITOR | Dashboard, Audit, Email |
 | STORE_MANAGER | My Store, Audit Checklist, Compliance Metrics, Action Taken Tracking, Audit Status, SOP Audits, Email |
 
 Two kinds of audit exist side by side:
@@ -98,7 +98,20 @@ Two tabs.
 
 ## 4. Audits
 
-### SOP Audits (`/sop-audits`)
+### Dashboard (auditor) (`/my-dashboard`)
+- **Purpose.** What an auditor needs to know about their own audits at a glance. Auditors land here.
+- **See.** Tiles (each opens the Audit list for that state): Scheduled, In progress, Submitted, Cancelled, Overdue. Panels: Next up (nearest scheduled audit with note and Start), Finish these (drafts with percent done), Recently submitted (score, date), My numbers (average score, audits and stores this month, issues raised from my audits, waiting to sync). Real data only.
+- **Who.** Auditors only (managers use Dashboard and Analytics).
+
+### Audit (`/sop-audits`)
+- **Purpose.** One page for both kinds of audit (scored tools and Yes/No/Partial checklists), for the auditor: what is scheduled, which stores to visit, start or resume. Managers see the list of submitted audits on the same page.
+- **Do.** Scheduled audits are shown first (overdue on top). Below, a filterable store list (search, region, Scheduled / In progress / Not started) with badges and the last audit score; select a store to see its options: each scored tool and checklist with a type chip, state (Not started, Scheduled, In progress with percent done, Submitted with score) and Start / Resume / View, plus New audit to start another. A history list shows draft progress and submitted scores.
+- **Limits.** Checklist audits need a connection; scored audits work offline.
+
+### Checklist audit wizard (`/audits/:id`, review at `/audits/:id/review`)
+- One question per screen with Yes / Partial / No / N/A buttons, remarks, risk level and an evidence link; saved on the server as you go. A critical question answered No warns that it will raise an issue. Review lists unanswered questions, then Submit shows the score and the issues raised. Only the owning auditor can edit; everyone else sees a read-only view.
+
+### Scored audit list (earlier name: SOP Audits)
 - **Purpose.** Auditor: see assigned audits and start one. Manager: list of submitted SOP audits.
 - **Do.** Auditor: "Assigned to me" with Start/Resume and Overdue badges; or pick a store and a tool and start; "My audits" list with filters; a sync chip shows offline state. Manager: submitted list, "View scores", "Schedule an SOP audit".
 - **Data.** Real, merged with copies kept on the device so it works offline after one online visit.

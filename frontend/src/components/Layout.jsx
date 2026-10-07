@@ -127,7 +127,7 @@ export default function Layout({ user, onLogout, children }) {
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 pb-10 pt-[18px] md:px-[22px]">{children}</div>
       </div>
       {/* Not on the audit wizard / review screens: its floating button would sit over Next and Submit on a phone. */}
-      {!/^\/sop-audits\/[^/]+/.test(loc.pathname) && <ChatAssistant user={user} />}
+      {!/^\/(sop-audits|audits)\/[^/]+/.test(loc.pathname) && <ChatAssistant user={user} />}
     </div>
   );
 }

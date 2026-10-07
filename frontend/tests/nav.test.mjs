@@ -35,13 +35,13 @@ test('each role lands on a page it can open', () => {
     const first = firstAllowedPage(role);
     assert.ok(canAccess(role, first), `${role} lands on "${first}" but cannot open it`);
   }
-  assert.equal(firstAllowedPage('AUDITOR'), 'sop-audits');
+  assert.equal(firstAllowedPage('AUDITOR'), 'my-dashboard');
 });
 
 test('titles resolve for nested and detail routes', () => {
-  assert.equal(titleFor('/sop-audits/abc/review'), 'SOP Audits');
+  assert.equal(titleFor('/sop-audits/abc/review'), 'Audit');
   assert.equal(titleFor('/questions/sop-tools/CASH'), 'Audit Questions');
-  assert.equal(titleFor('/audits/AUD-1001'), 'Audit Status');
+  assert.equal(titleFor('/audits/AUD-1001'), 'Audit');
   assert.equal(titleFor('/my-store'), 'My Store');
   assert.equal(titleFor('/nowhere'), 'Store Audit and Analysis');
 });
@@ -58,4 +58,12 @@ test('auditors cannot open Audit Questions (managers and admins only)', () => {
   assert.equal(canAccess('AUDITOR', 'questions'), false);
   assert.equal(canAccess('AUDIT_MANAGER', 'questions'), true);
   assert.equal(canAccess('ADMIN', 'questions'), true);
+});
+
+test('auditor sees Dashboard, Audit and Email only; managers do not get the auditor dashboard', () => {
+  const auditorPages = NAV_ITEMS.filter((n) => canAccess('AUDITOR', n.page)).map((n) => n.label);
+  assert.deepEqual(auditorPages, ['Dashboard', 'Audit', 'Email Communications']);
+  assert.equal(canAccess('AUDIT_MANAGER', 'my-dashboard'), false);
+  assert.equal(canAccess('ADMIN', 'my-dashboard'), false);
+  assert.equal(canAccess('STORE_MANAGER', 'my-dashboard'), false);
 });

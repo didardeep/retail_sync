@@ -18,6 +18,7 @@ const LEGACY_STAGE = {
   Ongoing: 'in_progress',
   Completed: 'completed',
   Approved: 'approved',
+  Cancelled: 'cancelled',
 }
 
 const SOP_STAGE = {

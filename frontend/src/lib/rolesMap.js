@@ -5,7 +5,7 @@
 export const ROLE_PAGES = {
   ADMIN: null,            // sees everything
   AUDIT_MANAGER: null,    // sees everything except the ADMIN-only pages below
-  AUDITOR: ['sop-audits', 'audits', 'email'],
+  AUDITOR: ['my-dashboard', 'sop-audits', 'email'],
   STORE_MANAGER: ['my-store', 'checklist', 'compliance', 'issues', 'audits', 'sop-audits', 'email'],
 }
 
@@ -13,9 +13,12 @@ export const ROLE_PAGES = {
 // are ADMIN/AUDIT_MANAGER-only (null catches them all).
 // The user API is ADMIN-only, so these pages are ADMIN-only too.
 const ADMIN_ONLY_PAGES = ['user-management']
+// The simple auditor dashboard is for auditors only (managers have the full Dashboard).
+const AUDITOR_ONLY_PAGES = ['my-dashboard']
 
 export function canAccess(role, page) {
   if (ADMIN_ONLY_PAGES.includes(page)) return role === 'ADMIN'
+  if (AUDITOR_ONLY_PAGES.includes(page)) return role === 'AUDITOR'
   const allowed = ROLE_PAGES[role]
   if (allowed === null) return true
   if (!allowed) return false

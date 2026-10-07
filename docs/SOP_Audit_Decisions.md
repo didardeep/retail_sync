@@ -106,3 +106,10 @@ Entries marked (user) were chosen explicitly by the product owner.
 - ADMIN: the new top-level role already sees every page in the frontend, so the SOP schedule, dashboard, tool-editor and audit endpoints accept it as well as AUDIT_MANAGER. Running an audit stays an auditor-only action because the audit belongs to the person doing it.
 - Rejected: keeping her unchecked handler (lets any status string in and skips the booking rules); removing the status edit (it is a feature she built on purpose).
 - Left as she wrote it, flagged for her to confirm: `DATABASE_URL` is required (no SQLite fallback) and `reset_db()` drops the whole Postgres `public` schema.
+
+## D23. One "Audit" experience for auditors: Dashboard + Audit, checklists in the same wizard format
+- Decision: auditors get two pages, Dashboard (simple counts and next steps) and Audit (scheduled first, then stores, then the options for the chosen store). Both kinds of audit are called "Audit" and told apart by a small chip (Scored / Checklist). Checklist (Yes/Partial/No/N/A) audits run in a one-question-per-screen wizard like the scored one. Auditors lose Audit Status and Audit Questions.
+- Why: the auditor's job is "which store, which audit, do it"; two kinds of list and a manager-style table got in the way. Classic audits could not be completed from the website at all (the route was read-only).
+- Online-only for checklist audits (for now): they use server ids, one save per answer and a submit that raised issues; making them offline needs a second local store, a batch save and a safe resubmit. The submit is now safe to retry (409 when not open), answers are validated, and `POST /api/audits/start` lets an auditor start an unscheduled checklist audit (idempotent per store and checklist).
+- Auditors may start unscheduled audits (store, then any option), scheduled ones are shown first.
+- Rejected: converting checklists into the scored format (loses Yes/No/Partial and critical-question issues); offline checklists in the same round; keeping Audit Status for auditors.

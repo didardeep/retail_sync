@@ -10,6 +10,7 @@ import { firstAllowedPage } from './lib/rolesMap'
 import Login from './pages/Login'
 
 import Dashboard from './pages/Dashboard'
+import AuditorDashboard from './pages/AuditorDashboard'
 import StoreAuditScores from './pages/StoreAuditScores'
 import Issues from './pages/Issues'
 import AuditStatus from './pages/AuditStatus'
@@ -22,7 +23,8 @@ import StoreDashboard from './pages/StoreDashboard'
 import StoreChecklist from './pages/StoreChecklist'
 import StoreCompliance from './pages/StoreCompliance'
 import UserManagement from './pages/UserManagement'
-import AuditExecution from './pages/AuditExecution'
+import AuditRoute from './components/classic/AuditRoute'
+import ClassicAuditReview from './pages/ClassicAuditReview'
 import SopAudits from './pages/SopAudits'
 import SopAuditWizard from './pages/SopAuditWizard'
 import SopAuditReview from './pages/SopAuditReview'
@@ -76,8 +78,10 @@ export default function App() {
             <Route path="/dashboard" element={guarded('dashboard', <Dashboard />)} />
             <Route path="/scores" element={guarded('scores', <StoreAuditScores />)} />
             <Route path="/issues" element={guarded('issues', <Issues />)} />
+            <Route path="/my-dashboard" element={guarded('my-dashboard', <AuditorDashboard />)} />
             <Route path="/audits" element={guarded('audits', <AuditStatus />)} />
-            <Route path="/audits/:id" element={guarded('audits', <AuditExecution readOnly />)} />
+            <Route path="/audits/:id" element={guarded('sop-audits', <AuditRoute />)} />
+            <Route path="/audits/:id/review" element={guarded('sop-audits', <ClassicAuditReview />)} />
             <Route path="/scheduling" element={guarded('scheduling', <Scheduling />)} />
             <Route path="/questions" element={guarded('questions', <Questions />)} />
             <Route path="/questions/sop-tools/:code" element={guarded('sop-tools', <SopToolEditor />)} />
