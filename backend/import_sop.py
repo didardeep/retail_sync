@@ -27,8 +27,11 @@ DEFAULT_FILE = Path(__file__).parent.parent / "docs" / "SOP_Audit_Checklists.xls
 
 # sheet title prefix -> (template code, how the sheet defines the Minimum level)
 TOOLS = {
-    "cash": ("CASH", "zero"),
-    "fmcg": ("FMCG", "third"),
+    "cash":    ("CASH",    "zero"),
+    "fmcg":    ("FMCG",   "third"),
+    "gm":      ("GM",      "zero"),
+    "fashion": ("FASHION", "zero"),
+    "lp":      ("LP",      "zero"),
 }
 
 SECTION_RE = re.compile(r"^Section\s+([A-Z]):\s*(.*?)\s*(?:\|.*)?$", re.S)
