@@ -23,13 +23,30 @@ export function normalizeView(view) {
 // (Planned, Draft, Submitted ...); map those onto the stage they belong to.
 export function normalizeStatus(status) {
   if (!status) return ''
+  if (status === 'overdue') return status
   if (STAGES.some((s) => s.value === status)) return status
   return stageOf('sop', status)
 }
 
-export function statusMatches(row, status) {
+// Rows a status filter keeps. `completed` also keeps approved rows (both are
+// "submitted" to the auditor, same as the dashboard); `overdue` keeps scheduled
+// rows dated before today. The dashboard counts use the same rules.
+export function statusMatches(row, status, now = new Date()) {
   const wanted = normalizeStatus(status)
-  return !wanted || row.stage === wanted
+  if (!wanted) return true
+  if (wanted === 'overdue') return isOverdue(row, now)
+  if (wanted === 'completed') return row.stage === 'completed' || row.stage === 'approved'
+  return row.stage === wanted
+}
+
+const STATUS_LABELS = {
+  scheduled: 'Scheduled', in_progress: 'In progress', completed: 'Submitted',
+  approved: 'Approved', cancelled: 'Cancelled', overdue: 'Overdue',
+}
+
+// Label of the "Filter: ... (clear)" chip; '' when there is no status filter.
+export function statusFilterLabel(status) {
+  return STATUS_LABELS[normalizeStatus(status)] || ''
 }
 
 // ---- Wizard link for classic (checklist) audits ---------------------------

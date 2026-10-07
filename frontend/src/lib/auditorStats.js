@@ -161,3 +161,98 @@ export function auditOptions(storeId, rows, templates, checklists) {
   }
   return opts
 }
+
+// ---- Dashboard charts -----------------------------------------------------
+// Every chart number below is computed here and the Audit page filters rows with
+// the same rules (components/audit/auditHelpers statusMatches), so a slice or
+// bar always equals the rows shown after clicking it.
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+// Same palette as the main dashboard: brand, amber, green, grey.
+export const STATUS_SLICES = [
+  { key: 'scheduled', label: 'Scheduled', color: '#00338D' },
+  { key: 'in_progress', label: 'In progress', color: '#f59e0b' },
+  { key: 'completed', label: 'Submitted', color: '#0e9f6e' },
+  { key: 'cancelled', label: 'Cancelled', color: '#9ca3af' },
+]
+
+function monthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
+// The last `months` calendar months ending at now's month, oldest first.
+function monthWindow(now, months) {
+  const out = []
+  for (let i = months - 1; i >= 0; i -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    out.push({ month: monthKey(d), label: MONTH_NAMES[d.getMonth()] })
+  }
+  return out
+}
+
+function monthOf(iso) {
+  const t = ms(iso)
+  return t === null ? null : monthKey(new Date(t))
+}
+
+// One entry per status slice. completed includes approved rows; counts always
+// equal rows.length, and rows are the rows the Audit page shows for that key.
+export function statusBreakdown(rows, now = new Date()) { // eslint-disable-line no-unused-vars
+  return STATUS_SLICES.map((s) => {
+    const list = rows.filter((r) => (s.key === 'completed' ? isDone(r) : r.stage === s.key))
+    return { key: s.key, label: s.label, count: list.length, color: s.color, rows: list }
+  })
+}
+
+// Average percent of submitted audits per month, by submitted_at (fallback date).
+export function monthlyScoreTrend(rows, now = new Date(), months = 6) {
+  const sums = new Map()
+  for (const r of rows) {
+    if (!isDone(r) || typeof r.percent !== 'number') continue
+    const m = monthOf(r.submitted_at || r.date)
+    if (!m) continue
+    const cur = sums.get(m) || { sum: 0, n: 0 }
+    cur.sum += r.percent
+    cur.n += 1
+    sums.set(m, cur)
+  }
+  return monthWindow(now, months).map(({ month, label }) => {
+    const cur = sums.get(month)
+    return {
+      month, label, count: cur ? cur.n : 0,
+      avg: cur ? Math.round((cur.sum / cur.n) * 10) / 10 : null,
+    }
+  })
+}
+
+// Scheduled-stage audits by their scheduled month vs completed by submitted month.
+export function monthlyScheduledVsCompleted(rows, now = new Date(), months = 6) {
+  const scheduled = new Map()
+  const completed = new Map()
+  const bump = (map, m) => { if (m) map.set(m, (map.get(m) || 0) + 1) }
+  for (const r of rows) {
+    if (r.stage === 'scheduled') bump(scheduled, monthOf(r.date))
+    else if (isDone(r)) bump(completed, monthOf(r.submitted_at || r.date))
+  }
+  return monthWindow(now, months).map(({ month, label }) => ({
+    month, label, scheduled: scheduled.get(month) || 0, completed: completed.get(month) || 0,
+  }))
+}
+
+// Latest completed audit with a percent per store, best score first.
+export function storeLatestScores(rows) {
+  const latest = new Map()
+  for (const r of rows) {
+    if (!isDone(r) || typeof r.percent !== 'number' || !r.store_id) continue
+    const when = ms(r.submitted_at) ?? ms(r.date) ?? -Infinity
+    const prev = latest.get(r.store_id)
+    if (!prev || when > prev.when) latest.set(r.store_id, { when, row: r })
+  }
+  return [...latest.values()]
+    .map(({ row }) => ({
+      store_id: row.store_id, store: row.store || 'Store', percent: row.percent,
+      date: row.submitted_at || row.date || null,
+    }))
+    .sort((a, b) => b.percent - a.percent || a.store.localeCompare(b.store))
+}

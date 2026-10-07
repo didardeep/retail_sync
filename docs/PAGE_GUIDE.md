@@ -100,7 +100,7 @@ Two tabs.
 
 ### Dashboard (auditor) (`/my-dashboard`)
 - **Purpose.** What an auditor needs to know about their own audits at a glance. Auditors land here.
-- **See.** Tiles (each opens the Audit list for that state): Scheduled, In progress, Submitted, Cancelled, Overdue. Panels: Next up (nearest scheduled audit with note and Start), Finish these (drafts with percent done), Recently submitted (score, date), My numbers (average score, audits and stores this month, issues raised from my audits, waiting to sync). Real data only.
+- **See.** Tiles and charts (every number opens the Audit list with the same count): Scheduled, In progress, Submitted, Cancelled, Overdue; Score trend against the 80% target; My audits by status (donut); Scheduled vs completed by month; My stores (latest score, coloured by band). Panels: Next up (nearest scheduled audit with note and Start), Finish these (drafts with percent done), Recently submitted (score, date), My numbers (average score, audits and stores this month, issues raised from my audits, waiting to sync). Real data only.
 - **Who.** Auditors only (managers use Dashboard and Analytics).
 
 ### Audit (`/sop-audits`)

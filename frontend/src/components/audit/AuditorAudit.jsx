@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { X } from 'lucide-react';
 
 import { api } from '@/api/client';
 import { listChecklists, startChecklistAudit } from '@/api/auditorApi';
@@ -9,7 +10,7 @@ import SyncChip from '@/components/SyncChip';
 import { mergeRows } from '@/lib/auditRows';
 import { auditOptions, storeSummaries } from '@/lib/auditorStats';
 import { sopAuditReviewLink, sopAuditRunLink } from '@/lib/links';
-import { isAuditorEditable } from '@/lib/statuses';
+import { STAGES, isAuditorEditable } from '@/lib/statuses';
 import { useUrlFilters } from '@/lib/useUrlFilters';
 import {
   createAudit, currentUserId, findDraft, getBundle, getStores, getTemplates,
@@ -23,7 +24,7 @@ import StoreOptionsPanel from './StoreOptionsPanel';
 import { StoreFilters, StoreRow } from './StoreList';
 import {
   attachExtras, classicAuditLink, filterStoreSummaries, isMine, mergeSopSources,
-  normalizeStatus, normalizeView, regionList, scheduledForYou, statusMatches,
+  normalizeStatus, normalizeView, regionList, scheduledForYou, statusFilterLabel, statusMatches,
 } from './auditHelpers';
 
 // `store` selects a store (and filters My audits), `view` is the store chip
@@ -55,6 +56,9 @@ export default function AuditorAudit() {
   const [region, setRegion] = useState('');
 
   const view = normalizeView(filters.view);
+  const historyRef = useRef(null);
+  const statusFilter = normalizeStatus(filters.status);
+  const statusChip = statusFilterLabel(filters.status);
 
   const loadLocal = useCallback(async () => {
     const [st, tp, la] = await Promise.all([getStores(), getTemplates(), listLocalAudits()]);
@@ -196,6 +200,14 @@ export default function AuditorAudit() {
     navigate(classicAuditLink(audit.id));
   });
 
+  // Arriving from a dashboard tile or slice: bring the filtered list into view once.
+  const arrivedFiltered = useRef(!!filters.status);
+  useEffect(() => {
+    if (loading || !arrivedFiltered.current) return;
+    arrivedFiltered.current = false;
+    if (historyRef.current) historyRef.current.scrollIntoView({ block: 'start' });
+  }, [loading]);
+
   if (loading) return <Loading what="audits" />;
 
   const checklistNote = (checklistsFailed || (!online && checklists.length === 0))
@@ -274,16 +286,35 @@ export default function AuditorAudit() {
         </div>
       </section>
 
+      <div ref={historyRef}>
+      {statusChip && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 font-medium text-foreground">
+            Filter: {statusChip}
+            <button
+              type="button"
+              onClick={() => setFilter('status', '')}
+              className="inline-flex items-center gap-0.5 text-primary hover:underline"
+              aria-label="Clear status filter"
+            >
+              (clear)
+              <X className="size-3" />
+            </button>
+          </span>
+          <span className="text-muted-foreground">{history.length} shown</span>
+        </div>
+      )}
       <MyAuditsList
         rows={history}
         stores={stores}
         store={filters.store}
         onStore={(v) => setFilter('store', v)}
-        status={normalizeStatus(filters.status)}
+        status={STAGES.some((st) => st.value === statusFilter) ? statusFilter : ''}
         onStatus={(v) => setFilter('status', v)}
         openingKey={openingKey}
         onOpen={openRow}
       />
+      </div>
     </div>
   );
 }

@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  auditOptions, auditorKpis, finishList, nextUp, progressPercent,
+  auditOptions, auditorKpis, finishList, monthlyScheduledVsCompleted, monthlyScoreTrend,
+  nextUp, progressPercent, statusBreakdown, storeLatestScores,
   recentSubmitted, storeSummaries,
 } from '../src/lib/auditorStats.js';
 import { mergeRows } from '../src/lib/auditRows.js';
@@ -131,4 +132,60 @@ test('auditOptions builds one option per tool and active latest checklist', () =
   assert.equal(s1[1].row.id, 'a4');
   assert.equal(s1[2].state, 'scheduled'); // L1 planned beats L2 submitted
   assert.equal(s1[2].row.id, 'L1');
+});
+
+test('statusBreakdown counts equal rows and completed includes approved', () => {
+  const rows = [
+    { stage: 'scheduled' }, { stage: 'scheduled' }, { stage: 'in_progress' },
+    { stage: 'completed' }, { stage: 'approved' }, { stage: 'cancelled' },
+  ];
+  const out = statusBreakdown(rows, NOW);
+  assert.deepEqual(out.map((s) => s.key), ['scheduled', 'in_progress', 'completed', 'cancelled']);
+  assert.deepEqual(out.map((s) => s.count), [2, 1, 2, 1]);
+  for (const s of out) assert.equal(s.rows.length, s.count);
+});
+
+test('monthlyScoreTrend averages by submitted month over a 6 month window', () => {
+  const rows = [
+    { stage: 'completed', percent: 80, submitted_at: '2031-05-02T10:00:00' },
+    { stage: 'approved', percent: 60, submitted_at: '2031-05-10T10:00:00' },
+    { stage: 'completed', percent: 90, date: '2031-03-10T10:00:00' },
+    { stage: 'in_progress', percent: 50, submitted_at: '2031-05-11T10:00:00' },
+    { stage: 'completed', percent: 10, submitted_at: '2030-01-01T10:00:00' },
+  ];
+  const out = monthlyScoreTrend(rows, NOW);
+  assert.equal(out.length, 6);
+  assert.equal(out[0].month, '2030-12');
+  assert.equal(out[5].month, '2031-05');
+  assert.equal(out[5].label, 'May');
+  assert.equal(out[5].avg, 70);
+  assert.equal(out[5].count, 2);
+  assert.equal(out[3].avg, 90);
+  assert.equal(out[4].avg, null);
+});
+
+test('monthlyScheduledVsCompleted buckets by scheduled and submitted month', () => {
+  const rows = [
+    { stage: 'scheduled', date: '2031-05-20T10:00:00' },
+    { stage: 'scheduled', date: '2031-04-02T10:00:00' },
+    { stage: 'completed', submitted_at: '2031-05-03T10:00:00', date: '2031-04-30T10:00:00' },
+    { stage: 'cancelled', date: '2031-05-01T10:00:00' },
+  ];
+  const out = monthlyScheduledVsCompleted(rows, NOW, 3);
+  assert.deepEqual(out.map((m) => m.month), ['2031-03', '2031-04', '2031-05']);
+  assert.deepEqual(out.map((m) => m.scheduled), [0, 1, 1]);
+  assert.deepEqual(out.map((m) => m.completed), [0, 0, 1]);
+});
+
+test('storeLatestScores keeps the latest completed audit per store, best first', () => {
+  const rows = [
+    { stage: 'completed', store_id: 'S1', store: 'Alpha', percent: 60, submitted_at: '2031-04-01T10:00:00' },
+    { stage: 'completed', store_id: 'S1', store: 'Alpha', percent: 85, submitted_at: '2031-05-01T10:00:00' },
+    { stage: 'approved', store_id: 'S2', store: 'Beta', percent: 90, submitted_at: '2031-03-01T10:00:00' },
+    { stage: 'scheduled', store_id: 'S3', store: 'Gamma', percent: null },
+    { stage: 'completed', store_id: 'S4', store: 'Delta', percent: null },
+  ];
+  const out = storeLatestScores(rows);
+  assert.deepEqual(out.map((s) => [s.store_id, s.percent]), [['S2', 90], ['S1', 85]]);
+  assert.equal(out[1].date, '2031-05-01T10:00:00');
 });

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   attachExtras, classicAuditLink, filterStoreSummaries, formatDay, mergeSopSources,
   normalizeStatus, normalizeView, optionStateLine, percentOf, regionList,
-  scheduledForYou, statusMatches,
+  scheduledForYou, statusFilterLabel, statusMatches,
 } from '../src/components/audit/auditHelpers.js';
 import { mergeRows } from '../src/lib/auditRows.js';
 
@@ -24,6 +24,29 @@ test('normalizeStatus maps raw SOP statuses onto stages', () => {
   assert.equal(statusMatches({ stage: 'in_progress' }, 'Draft'), true);
   assert.equal(statusMatches({ stage: 'completed' }, 'Draft'), false);
   assert.equal(statusMatches({ stage: 'completed' }, ''), true);
+});
+
+test('dashboard stage keys and overdue filter the same rows the dashboard counts', () => {
+  const now = new Date(2031, 4, 15, 12, 0, 0);
+  const rows = [
+    { stage: 'scheduled', date: '2031-05-10T10:00:00' },
+    { stage: 'scheduled', date: '2031-05-20T10:00:00' },
+    { stage: 'in_progress', date: '2031-05-01T10:00:00' },
+    { stage: 'completed' }, { stage: 'approved' }, { stage: 'cancelled' },
+  ];
+  const count = (status) => rows.filter((r) => statusMatches(r, status, now)).length;
+  assert.equal(count('scheduled'), 2);
+  assert.equal(count('overdue'), 1);
+  assert.equal(count('in_progress'), 1);
+  assert.equal(count('completed'), 2);
+  assert.equal(count('approved'), 1);
+  assert.equal(count('cancelled'), 1);
+  assert.equal(count(''), 6);
+  assert.equal(normalizeStatus('overdue'), 'overdue');
+  assert.equal(statusFilterLabel('overdue'), 'Overdue');
+  assert.equal(statusFilterLabel('completed'), 'Submitted');
+  assert.equal(statusFilterLabel('Draft'), 'In progress');
+  assert.equal(statusFilterLabel(''), '');
 });
 
 test('percentOf handles counts, numbers and nothing', () => {
