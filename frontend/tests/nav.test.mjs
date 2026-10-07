@@ -67,3 +67,13 @@ test('auditor sees Dashboard, Audit and Email only; managers do not get the audi
   assert.equal(canAccess('ADMIN', 'my-dashboard'), false);
   assert.equal(canAccess('STORE_MANAGER', 'my-dashboard'), false);
 });
+
+test('My Store is for store managers only; admin and manager use the Dashboard store selector', () => {
+  assert.equal(canAccess('STORE_MANAGER', 'my-store'), true);
+  for (const role of ['ADMIN', 'AUDIT_MANAGER', 'AUDITOR']) {
+    assert.equal(canAccess(role, 'my-store'), false, role);
+    const labels = NAV_ITEMS.filter((n) => canAccess(role, n.page)).map((n) => n.label);
+    assert.ok(!labels.includes('My Store'), role);
+  }
+  assert.equal(canAccess('ADMIN', 'dashboard'), true);
+});

@@ -8,6 +8,7 @@
 //   /sop-audits?store&tool&status&view
 //   /sop-audits/:id            (run the audit wizard)
 //   /sop-audits/:id/review     (review screen)
+//   /dashboard?store              (one store's view; ignored when tab=sop)
 //   /dashboard?tab=sop&store&tool&section&criterion
 //   /questions?tab=...
 //   /questions/sop-tools/:code (SOP tool editor, manager only)
@@ -63,10 +64,10 @@ export function sopToolEditorLink(code) {
   return `/questions/sop-tools/${encodeURIComponent(code)}`
 }
 
-// Managers land on the SOP dashboard filtered to the store; everyone else on
+// Managers land on the Dashboard store view (?store=<id>); everyone else on
 // the SOP audit list for that store.
 export function storeScorecardLink(storeId, role) {
-  if (role === 'AUDIT_MANAGER' || role === 'ADMIN') return sopDashboardLink({ store: storeId })
+  if (role === 'AUDIT_MANAGER' || role === 'ADMIN') return buildLink('/dashboard', { store: storeId })
   return sopAuditsLink({ store: storeId })
 }
 

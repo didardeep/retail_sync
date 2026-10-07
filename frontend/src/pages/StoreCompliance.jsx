@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, loadSession } from '../api/client';
 import { storeDataApi } from '../api/storeData';
 import { useUrlFilters } from '@/lib/useUrlFilters';
-import { auditsLink } from '@/lib/links';
+import { auditsLink, storeScorecardLink } from '@/lib/links';
 import StorePicker from '@/components/StorePicker';
 import { Drawer } from '@/components/Modal';
 import ClickableRow from '@/components/store/ClickableRow';
@@ -356,7 +356,7 @@ export default function StoreCompliance() {
               </button>
             </div>
             <div className="mb-3 text-[13px]">
-              <Link to={`/my-store?store=${encodeURIComponent(detailRow.store_id)}`} className="font-semibold text-primary hover:underline">
+              <Link to={canPick ? storeScorecardLink(detailRow.store_id, role) : '/my-store'} className="font-semibold text-primary hover:underline">
                 {storeName(detailRow.store_id)}
               </Link>
             </div>

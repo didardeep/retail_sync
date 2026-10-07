@@ -38,8 +38,8 @@ test('named builders', () => {
 });
 
 test('storeScorecardLink depends on role', () => {
-  assert.equal(storeScorecardLink('s1', 'AUDIT_MANAGER'), '/dashboard?tab=sop&store=s1');
-  assert.equal(storeScorecardLink('s1', 'ADMIN'), '/dashboard?tab=sop&store=s1');
+  assert.equal(storeScorecardLink('s1', 'AUDIT_MANAGER'), '/dashboard?store=s1');
+  assert.equal(storeScorecardLink('s1', 'ADMIN'), '/dashboard?store=s1');
   assert.equal(storeScorecardLink('s1', 'AUDITOR'), '/sop-audits?store=s1');
   assert.equal(storeScorecardLink('s1', 'STORE_MANAGER'), '/sop-audits?store=s1');
 });

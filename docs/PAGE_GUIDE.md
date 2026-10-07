@@ -20,8 +20,8 @@ only the admin can really use. The admin cannot fill in audits (that is the audi
 
 | Role | Pages in the sidebar |
 |------|----------------------|
-| ADMIN | all 14 |
-| AUDIT_MANAGER | all 14 (but User Management shows an error: the server allows the admin only) |
+| ADMIN | all 13 (My Store and the auditor Dashboard are not shown) |
+| AUDIT_MANAGER | 12 (as admin, without User Management, which only the admin can open) |
 | AUDITOR | Dashboard, Audit, Email |
 | STORE_MANAGER | My Store, Audit Checklist, Compliance Metrics, Action Taken Tracking, Audit Status, SOP Audits, Email |
 
@@ -43,7 +43,7 @@ Two kinds of audit exist side by side:
 
 | Page (route) | For | Main users | Data |
 |---|---|---|---|
-| Dashboard and Analytics (`/dashboard`) | Management summary; SOP tab for deep analysis | Admin, Audit Manager | Overview partly sample; SOP tab real |
+| Dashboard and Analytics (`/dashboard`) | Management summary; SOP tab for deep analysis; store selector for one store's view | Admin, Audit Manager | Overview partly sample; SOP tab real |
 | SOP Audits (`/sop-audits`) | Auditor's launchpad; manager's list of finished SOP audits | Auditor (also all roles to read) | Real |
 | SOP audit wizard / review (`/sop-audits/:id`) | Do the audit; check and submit; read the report | Auditor; everyone reads | Real |
 | Audit Status (`/audits`) | One list of all audits, both kinds | All roles | Real |
@@ -52,7 +52,7 @@ Two kinds of audit exist side by side:
 | Store Audit Scores (`/scores`) | Quarterly store scores | Admin, Audit Manager | Real |
 | Action Taken Tracking (`/issues`) | Issues from audits through to resolution | Admin, Audit Manager, Store Manager | Reads real; most edits not saved |
 | Store Management (`/stores`) | Store master list | Admin, Audit Manager | Reads real; add/delete not saved |
-| My Store (`/my-store`) | A store manager's own store | Store Manager | Real |
+| My Store (`/my-store`) | A store manager's own store (admin and manager use the Dashboard store selector) | Store Manager | Real |
 | Audit Checklist (`/checklist`) | Read-only list of what stores are audited on | Store Manager | Real |
 | Compliance Metrics (`/compliance`) | Cash and expiry records | Store Manager | Real data, but display is broken |
 | Email Communications (`/email`) | Mailbox | nobody yet | All sample |
@@ -65,9 +65,10 @@ Two kinds of audit exist side by side:
 ## 3. Insights
 
 ### Dashboard and Analytics (`/dashboard`)
-Two tabs.
+Two tabs, plus a store selector at the top ("All stores" by default; kept in the address as `?store=<id>`).
 - **Purpose.** Overview: a summary of audits, store scores and issues. SOP Audits tab: where are we weak, which stores are overdue.
-- **Do.** *Overview:* click Q1-Q4 to change the quarter; click Planned/Ongoing/Completed tiles to open Audit Status filtered; click donut slices (risk, region, score bands) for a side list; click a store bar or Top/Bottom row to open its scorecard; "Power BI" button opens a pop-up.
+- **Store selector.** "All stores" shows the chain-wide Overview and SOP tab described here. Picking a store (`/dashboard?store=<id>`) replaces the tab strip with that store's view: quarter score with Q1-Q4 selector, score trend with the 90% benchmark, open issues by priority, audit results over time, audits by status, recent audits and open issues (the same view a store manager sees as My Store); every tile and chart opens a list with the same count. A small link "Open SOP scores for this store" goes to `/dashboard?tab=sop&store=<id>`; with `tab=sop` the SOP tab is shown, filtered to that store, as before.
+- **Do.** *Overview:* click Q1-Q4 to change the quarter; click Planned/Ongoing/Completed tiles to open Audit Status filtered; click donut slices (risk, region, score bands) for a side list; click a store bar, Top/Bottom row or score-band list row to open that store's view; "Power BI" button opens a pop-up.
   *SOP tab:* tool chips, region, search; click a store in the ranking or coverage panel, a section in "Gap by section", a bar in "Where marks are lost" to filter everything; filter chips with "Clear all"; Refresh; Export CSV; click a table row to open the report. Filters live in the web address.
 - **See.** SOP tab: Audits submitted, Average score (target 80%), Stores below 70%, change vs last audit; store ranking; gap by section; top 10 questions losing marks; coverage (stores not audited for 30+ days); monthly trend; audits table.
 - **Data.** SOP tab: all real, from one request. Overview: store scores, issues, observations are real but come from the older audit tables, not SOP audits. **Sample/fake on Overview:** the "Performance Trends" line is invented from the current average; the Power BI pop-up is a hard-coded mock-up with controls that do nothing; "Recent Communications" is always empty; "Top 5 Repeat" is just the first five issue titles; if the database is empty it silently shows sample numbers.
@@ -152,9 +153,9 @@ Built to let an auditor answer Yes/No/Partial/NA and submit, but the route is mo
 ## 5. My store (store manager)
 
 ### My Store (`/my-store`)
-- **Purpose.** The main dashboard, scoped to one store: quarter score with a Q1-Q4 selector, score trend with the 90% benchmark, open issues by priority (donut), audit results over time (bars), audits by status (donut), recent audits and open issues. Both kinds of audit are included; every tile and chart opens a list with the same count.
+- **Purpose.** The store manager's own dashboard (the same store view as Dashboard and Analytics with a store picked): quarter score with a Q1-Q4 selector, score trend with the 90% benchmark, open issues by priority (donut), audit results over time (bars), audits by status (donut), recent audits and open issues. Both kinds of audit are included; every tile and chart opens a list with the same count.
 - **Do.** Click Q1-Q4 only.
-- **Limits.** **[verified]** For admin and audit manager there is no store picker: the header and score are the first store (Phoenix Mall), while audit and issue lists are company-wide. Misleading for those roles; meant for store managers.
+- **Limits.** Store managers only: the page always shows their own store and has no store picker. Admin and Audit Manager no longer get this page in the sidebar; they pick a store on Dashboard and Analytics instead, and a visit to `/my-store` (with or without `?store=`) redirects them to `/dashboard` (keeping `?store`).
 
 ### Audit Checklist (`/checklist`)
 - **Purpose.** Read-only list of the questions stores are audited on, grouped by process; search and collapse.
@@ -193,7 +194,7 @@ Email and password. No forgot-password, sign-up, or password change; the admin r
 | Gap | What changed |
 |---|---|
 | Compliance Metrics showed dashes | Rewritten to the real fields: store name, rupee amounts, Matched / Mismatch, delayed pickups, stock value; store picker. [verified live] |
-| My Store and Compliance mixed stores for admin / manager | Store picker (kept in the address, e.g. `?store=ST003`); everything on the page now describes the picked store. [verified live] |
+| My Store and Compliance mixed stores for admin / manager | Compliance has a store picker (`?store=ST003`). My Store is now store managers only; admin and manager use the store selector on Dashboard and Analytics (`/dashboard?store=`). |
 | Issues: new, delete, assignee, due date did not save | Create, edit, delete now saved on the server (delete: admin and audit manager only, logged); real users as assignees; failures show an error instead of success; fields with no database column (tags, attachments, comments) removed from the form; the overdue badge now works. Store managers see only status and action taken. [verified: create, persist, delete, 403 for store manager] |
 | Stores: add and delete did not save | Add and edit saved; delete replaced by "Dehire" (soft); fake manager field and dead "Full History" button removed; region and format filters added; duplicate id returns 409. [verified] |
 | Question bank edits did not save | Create, edit, active toggle and delete (soft) saved and logged; failures show an error; Approve / Reject for pending questions; status badge for managers; guidance field removed (no column). |

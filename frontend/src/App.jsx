@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
 import { clearSession, loadSession, saveSession } from './api/client'
 import Layout from './components/Layout'
@@ -29,6 +29,14 @@ import SopAudits from './pages/SopAudits'
 import SopAuditWizard from './pages/SopAuditWizard'
 import SopAuditReview from './pages/SopAuditReview'
 import SopToolEditor from './pages/SopToolEditor'
+
+// Old My Store bookmarks and links (/my-store?store=<id>) open the Dashboard
+// store view for admin and Audit Manager; the ?store key is kept.
+function MyStoreRedirect() {
+  const { search } = useLocation()
+  const store = new URLSearchParams(search).get('store')
+  return <Navigate to={store ? `/dashboard?store=${encodeURIComponent(store)}` : '/dashboard'} replace />
+}
 
 export default function App() {
   const [session, setSession] = useState(loadSession())
@@ -60,6 +68,7 @@ export default function App() {
   if (!session) return <Login onLogin={handleLogin} />
 
   const role = session.user?.role
+  const isManager = role === 'ADMIN' || role === 'AUDIT_MANAGER'
 
   function guarded(page, element) {
     return (
@@ -91,7 +100,10 @@ export default function App() {
             <Route path="/sop-audits/:id" element={guarded('sop-audits', <SopAuditWizard />)} />
             <Route path="/sop-audits/:id/review" element={guarded('sop-audits', <SopAuditReview />)} />
             <Route path="/audit-log" element={guarded('audit-log', <AuditLog />)} />
-            <Route path="/my-store" element={guarded('my-store', <StoreDashboard />)} />
+            <Route
+              path="/my-store"
+              element={isManager ? <MyStoreRedirect /> : guarded('my-store', <StoreDashboard />)}
+            />
             <Route path="/checklist" element={guarded('checklist', <StoreChecklist />)} />
             <Route path="/compliance" element={guarded('compliance', <StoreCompliance />)} />
             <Route path="/user-management" element={guarded('user-management', <UserManagement />)} />
