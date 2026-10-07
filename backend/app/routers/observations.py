@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user, require_roles
 from ..db import get_db
-from ..models import ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, Observation, Store, User
+from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, Observation, Store, User
 from ..schemas import ObservationCreate, ObservationUpdate
 
 router = APIRouter(prefix="/api/observations", tags=["observations"])
@@ -38,7 +38,7 @@ def list_observations(
 def create_observation(
     body: ObservationCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_AUDITOR)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN, ROLE_AUDITOR)),
 ):
     last_sr = db.query(func.max(Observation.sr_no)).filter(
         Observation.audit_id == body.audit_id).scalar() or 0
@@ -60,7 +60,7 @@ def update_observation(
     oid: str,
     body: ObservationUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_AUDITOR)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN, ROLE_AUDITOR)),
 ):
     o = db.get(Observation, oid)
     if not o:

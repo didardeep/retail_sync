@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user, require_roles
 from ..db import get_db
-from ..models import ROLE_AUDIT_MANAGER, ROLE_AUDITOR, AuditorAvailability, User
+from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, AuditorAvailability, User
 from ..schemas import AvailabilityCreate
 
 router = APIRouter(prefix="/api/availability", tags=["availability"])
@@ -23,9 +23,9 @@ def list_availability(db: Session = Depends(get_db), user: User = Depends(get_cu
 def add_availability(
     body: AvailabilityCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_AUDITOR)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN, ROLE_AUDITOR)),
 ):
-    auditor_id = body.auditor_id if user.role == ROLE_AUDIT_MANAGER else user.id
+    auditor_id = body.auditor_id if user.role in (ROLE_AUDIT_MANAGER, ROLE_ADMIN) else user.id
     a = AuditorAvailability(
         auditor_id=auditor_id,
         from_date=dt.date.fromisoformat(body.from_date),

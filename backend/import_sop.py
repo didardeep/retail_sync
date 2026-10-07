@@ -1,8 +1,14 @@
 """
 Imports the SOP audit tools (Cash, FMCG) from docs/SOP_Audit_Checklists.xlsx
-into the sop_* tables. Idempotent: re-running updates text/marks in place and
-keeps ids stable (matched by section code + position), so existing audits and
-manager-set proof flags (requires_comment / requires_photo) are preserved.
+into the sop_* tables by publishing them through app/sop_versions.py, so the
+import and the tool editor create template versions the same way.
+
+A tool with no version yet gets version 1. Otherwise the sheet is matched to
+the current version (sections by code, questions by position within the
+section) so stable keys and manager-set proof flags (requires_comment /
+requires_photo) carry over, and a new version is published only if the sheet
+differs from the current one. Running it twice therefore publishes nothing
+the second time.
 
     python import_sop.py
     python import_sop.py path/to/other.xlsx
@@ -14,7 +20,8 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from app.db import SessionLocal, init_db
-from app.models import SopCriterion, SopSection, SopTemplate
+from app.models import SopTemplate
+from app.sop_versions import publish_version, tree_of
 
 DEFAULT_FILE = Path(__file__).parent.parent / "docs" / "SOP_Audit_Checklists.xlsx"
 
@@ -69,52 +76,44 @@ def parse_sheet(ws):
     return sections
 
 
-def _min_points(rule, marks):
-    return round(marks / 3, 2) if rule == "third" else 0.0
+def _tree_from_sheet(sections, code, name, rule, current):
+    """The sheet as a tree. Where the current version has the same section code
+    (and a question at the same position) its stable key and proof flags are
+    carried over, so the question stays "the same question" across versions."""
+    old = {s["code"]: s for s in tree_of(current)["sections"]} if current else {}
+    out = []
+    for sec in sections:
+        before = old.get(sec["code"])
+        criteria = []
+        for idx, crit in enumerate(sec["criteria"]):
+            prev = before["criteria"][idx] if before and idx < len(before["criteria"]) else None
+            criteria.append({
+                **crit,
+                "key": prev["key"] if prev else None,
+                "requires_comment": prev["requires_comment"] if prev else False,
+                "requires_photo": prev["requires_photo"] if prev else False,
+            })
+        out.append({"key": before["key"] if before else None,
+                    "code": sec["code"], "name": sec["name"], "criteria": criteria})
+    return {"code": code, "name": name, "min_rule": rule, "sections": out}
 
 
-def upsert_template(db, ws, code, rule):
+def upsert_template(db, ws, code, rule, user=None):
+    """Publish the sheet as the tool's next version unless nothing changed.
+    Returns (template, section count, criterion count, published) where
+    `published` is False when the sheet matched the current version."""
     sections = parse_sheet(ws)
-    name = ws.title.strip()
-    tpl = db.query(SopTemplate).filter_by(code=code, is_current=True).first()
-    if tpl is None:
-        tpl = SopTemplate(code=code, name=name, min_rule=rule)
-        db.add(tpl)
-        db.flush()
-    tpl.name, tpl.min_rule, tpl.is_active = name, rule, True
-
-    existing_sections = {s.code: s for s in tpl.sections}
-    total = 0.0
-    n_criteria = 0
-    for s_idx, sec in enumerate(sections):
-        row = existing_sections.get(sec["code"])
-        if row is None:
-            row = SopSection(template_id=tpl.id, code=sec["code"],
-                             name=sec["name"])
-            db.add(row)
-            db.flush()
-        row.name, row.sort_order = sec["name"], s_idx
-
-        existing_crit = {c.sort_order: c for c in row.criteria}
-        for c_idx, crit in enumerate(sec["criteria"]):
-            c = existing_crit.get(c_idx)
-            if c is None:
-                c = SopCriterion(section_id=row.id, title=crit["title"],
-                                 marks=crit["marks"])
-                db.add(c)
-            c.sort_order = c_idx
-            c.title = crit["title"]
-            c.marks = crit["marks"]
-            c.max_text = crit["max_text"]
-            c.avg_text = crit["avg_text"]
-            c.min_text = crit["min_text"]
-            c.min_points = _min_points(rule, crit["marks"])
-            c.default_na = crit["default_na"]
-            n_criteria += 1
-            if not crit["default_na"]:
-                total += crit["marks"]
-    tpl.total_marks = total
-    return tpl, len(sections), n_criteria
+    current = db.query(SopTemplate).filter_by(code=code, is_current=True).first()
+    tree = _tree_from_sheet(sections, code, ws.title.strip(), rule, current)
+    result = publish_version(
+        db, code, tree, user, current.version if current else None,
+        "Imported from the audit checklist spreadsheet")
+    tpl = result.template
+    if not tpl.is_active:
+        tpl.is_active = True
+        db.commit()
+    n_criteria = sum(len(s["criteria"]) for s in sections)
+    return tpl, len(sections), n_criteria, not result.unchanged
 
 
 def import_sop(path=DEFAULT_FILE):
@@ -127,10 +126,10 @@ def import_sop(path=DEFAULT_FILE):
             if tool is None:
                 print(f"  skipped sheet (unknown tool): {ws.title!r}")
                 continue
-            tpl, n_sec, n_crit = upsert_template(db, ws, *tool)
+            tpl, n_sec, n_crit, published = upsert_template(db, ws, *tool)
+            note = f"published v{tpl.version}" if published else "unchanged"
             print(f"  {tpl.code}: {n_sec} sections, {n_crit} criteria, "
-                  f"{tpl.total_marks:g} marks")
-        db.commit()
+                  f"{tpl.total_marks:g} marks ({note})")
     finally:
         db.close()
         wb.close()

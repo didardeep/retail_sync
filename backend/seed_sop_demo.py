@@ -9,6 +9,10 @@ The pattern is deliberate, so the charts tell a story:
   - two stores are overdue for an audit (coverage panel)
   - not every store is audited with every tool
 
+Also books a few Planned audits (one overdue) so "Assigned to me" and the
+scheduling page have something to show. Planned audits are not final, so the
+dashboards ignore them.
+
     python seed_sop_demo.py
 """
 import datetime as dt
@@ -38,6 +42,16 @@ WEAK_SECTIONS = {
 }
 AUDITS_PER_STORE = 4
 SPACING_DAYS = 35
+
+# Planned audits: (days from today, hour, tool index, store position, note).
+# A negative day is overdue. Each lands on its own day, so no auditor clashes.
+PLANNED = [
+    (-2, 10, 0, 7, "Follow-up visit; last audit was weak on cash handling."),
+    (1, 10, 0, 1, None),
+    (2, 11, 1, 3, "Check the FMCG expiry sections first."),
+    (4, 10, 0, 4, None),
+    (6, 14, 1, 0, None),
+]
 
 COMMENTS = [
     "Gaps observed during the walk-through; discussed with the store team.",
@@ -93,7 +107,26 @@ def _build_audit(db, store, template, k, n, auditor, quality, trend, days_ago):
     summary = compute_sop_score(audit)
     audit.score, audit.max_score, audit.percent = (
         summary["score"], summary["max_score"], summary["percent"])
+    audit.updated_at = when        # setting the score above would otherwise stamp "now"
     return True
+
+
+def _build_planned(db, stores, templates, auditors):
+    created = 0
+    today = dt.datetime.combine(dt.date.today(), dt.time())
+    for j, (day, hour, t_idx, s_idx, note) in enumerate(PLANNED):
+        store = stores[s_idx % len(stores)]
+        template = templates[t_idx % len(templates)]
+        audit_id = str(uuid.uuid5(_NAMESPACE, f"planned|{store.id}|{template.code}|{j}"))
+        if db.get(SopAudit, audit_id):
+            continue
+        db.add(SopAudit(
+            id=audit_id, template_id=template.id, store_id=store.id,
+            auditor_id=auditors[j % len(auditors)].id, status="Planned",
+            scheduled_at=today + dt.timedelta(days=day, hours=hour), notes=note,
+        ))
+        created += 1
+    return created
 
 
 def seed_sop_demo():
@@ -122,8 +155,9 @@ def seed_sop_demo():
                     if _build_audit(db, store, template, k, AUDITS_PER_STORE,
                                     auditor, quality, trend, days_ago):
                         created += 1
+        planned = _build_planned(db, stores, templates, auditors)
         db.commit()
-        print(f"  SOP demo audits created: {created}")
+        print(f"  SOP demo audits created: {created}, planned: {planned}")
     finally:
         db.close()
 

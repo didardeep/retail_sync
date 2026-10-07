@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user, require_roles
 from ..db import get_db
 from ..models import (
-    ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, SopAttachment,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, SopAttachment,
     SopAudit, SopAuditScore, SopCriterion, SopTemplate, Store, User,
 )
 from ..schemas import SopAuditUpsert, SopSubmitIn
@@ -60,7 +60,7 @@ def _parse_dt(text):
 
 
 def _can_view(user: User, audit: SopAudit) -> bool:
-    if user.role == ROLE_AUDIT_MANAGER:
+    if user.role in (ROLE_ADMIN, ROLE_AUDIT_MANAGER):
         return True
     if user.role == ROLE_AUDITOR:
         return audit.auditor_id == user.id
@@ -76,6 +76,22 @@ def _load_for_view(db: Session, aid: str, user: User) -> SopAudit:
     if not audit or not _can_view(user, audit):
         raise _not_found()
     return audit
+
+
+def _resolve_criterion(db, audit, criterion_id, by_id):
+    """The audit's own question for `criterion_id`, or None.
+
+    `criterion_id` may belong to an older version of the same tool (the audit
+    was moved to a newer version after the phone downloaded it). The question
+    is then found through its stable key, which is the same in every version.
+    """
+    crit = by_id.get(criterion_id)
+    if crit is not None:
+        return crit
+    other = db.get(SopCriterion, criterion_id)
+    if other is None or other.section.template.code != audit.template.code:
+        return None
+    return next((c for c in by_id.values() if c.stable_key == other.stable_key), None)
 
 
 def _audit_detail(audit: SopAudit) -> dict:
@@ -200,8 +216,9 @@ def upsert_sop_audit(
                 "status": audit.status})
         sent = db.get(SopTemplate, body.template_id)
         same_tool = sent is not None and sent.code == audit.template.code
-        template_ok = audit.template_id == body.template_id or (
-            audit.status == SOP_PLANNED and same_tool)
+        # The phone may still name an older version of the same tool (the audit was
+        # moved to a newer one after it downloaded it); the server's version wins.
+        template_ok = audit.template_id == body.template_id or same_tool
         if audit.store_id != body.store_id or not template_ok:
             raise HTTPException(status_code=422, detail={
                 "error": "store and template cannot change on an existing audit"})
@@ -211,7 +228,7 @@ def upsert_sop_audit(
     criteria = {c.id: c for s in audit.template.sections for c in s.criteria}
     existing = {r.criterion_id: r for r in audit.scores}
     for item in body.scores:
-        crit = criteria.get(item.criterion_id)
+        crit = _resolve_criterion(db, audit, item.criterion_id, criteria)
         if crit is None:
             raise HTTPException(status_code=422, detail={
                 "error": f"criterion {item.criterion_id} is not part of this audit tool"})
@@ -222,11 +239,11 @@ def upsert_sop_audit(
             if (item.score * 2) % 1 != 0:
                 raise HTTPException(status_code=422, detail={
                     "error": "scores move in steps of 0.5"})
-        row = existing.get(item.criterion_id)
+        row = existing.get(crit.id)
         if row is None:
-            row = SopAuditScore(audit_id=audit.id, criterion_id=item.criterion_id)
+            row = SopAuditScore(audit_id=audit.id, criterion_id=crit.id)
             db.add(row)
-            existing[item.criterion_id] = row
+            existing[crit.id] = row
             audit.scores.append(row)
         row.is_na = item.is_na
         row.score = None if item.is_na else item.score
@@ -309,8 +326,9 @@ async def upload_attachment(
         raise HTTPException(status_code=409, detail={
             "error": f"audit is {audit.status.lower()} and can no longer be changed",
             "status": audit.status})
-    criterion = db.get(SopCriterion, criterion_id)
-    if criterion is None or criterion.section.template_id != audit.template_id:
+    own = {c.id: c for sec in audit.template.sections for c in sec.criteria}
+    criterion = _resolve_criterion(db, audit, criterion_id, own)
+    if criterion is None:
         raise HTTPException(status_code=422, detail={
             "error": "criterion is not part of this audit tool"})
     ext = _EXT_BY_MIME.get(file.content_type)
@@ -325,7 +343,7 @@ async def upload_attachment(
     folder.mkdir(parents=True, exist_ok=True)
     rel = f"{audit.id}/{att_id}{ext}"
     (ATTACHMENT_FOLDER / rel).write_bytes(data)
-    att = SopAttachment(id=att_id, audit_id=audit.id, criterion_id=criterion_id,
+    att = SopAttachment(id=att_id, audit_id=audit.id, criterion_id=criterion.id,
                         file_path=rel, mime=file.content_type, size=len(data))
     db.add(att)
     db.commit()

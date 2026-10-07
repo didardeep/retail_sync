@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user, require_roles
 from ..db import get_db
-from ..models import ROLE_AUDIT_MANAGER, ROLE_AUDITOR, Question, User
+from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, Question, User
 from ..schemas import QuestionApprove, QuestionCreate, QuestionEdit
 from ..services import log_action
 
@@ -32,10 +32,10 @@ def list_questions(
 def create_question(
     body: QuestionCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_AUDITOR)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN, ROLE_AUDITOR)),
 ):
     """AM creates approved questions directly; an auditor's goes to PENDING."""
-    is_am = user.role == ROLE_AUDIT_MANAGER
+    is_am = user.role in (ROLE_AUDIT_MANAGER, ROLE_ADMIN)
     last = db.query(func.max(Question.code)).scalar() or "Q000"
     code = body.code or f"Q{int(last[1:]) + 1:03d}"
     q = Question(
@@ -57,7 +57,7 @@ def approve_question(
     qid: str,
     body: QuestionApprove,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     q = db.get(Question, qid)
     if not q:
@@ -75,7 +75,7 @@ def edit_question(
     qid: str,
     body: QuestionEdit,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     """Edits create a new version so completed audits keep their wording."""
     old = db.get(Question, qid)
@@ -95,5 +95,23 @@ def edit_question(
         meta=d.get("meta", old.meta),
     )
     db.add(new)
+    log_action(db, user.id, "edit_question", "question", new.id,
+               {"code": new.code, "version": new.version, "fields": list(d.keys())})
     db.commit()
     return new.to_dict()
+
+
+@router.delete("/{qid}")
+def deactivate_question(
+    qid: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
+):
+    """Soft delete: the question is switched off, never removed, so old audits keep it."""
+    q = db.get(Question, qid)
+    if not q:
+        raise HTTPException(status_code=404, detail={"error": "not found"})
+    q.active = False
+    log_action(db, user.id, "deactivate_question", "question", q.id, {"code": q.code})
+    db.commit()
+    return q.to_dict()

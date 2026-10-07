@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/Toast';
-import { api } from '../api/client';
+import { api, loadSession } from '../api/client';
+import { issuesApi } from '../api/issuesApi';
 import { avC, prC, stC, exportCSV } from '../utils/helpers';
 import { cn, fieldClass, labelClass } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -17,14 +18,32 @@ function stBorder(s) {
 
 const colColor = { Open: '#e02424', 'In Progress': '#00338D', 'On Hold': '#f59e0b', Resolved: '#0e9f6e', Closed: '#6b7280' };
 
-function fmtLocalDT(d) {
+function fmtLocalDate(d) {
   const dt = new Date(d);
   const pad = n => String(n).padStart(2, '0');
-  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
 }
 
 function fmtDisp(d) {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+/* Shape a server issue for display. The form reads these fields back. */
+function normalizeIssue(iss) {
+  return {
+    ...iss,
+    pri: iss.priority || 'Medium',
+    store: iss.store || iss.store_id || '',
+    storeId: iss.store_id || '',
+    assignee: iss.assignee || 'Unassigned',
+    assigneeId: iss.assignee_id || '',
+    desc: iss.description || '',
+    aid: iss.audit_id || '',
+    created: iss.created_at ? fmtDisp(new Date(iss.created_at)) : '',
+    due: iss.due_date || '',
+    ov: iss.overdue || false,
+    actionTaken: iss.action_taken || '',
+  };
 }
 
 export default function Issues() {
@@ -42,35 +61,28 @@ export default function Issues() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({
-    title: '', status: 'Open', desc: '', pri: 'Critical', store: '', assignee: 'Jitendra',
-    created: '', due: '', aid: '', tags: '', comment: ''
+    title: '', status: 'Open', desc: '', pri: 'Critical', storeId: '', assigneeId: '',
+    due: '', aid: '', actionTaken: ''
   });
-  const [files, setFiles] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [saving, setSaving] = useState(false);
+  // Store managers may only change status and action taken, so the form shows just those.
+  const role = loadSession()?.user?.role;
+  const isStoreManager = role === 'STORE_MANAGER';
+  const canDelete = role === 'ADMIN' || role === 'AUDIT_MANAGER';
+  const canCreate = role !== 'STORE_MANAGER';
 
   useEffect(() => {
     Promise.all([
       api.issues().catch(() => []),
       api.stores().catch(() => []),
-    ]).then(([i, s]) => {
-      // Normalize issue data for display
-      const normalized = (i || []).map(iss => ({
-        ...iss,
-        pri: iss.priority || iss.pri || 'Medium',
-        store: iss.store || iss.store_id || '',
-        assignee: iss.assignee || iss.assignee_id || 'Unassigned',
-        desc: iss.description || iss.desc || '',
-        aid: iss.audit_id || iss.aid || '',
-        created: iss.created_at ? fmtDisp(new Date(iss.created_at)) : '',
-        due: iss.due_date || '',
-        ov: iss.is_overdue || false,
-        tags: iss.tags || [],
-        dp: 0,
-        dc: '#6b7280',
-        files: 0,
-        comments: 0,
-      }));
+      // The users list is manager/admin only; store managers never pick an assignee.
+      isStoreManager ? Promise.resolve([]) : api.users().catch(() => []),
+    ]).then(([i, s, u]) => {
+      const normalized = (i || []).map(normalizeIssue);
       setIssues(normalized);
       setStores(s || []);
+      setUsers((u || []).filter(x => x.active !== false));
       setLoading(false);
       // open detail from ?id= query param
       const idParam = filters.id;
@@ -89,7 +101,7 @@ export default function Issues() {
   const filtered = issues.filter(i => {
     if (search) {
       const q = search.toLowerCase();
-      if (!(i.title||'').toLowerCase().includes(q) && !(i.desc||'').toLowerCase().includes(q) && !(i.tags||[]).join(' ').toLowerCase().includes(q)) return false;
+      if (!(i.title||'').toLowerCase().includes(q) && !(i.desc||'').toLowerCase().includes(q)) return false;
     }
     if (filters.status && i.status !== filters.status) return false;
     if (filters.priority && i.pri !== filters.priority) return false;
@@ -105,9 +117,6 @@ export default function Issues() {
   const openNotDue = issues.filter(i => !i.ov && i.status !== 'Resolved' && i.status !== 'Closed').length;
   const overdueCount = issues.filter(i => i.ov === true).length;
   const completedCount = issues.filter(i => i.status === 'Resolved').length;
-
-  /* ── modal store options ── */
-  const modalStoreOpts = [...new Set([...issues.map(i => i.store).filter(Boolean), ...stores.map(s => s.name)])];
 
   /* ── handlers ── */
   function setIssueView(v) {
@@ -127,27 +136,22 @@ export default function Issues() {
       status: i.status,
       desc: i.desc || '',
       pri: i.pri,
-      store: i.store,
-      assignee: i.assignee,
-      created: fmtLocalDT(new Date()),
-      due: fmtLocalDT(new Date()),
+      storeId: i.storeId,
+      assigneeId: i.assigneeId,
+      due: i.due || '',
       aid: i.aid || '',
-      tags: (i.tags || []).join(', '),
-      comment: ''
+      actionTaken: i.actionTaken || ''
     });
-    setFiles([]);
     setModalOpen(true);
   }
 
   function openNewIssue() {
     setEditId(null);
-    const now = new Date();
-    const due = new Date(now.getTime() + 48 * 3600 * 1000);
+    const due = new Date(Date.now() + 48 * 3600 * 1000);
     setForm({
-      title: '', status: 'Open', desc: '', pri: 'Critical', store: '', assignee: 'Jitendra',
-      created: fmtLocalDT(now), due: fmtLocalDT(due), aid: '', tags: '', comment: ''
+      title: '', status: 'Open', desc: '', pri: 'Critical', storeId: '', assigneeId: '',
+      due: fmtLocalDate(due), aid: '', actionTaken: ''
     });
-    setFiles([]);
     setModalOpen(true);
   }
 
@@ -156,76 +160,53 @@ export default function Issues() {
     if (i) openEditIssueData(i);
   }
 
-  function saveIssue() {
-    if (!form.title.trim()) { alert('Please enter a title'); return; }
-    if (!form.store) { alert('Please select a store'); return; }
-
-    const priColor = { Critical: '#e02424', High: '#f59e0b', Medium: '#00338D', Low: '#0e9f6e' };
-    const dueDate = form.due ? new Date(form.due) : null;
-    const now = new Date();
-    const overdue = dueDate ? dueDate < now && form.status !== 'Resolved' && form.status !== 'Closed' : false;
-    const tags = form.tags.split(',').map(t => t.trim()).filter(Boolean);
-
-    if (editId) {
-      setIssues(prev => prev.map(i => {
-        if (i.id !== editId) return i;
-        return {
-          ...i,
+  async function saveIssue() {
+    if (saving) return;
+    const body = isStoreManager
+      ? { status: form.status, action_taken: form.actionTaken }
+      : {
           title: form.title.trim(),
+          description: form.desc,
+          priority: form.pri,
           status: form.status,
-          pri: form.pri,
-          tags,
-          store: form.store,
-          assignee: form.assignee,
-          created: form.created ? fmtDisp(new Date(form.created)) : i.created,
-          due: form.due ? fmtDisp(new Date(form.due)).split(',')[0] : i.due,
-          ov: overdue,
-          dp: overdue ? 100 : i.dp,
-          dc: overdue ? '#e02424' : (priColor[form.pri] || '#00338D'),
-          desc: form.desc,
-          aid: form.aid.trim() || i.aid
+          store_id: form.storeId || null,
+          assignee_id: form.assigneeId || null,
+          due_date: form.due || null,
         };
-      }));
-      // Also update in backend
-      api.updateIssue(editId, {
-        title: form.title.trim(),
-        status: form.status,
-        priority: form.pri,
-        description: form.desc,
-      }).catch(() => {});
-      toast('Issue updated');
-    } else {
-      const newId = 'ISS' + String(issues.length + 1).padStart(3, '0');
-      setIssues(prev => [...prev, {
-        id: newId,
-        aid: form.aid.trim() || 'AUD-NEW',
-        title: form.title.trim(),
-        status: form.status,
-        pri: form.pri,
-        tags,
-        proc: '',
-        sp: '',
-        store: form.store,
-        assignee: form.assignee,
-        created: form.created ? fmtDisp(new Date(form.created)) : fmtDisp(now),
-        due: form.due ? fmtDisp(new Date(form.due)).split(',')[0] : '—',
-        ov: false,
-        dp: 0,
-        dc: '#6b7280',
-        desc: form.desc,
-        files: files.length,
-        comments: form.comment.trim() ? 1 : 0
-      }]);
-      toast('Issue created');
+    if (!isStoreManager) {
+      if (!body.title) { toast.error('Please enter a title'); return; }
+      if (!body.store_id) { toast.error('Please select a store'); return; }
     }
-    setModalOpen(false);
-    setEditId(null);
+    setSaving(true);
+    try {
+      if (editId) {
+        const saved = normalizeIssue(await issuesApi.update(editId, body));
+        setIssues(prev => prev.map(i => (i.id === editId ? saved : i)));
+        toast('Issue updated');
+      } else {
+        const aid = form.aid.trim();
+        const saved = normalizeIssue(await issuesApi.create(aid ? { ...body, audit_id: aid } : body));
+        setIssues(prev => [saved, ...prev]);
+        toast('Issue created');
+      }
+      setModalOpen(false);
+      setEditId(null);
+    } catch (e) {
+      toast.error(`Could not save the issue: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function deleteIssue(id) {
+  async function deleteIssue(id) {
     if (!window.confirm('Delete this issue?')) return;
-    setIssues(prev => prev.filter(i => i.id !== id));
-    toast('Issue deleted');
+    try {
+      await issuesApi.remove(id);
+      setIssues(prev => prev.filter(i => i.id !== id));
+      toast('Issue deleted');
+    } catch (e) {
+      toast.error(`Could not delete the issue: ${e.message}`);
+    }
   }
 
   function handleExport() {
@@ -233,16 +214,6 @@ export default function Issues() {
     const rows = issues.map(i => [i.id, i.aid, i.title, i.pri, i.status, i.store, i.assignee, i.due, i.ov ? 'Yes' : 'No']);
     exportCSV(rows, headers, 'issues.csv');
     toast('CSV exported');
-  }
-
-  function handleAddFiles(e) {
-    const newFiles = Array.from(e.target.files || []).map(f => f.name);
-    setFiles(prev => [...prev, ...newFiles]);
-    e.target.value = '';
-  }
-
-  function removeFile(idx) {
-    setFiles(prev => prev.filter((_, i) => i !== idx));
   }
 
   /* ── board columns ── */
@@ -265,7 +236,7 @@ export default function Issues() {
           <Button size="sm" variant={view === 'table' ? 'default' : 'outline'} onClick={() => setIssueView('table')}>&#x1F4CB; Table</Button>
           <Button size="sm" variant={view === 'board' ? 'default' : 'outline'} onClick={() => setIssueView('board')}>&#x1F4CC; Board</Button>
           <Button size="sm" variant="outline" onClick={handleExport}>&#x2B07; Export</Button>
-          <Button size="sm" onClick={openNewIssue}>+ New Issue</Button>
+          {canCreate && <Button size="sm" onClick={openNewIssue}>+ New Issue</Button>}
         </div>
       </div>
 
@@ -293,7 +264,7 @@ export default function Issues() {
       <div className="mb-3.5 flex flex-wrap items-center gap-2">
         <div className="relative max-w-[250px] flex-1">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">&#x1F50D;</span>
-          <Input className="pl-8" placeholder="Search title, tags..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input className="pl-8" placeholder="Search title, description..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.status} onChange={e => setFilter('status', e.target.value)}>
           <option value="">Status</option>
@@ -334,7 +305,7 @@ export default function Issues() {
                   <div className="flex items-center gap-1.5">
                     {i.ov && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-800">Overdue</span>}
                     <button className="flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border bg-card text-[10px]" onClick={() => openEditIssue(i.id)}>&#x270F;&#xFE0F;</button>
-                    <button className="flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border bg-card text-[10px] text-destructive" onClick={() => deleteIssue(i.id)}>&#x1F5D1;</button>
+                    {canDelete && <button className="flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border bg-card text-[10px] text-destructive" onClick={() => deleteIssue(i.id)}>&#x1F5D1;</button>}
                   </div>
                 </div>
                 {/* title */}
@@ -416,97 +387,79 @@ export default function Issues() {
             <span className="cursor-pointer text-base text-muted-foreground" onClick={() => setModalOpen(false)}>&times;</span>
             <span className="text-[15px] font-bold text-foreground">{editId ? 'Edit Issue' : 'New Issue'}</span>
           </div>
-          <Button size="sm" onClick={saveIssue}>{editId ? 'Save Changes' : 'Save'}</Button>
+          <Button size="sm" onClick={saveIssue} disabled={saving}>{editId ? 'Save Changes' : 'Save'}</Button>
         </div>
 
-        <div className="grid gap-3">
-          {/* title + status (2-col) */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelClass}>Title <span className="text-destructive">*</span></label>
-              <Input placeholder="Short summary of the issue" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-            </div>
+        {isStoreManager ? (
+          <div className="grid gap-3">
+            <div className="text-[13px] font-semibold text-foreground">{form.title}</div>
+            <div className="text-[11.5px] text-muted-foreground">{form.desc}</div>
             <div>
               <label className={labelClass}>Status</label>
               <select className={fieldClass} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
                 <option>Open</option><option>In Progress</option><option>On Hold</option><option>Resolved</option><option>Closed</option>
               </select>
             </div>
+            <div>
+              <label className={labelClass}>Action taken</label>
+              <textarea className={cn(fieldClass, 'min-h-[72px] resize-y')} placeholder="What was done about this issue" value={form.actionTaken} onChange={e => setForm(f => ({ ...f, actionTaken: e.target.value }))} />
+            </div>
           </div>
+        ) : (
+          <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className={labelClass}>Title <span className="text-destructive">*</span></label>
+                <Input placeholder="Short summary of the issue" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+              </div>
+              <div>
+                <label className={labelClass}>Status</label>
+                <select className={fieldClass} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                  <option>Open</option><option>In Progress</option><option>On Hold</option><option>Resolved</option><option>Closed</option>
+                </select>
+              </div>
+            </div>
 
-          {/* description */}
-          <div>
-            <label className={labelClass}>Description</label>
-            <textarea className={cn(fieldClass, 'min-h-[72px] resize-y')} placeholder="Describe the issue, steps, context..." value={form.desc} onChange={e => setForm(f => ({ ...f, desc: e.target.value }))} />
-          </div>
+            <div>
+              <label className={labelClass}>Description</label>
+              <textarea className={cn(fieldClass, 'min-h-[72px] resize-y')} placeholder="Describe the issue, steps, context..." value={form.desc} onChange={e => setForm(f => ({ ...f, desc: e.target.value }))} />
+            </div>
 
-          {/* priority + store + assignee (3-col) */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div>
-              <label className={labelClass}>Priority <span className="text-destructive">*</span></label>
-              <select className={fieldClass} value={form.pri} onChange={e => setForm(f => ({ ...f, pri: e.target.value }))}>
-                <option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
-              </select>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label className={labelClass}>Priority <span className="text-destructive">*</span></label>
+                <select className={fieldClass} value={form.pri} onChange={e => setForm(f => ({ ...f, pri: e.target.value }))}>
+                  <option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Store <span className="text-destructive">*</span></label>
+                <select className={fieldClass} value={form.storeId} onChange={e => setForm(f => ({ ...f, storeId: e.target.value }))}>
+                  <option value="">Select store</option>
+                  {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Assignee</label>
+                <select className={fieldClass} value={form.assigneeId} onChange={e => setForm(f => ({ ...f, assigneeId: e.target.value }))}>
+                  <option value="">Unassigned</option>
+                  {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className={labelClass}>Store <span className="text-destructive">*</span></label>
-              <select className={fieldClass} value={form.store} onChange={e => setForm(f => ({ ...f, store: e.target.value }))}>
-                <option value="">Select store</option>
-                {modalStoreOpts.map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>Assignee</label>
-              <select className={fieldClass} value={form.assignee} onChange={e => setForm(f => ({ ...f, assignee: e.target.value }))}>
-                <option>Jitendra</option><option>Lisa</option><option>Raj</option><option>Zed</option>
-              </select>
-            </div>
-          </div>
 
-          {/* created at + due at (2-col) */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelClass}>Created At <span className="text-destructive">*</span></label>
-              <Input type="datetime-local" value={form.created} onChange={e => setForm(f => ({ ...f, created: e.target.value }))} />
-            </div>
-            <div>
-              <label className={labelClass}>Due At <span className="text-destructive">*</span></label>
-              <Input type="datetime-local" value={form.due} onChange={e => setForm(f => ({ ...f, due: e.target.value }))} />
-            </div>
-          </div>
-
-          {/* audit id + tags (2-col) */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelClass}>Audit ID</label>
-              <Input placeholder="Link to Audit (optional)" value={form.aid} onChange={e => setForm(f => ({ ...f, aid: e.target.value }))} />
-            </div>
-            <div>
-              <label className={labelClass}>Tags</label>
-              <Input placeholder="Type and press Enter to add tags" value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className={labelClass}>Due Date</label>
+                <Input type="date" value={form.due} onChange={e => setForm(f => ({ ...f, due: e.target.value }))} />
+              </div>
+              <div>
+                <label className={labelClass}>Audit ID</label>
+                <Input placeholder="Link to Audit (optional)" value={form.aid} disabled={!!editId} onChange={e => setForm(f => ({ ...f, aid: e.target.value }))} />
+              </div>
             </div>
           </div>
-
-          {/* file attachments */}
-          <div>
-            <label className={labelClass}>Attachments</label>
-            <input type="file" multiple className="hidden" id="iss-file-input" onChange={handleAddFiles} />
-            <Button size="sm" variant="outline" onClick={() => document.getElementById('iss-file-input').click()}>&#x1F4CE; Add files</Button>
-            <div className="mt-1.5">
-              {files.map((n, idx) => (
-                <div key={idx} className="mr-1 mb-1 inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 text-[11.5px]">
-                  &#x1F4CE; {n} <span className="cursor-pointer text-muted-foreground" onClick={() => removeFile(idx)}>&times;</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* comments */}
-          <div>
-            <label className={labelClass}>Comments</label>
-            <textarea className={cn(fieldClass, 'min-h-[52px] resize-y')} placeholder="Write a comment..." value={form.comment} onChange={e => setForm(f => ({ ...f, comment: e.target.value }))} />
-          </div>
-        </div>
+        )}
       </Modal>
     </>
   );

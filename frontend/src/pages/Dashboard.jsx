@@ -9,6 +9,10 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Drawer } from '../components/Modal';
 import { auditsLink, issuesLink, storesLink, storeScorecardLink } from '@/lib/links';
+import {
+  UNASSIGNED_REGION, averageScore, bucketScoredStores, formatAverages, groupAuditsByRegion,
+  groupObservationsByRisk, legacyStageCounts, rankScored, scoreFor, scoreStores,
+} from '@/lib/overviewStats';
 import SopDashboard from './SopDashboard';
 
 function OverviewDashboard() {
@@ -24,7 +28,6 @@ function OverviewDashboard() {
   // API data
   const [stores, setStores] = useState([]);
   const [issues, setIssues] = useState([]);
-  const [dashData, setDashData] = useState(null);
   const [observations, setObservations] = useState([]);
   const [audits, setAudits] = useState([]);
   const [scoreMap, setScoreMap] = useState({});
@@ -35,14 +38,12 @@ function OverviewDashboard() {
     Promise.all([
       api.stores().catch(() => []),
       api.issues().catch(() => []),
-      api.dashboard().catch(() => null),
       api.observations().catch(() => []),
       api.audits().catch(() => []),
       api.storeScores().catch(() => []),
-    ]).then(([s, i, d, o, a, scores]) => {
+    ]).then(([s, i, o, a, scores]) => {
       setStores(s || []);
       setIssues(i || []);
-      setDashData(d);
       setObservations(o || []);
       setAudits(a || []);
       const map = {};
@@ -52,155 +53,112 @@ function OverviewDashboard() {
     });
   }, []);
 
-  function latestScore(s) {
-    const sc = scoreMap[s.id];
-    if (!sc) return 0;
-    return sc[selectedQ] || 0;
-  }
+  // Everything below is derived from live data for the selected quarter, and
+  // every donut slice, legend entry and drill list comes from the same helper
+  // output (lib/overviewStats.js), so a number always equals its clicked list.
+  const { scored, unscored } = scoreStores(stores, scoreMap, selectedQ);
+  const ranked = rankScored(scored);
+  const qLabel = selectedQ.toUpperCase();
 
-  // Compute KPIs from DB data
-  const plannedCount = dashData?.planned ?? audits.filter(a => a.status === 'Planned').length;
-  const ongoingCount = dashData?.ongoing ?? audits.filter(a => a.status === 'Ongoing').length;
-  const completedCount = dashData?.completed ?? audits.filter(a => a.status === 'Completed' || a.status === 'Approved').length;
+  // KPI tiles count classic (checklist) audits only and link to Audit Status
+  // with kind=legacy, so the tile number equals the number of rows shown there.
+  // Approved is its own tile because Audit Status keeps it as its own stage.
+  const stageCounts = legacyStageCounts(audits);
 
-  // chart data
-  const avgScore = dashData?.avg_score ?? 0;
-  const trendScores = stores.length
-    ? (() => {
-        const months = ['Oct','Nov','Dec','Jan','Feb','Mar'];
-        const baseScore = avgScore || 80;
-        return months.map((_, i) => Math.round(baseScore - 6 + i * 1.5));
-      })()
-    : [82,84,85,87,88,89];
+  // Real trend: average of every store quarterly score (stores with no score are skipped).
+  const trendScores = ['q1', 'q2', 'q3', 'q4'].map(q => {
+    const avg = averageScore(Object.keys(scoreMap).map(id => scoreFor(scoreMap, id, q)).filter(v => v !== null));
+    return avg === null ? null : Math.round(avg);
+  });
 
   const trendData = {
-    labels: ['Oct','Nov','Dec','Jan','Feb','Mar'],
+    labels: ['Q1','Q2','Q3','Q4'],
     datasets: [
       { label:'Current', data:trendScores, borderColor:'#00338D', backgroundColor:'rgba(0,51,141,.08)', borderWidth:2.5, tension:.4, pointRadius:3, fill:true },
-      { label:'Benchmark', data:[90,90,90,90,90,90], borderColor:'#9ca3af', borderDash:[5,5], borderWidth:1.5, pointRadius:0, fill:false }
+      { label:'Benchmark', data:[90,90,90,90], borderColor:'#9ca3af', borderDash:[5,5], borderWidth:1.5, pointRadius:0, fill:false }
     ]
   };
-  const trendOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}}, scales:{y:{min:75,max:95,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}} };
+  const trendOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}}, scales:{y:{min:50,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}} };
 
-  // Risk distribution from observations
-  const highCount = observations.filter(o => o.risk === 'Critical' || o.risk === 'High').length;
-  const medCount = observations.filter(o => o.risk === 'Medium').length;
-  const lowCount = observations.filter(o => o.risk === 'Low').length;
-  const totalObs = highCount + medCount + lowCount || 1;
-  const riskD = [
-    {l:'High',v:Math.round(highCount/totalObs*100)||18,c:'#e02424'},
-    {l:'Medium',v:Math.round(medCount/totalObs*100)||52,c:'#f59e0b'},
-    {l:'Low',v:Math.round(lowCount/totalObs*100)||30,c:'#0e9f6e'}
-  ];
-  const riskData = { labels:riskD.map(d=>d.l), datasets:[{data:riskD.map(d=>d.v),backgroundColor:riskD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
+  // Risk distribution: observations grouped by their risk level (four levels
+  // plus Unrated for blank/unrecognised text). The drawer lists the same group.
+  const RISK_COLORS = {Critical:'#9b1c1c',High:'#e02424',Medium:'#f59e0b',Low:'#0e9f6e',Unrated:'#9ca3af'};
+  const riskD = groupObservationsByRisk(observations).map(g => ({...g, l:g.level, c:RISK_COLORS[g.level]}));
+  const riskData = { labels:riskD.map(d=>d.l), datasets:[{data:riskD.map(d=>d.count),backgroundColor:riskD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
   const donutOpts = (cutout, onClick) => ({ responsive:true, maintainAspectRatio:false, cutout, plugins:{legend:{display:false},tooltip:{intersect:true,titleFont:{size:13},bodyFont:{size:13},padding:10,displayColors:true}}, onClick:(evt,els)=>{if(els.length && onClick) onClick(els[0].index);} });
 
-  // Store bar chart from DB stores
-  const storeBarD = stores.length
-    ? stores
-        .map(s => ({l: s.name?.substring(0,12) || s.id, v: latestScore(s), id: s.id}))
-        .sort((a,b) => b.v - a.v)
-        .slice(0,7)
-    : [{l:'Mumbai #1',v:92},{l:'Delhi D1',v:89},{l:'Blr B3',v:88},{l:'Pune P2',v:79},{l:'Jaipur J1',v:72},{l:'Kolkata K4',v:68},{l:'Chennai C2',v:65}];
+  // Store bar chart: top 7 scored stores for the selected quarter.
+  const storeBarD = ranked.slice(0,7).map(e => ({l: e.store.name?.substring(0,12) || e.store.id, v: e.score, id: e.store.id}));
   const storeBarData = { labels:storeBarD.map(d=>d.l), datasets:[{data:storeBarD.map(d=>d.v),backgroundColor:storeBarD.map(d=>d.v>=77?'#0e9f6e':'#f59e0b'),borderRadius:4}] };
   const storeBarOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{min:50,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}, onClick:(evt,els)=>{ if(els.length){ const d=storeBarD[els[0].index]; if(d?.id) navigate(storeScorecardLink(d.id, role)); } } };
 
-  // Region distribution from DB
-  const byRegion = dashData?.by_region || {};
-  const regionEntries = Object.entries(byRegion);
-  const regColors = ['#00338D','#0e9f6e','#f59e0b','#e02424'];
-  const regD = regionEntries.length
-    ? regionEntries.map(([k, v], i) => {
-        const total = regionEntries.reduce((a,[,c]) => a+c, 0) || 1;
-        return {l: k.replace(' India',''), v: Math.round(v/total*100), c: regColors[i % regColors.length]};
-      })
-    : [{l:'North',v:28,c:'#00338D'},{l:'South',v:24,c:'#0e9f6e'},{l:'West',v:26,c:'#f59e0b'},{l:'East',v:22,c:'#e02424'}];
-  const regData = { labels:regD.map(d=>d.l), datasets:[{data:regD.map(d=>d.v),backgroundColor:regD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
+  // Region distribution: counts classic audits per audit region. The slice,
+  // the legend count and the drawer list all come from the same group.
+  const regColors = ['#00338D','#0e9f6e','#f59e0b','#e02424','#8b5cf6','#06b6d4'];
+  const regD = groupAuditsByRegion(audits).map((g, i) => ({...g, l:g.region, c:regColors[i % regColors.length]}));
+  const regData = { labels:regD.map(d=>d.l), datasets:[{data:regD.map(d=>d.count),backgroundColor:regD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
+  // Centre figure: average of the scores of exactly those audits that have one.
+  const regionScores = audits.map(a => a.score).filter(v => typeof v === 'number');
+  const regionAvg = averageScore(regionScores);
 
-  // Format distribution from DB stores
-  const formatGroups = {};
-  stores.forEach(s => {
-    const fmt = s.format || 'Other';
-    if (!formatGroups[fmt]) formatGroups[fmt] = [];
-    formatGroups[fmt].push(latestScore(s));
-  });
+  // Format averages over scored stores only (unscored stores are not zeros).
   const fmtColors = {COCO:'#00338D',COFO:'#06b6d4',FOCO:'#f59e0b',FOFO:'#8b5cf6'};
-  const fmtD = Object.keys(formatGroups).length
-    ? Object.entries(formatGroups).map(([fmt, scores]) => ({
-        l: fmt,
-        v: Math.round(scores.reduce((a,b)=>a+b,0) / scores.length),
-        c: fmtColors[fmt] || '#6b7280'
-      }))
-    : [{l:'COCO',v:92,c:'#00338D'},{l:'COFO',v:84,c:'#06b6d4'},{l:'FOCO',v:76,c:'#f59e0b'},{l:'FOFO',v:68,c:'#8b5cf6'}];
-  const fmtData = { labels:fmtD.map(d=>d.l), datasets:[{data:fmtD.map(d=>d.v),backgroundColor:fmtD.map(d=>d.c),borderRadius:5}] };
+  const fmtD = formatAverages(stores, scoreMap, selectedQ).map(f => ({ l: f.format, v: f.avg, n: f.scoredCount, c: fmtColors[f.format] || '#6b7280' }));
+  const fmtScored = fmtD.filter(d => d.v !== null);
+  const fmtData = { labels:fmtScored.map(d=>d.l), datasets:[{data:fmtScored.map(d=>d.v),backgroundColor:fmtScored.map(d=>d.c),borderRadius:5}] };
   const fmtOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{min:50,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}} };
 
-  // Score distribution from DB stores
-  const scoreRanges = stores.length ? (() => {
-    const allScores = stores.map(s => latestScore(s));
-    return [
-      {l:'>90', v: allScores.filter(v=>v>90).length, c:'#0e9f6e'},
-      {l:'90-75', v: allScores.filter(v=>v<=90&&v>=75).length, c:'#84cc16'},
-      {l:'75-60', v: allScores.filter(v=>v<75&&v>=60).length, c:'#f59e0b'},
-      {l:'60-40', v: allScores.filter(v=>v<60&&v>=40).length, c:'#f97316'},
-      {l:'<40', v: allScores.filter(v=>v<40).length, c:'#e02424'},
-    ];
-  })() : [{l:'>90',v:20,c:'#0e9f6e'},{l:'90-75',v:40,c:'#84cc16'},{l:'75-60',v:25,c:'#f59e0b'},{l:'60-40',v:10,c:'#f97316'},{l:'<40',v:5,c:'#e02424'}];
-  const distD = scoreRanges;
-  const distData = { labels:distD.map(d=>d.l), datasets:[{data:distD.map(d=>d.v),backgroundColor:distD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
+  // Score distribution: one bucket per scored store; unscored stores are
+  // excluded from the donut and listed separately as "Not scored".
+  const BUCKET_COLORS = ['#0e9f6e','#84cc16','#f59e0b','#f97316','#e02424'];
+  const distD = bucketScoredStores(scored).map((b, i) => ({...b, l:b.label, c:BUCKET_COLORS[i]}));
+  const distData = { labels:distD.map(d=>d.l), datasets:[{data:distD.map(d=>d.count),backgroundColor:distD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
 
-  // Top/Bottom stores from DB
-  const sortedStores = [...stores].sort((a,b) => (latestScore(b) - latestScore(a)));
-  const t5 = sortedStores.slice(0,5).map(s => ({n:`${s.name}, ${s.city}`, v:`${latestScore(s)}%`, id:s.id}));
-  const b5 = sortedStores.slice(-5).reverse().map(s => ({n:`${s.name}, ${s.city}`, v:`${latestScore(s)}%`, id:s.id}));
+  // Top/Bottom stores: scored stores only.
+  const toRow = e => ({n:`${e.store.name}, ${e.store.city}`, v:`${e.score}%`, id:e.store.id});
+  const t5 = ranked.slice(0,5).map(toRow);
+  const b5 = ranked.slice(-5).reverse().map(toRow);
 
   // Top observations from DB
-  const topObservations = observations.length
-    ? [...new Set(observations.map(o => o.observation))].slice(0,5)
-    : ['GSTIN certificate not displayed at store','Manual bills issued from store not regularized','Defined Merchandise layout not followed across the store','Delay in deposit of cash collected through sales','Fake note detector not available in stores'];
-  const repeatObservations = issues.length
-    ? issues.slice(0,5).map(i => i.title)
-    : ['Freezer temperature fluctuation','Generator oil leakage detected','Critical Gas line inspection overdue','Wet floor in prep area','AC unit not cooling in customer area'];
+  const topObservations = [...new Set(observations.map(o => o.observation))].slice(0,5);
+  const repeatObservations = issues.slice(0,5).map(i => i.title);
 
   // Recent issues from DB
   const recentIssues = issues.slice(0,3);
 
   // drill handlers
+  const BADGE_OPERATING = 'bg-emerald-50 text-emerald-700';
+  const BADGE_GRAY = 'bg-muted text-muted-foreground border border-border';
   function openRiskDrill(idx) {
-    const level = riskD[idx].l;
-    const riskLevels = level === 'High' ? ['Critical', 'High'] : [level];
-    const data = observations.filter(o => riskLevels.includes(o.risk));
-    setDrillTitle(`${level} Risk Observations (${data.length})`);
-    setDrillList(data.map(o => ({ title: o.observation || o.title || '—', badges:[], sub: o.store || '' })));
-    setDrillLink(issuesLink({ priority: level === 'High' ? 'Critical' : level }));
+    const g = riskD[idx];
+    setDrillTitle(`${g.l} Risk Observations (${g.count})`);
+    setDrillList(g.items.map(o => ({ title: o.observation || '--', badges:[], sub: o.store || '' })));
+    setDrillLink(null);
     setDrillOpen(true);
   }
   function openRegionDrill(idx) {
-    const region = regD[idx].l;
-    const fullRegion = region + ' India';
-    const data = audits.filter(a => a.region === fullRegion || a.region === region);
-    setDrillTitle(`${fullRegion} Audits (${data.length})`);
-    setDrillList(data.map(a => ({ title:`${a.store}, ${a.city||''}`, badges:[{text:a.status,cls:sBadge(a.status)}], sub:a.scheduled_at })));
-    setDrillLink(auditsLink({ region: fullRegion }));
+    const g = regD[idx];
+    setDrillTitle(`${g.l} Audits (${g.count})`);
+    setDrillList(g.items.map(a => ({ title:`${a.store}, ${a.city||''}`, badges:[{text:a.status,cls:sBadge(a.status)}], sub:a.scheduled_at, score:typeof a.score === 'number' ? a.score : null })));
+    setDrillLink(g.l === UNASSIGNED_REGION ? null : auditsLink({ region: g.l, kind: 'legacy' }));
     setDrillOpen(true);
   }
+  function storeDrillItem(s, score) {
+    return { title:`${s.name}, ${s.city}`, badges:[{text:s.status,cls:s.status==='Operating'?BADGE_OPERATING:BADGE_GRAY}], sub:score == null ? 'Not scored' : null, score, id:s.id };
+  }
   function openDistDrill(idx) {
-    const bucket = distD[idx].l;
-    const inBucket = v => {
-      if(bucket==='>90') return v>90;
-      if(bucket==='90-75') return v<=90&&v>=75;
-      if(bucket==='75-60') return v<75&&v>=60;
-      if(bucket==='60-40') return v<60&&v>=40;
-      return v<40;
-    };
-    const data = stores.filter(s => inBucket(latestScore(s)));
-    setDrillTitle(`Stores Scoring ${bucket}% (${data.length})`);
-    setDrillList(data.map(s => ({ title:`${s.name}, ${s.city}`, badges:[{text:s.status,cls:s.status==='Operating'?BADGE_OPERATING:BADGE_GRAY}], sub:null, score:latestScore(s), id:s.id })));
+    const b = distD[idx];
+    setDrillTitle(`Stores Scoring ${b.l}% in ${qLabel} (${b.count})`);
+    setDrillList(b.items.map(e => storeDrillItem(e.store, e.score)));
     setDrillLink(storesLink({}));
     setDrillOpen(true);
   }
-  const BADGE_OPERATING = 'bg-emerald-50 text-emerald-700';
-  const BADGE_GRAY = 'bg-muted text-muted-foreground border border-border';
+  function openUnscoredDrill() {
+    setDrillTitle(`Stores Not Scored in ${qLabel} (${unscored.length})`);
+    setDrillList(unscored.map(s => storeDrillItem(s, null)));
+    setDrillLink(storesLink({}));
+    setDrillOpen(true);
+  }
 
   // PBI chart data
   const pbiDonutData = { labels:['Eligible Return','Ineligible SKU','Late Return'], datasets:[{data:[252,138,3],backgroundColor:['#2f4b9e','#0e9f8e','#cbd5e1'],borderWidth:2,borderColor:'#fff'}] };
@@ -223,45 +181,44 @@ function OverviewDashboard() {
           {['q1','q2','q3','q4'].map(q => (
             <Button key={q} size="sm" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
           ))}
-          <Button size="sm" onClick={() => setPbiOpen(true)}>&#x1F4CA; Power BI</Button>
+          <Button size="sm" onClick={() => setPbiOpen(true)}>Power BI (sample preview)</Button>
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => navigate(auditsLink({ stage: 'scheduled' }))}>
-          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#e8eefa'}}>&#x1F4CB;</div>
-          <div><div className="mb-0.5 text-[11px] text-muted-foreground">Planned</div><div className="text-2xl font-bold leading-none text-foreground">{plannedCount}</div></div>
-        </div>
-        <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => navigate(auditsLink({ stage: 'in_progress' }))}>
-          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#fffbeb'}}>&#x23F3;</div>
-          <div><div className="mb-0.5 text-[11px] text-muted-foreground">Ongoing</div><div className="text-2xl font-bold leading-none text-foreground">{ongoingCount}</div></div>
-        </div>
-        <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => navigate(auditsLink({ stage: 'completed' }))}>
-          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:'#ecfdf5'}}>&#x2705;</div>
-          <div><div className="mb-0.5 text-[11px] text-muted-foreground">Completed</div><div className="text-2xl font-bold leading-none text-foreground">{completedCount}</div></div>
-        </div>
+      {/* KPIs: classic (checklist) audits; same rows as Audit Status with kind=legacy */}
+      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
+        {[
+          { label: 'Planned', stage: 'scheduled', bg: '#e8eefa', icon: '\u{1F4CB}' },
+          { label: 'Ongoing', stage: 'in_progress', bg: '#fffbeb', icon: '\u23F3' },
+          { label: 'Completed', stage: 'completed', bg: '#ecfdf5', icon: '\u2705' },
+          { label: 'Approved', stage: 'approved', bg: '#ecfdf5', icon: '\u2714' },
+        ].map(k => (
+          <div key={k.stage} className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => navigate(auditsLink({ stage: k.stage, kind: 'legacy' }))}>
+            <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:k.bg}}>{k.icon}</div>
+            <div><div className="mb-0.5 text-[11px] text-muted-foreground">{k.label} <span className="text-[10px]">(checklist audits)</span></div><div className="text-2xl font-bold leading-none text-foreground">{stageCounts[k.stage]}</div></div>
+          </div>
+        ))}
       </div>
 
       {/* Row 1: Trend + Risk */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Performance Trends<span className="text-[11px] font-normal text-muted-foreground">Benchmark: 90%</span></div>
+          <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Average store score by quarter<span className="text-[11px] font-normal text-muted-foreground">Benchmark: 90%</span></div>
           <div className="relative h-[190px] w-full"><Line data={trendData} options={trendOpts}/></div>
         </div>
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">All Observations by Risk</div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">All Observations by Risk<span className="ml-2 text-[11px] font-normal text-muted-foreground">{observations.length} total</span></div>
           <div className="flex h-[190px] items-center justify-center gap-4">
             <div className="relative h-[155px] w-[155px] shrink-0">
-              <Doughnut data={riskData} options={donutOpts('62%', openRiskDrill)}/>
+              {riskD.length ? <Doughnut data={riskData} options={donutOpts('62%', openRiskDrill)}/> : null}
             </div>
             <div className="text-[11.5px]">
-              {riskD.map(d => (
+              {riskD.length ? riskD.map(d => (
                 <div key={d.l} className="mb-1.5 flex cursor-pointer items-center gap-1.5" onClick={() => openRiskDrill(riskD.indexOf(d))}>
                   <span className="inline-block h-[9px] w-[9px] rounded-sm" style={{background:d.c}}/>
-                  {d.l}: <b>{d.v}%</b>
+                  {d.l}: <b>{d.pct}% ({d.count})</b>
                 </div>
-              ))}
+              )) : <div className="text-xs text-muted-foreground">No observations yet</div>}
             </div>
           </div>
         </div>
@@ -270,22 +227,23 @@ function OverviewDashboard() {
       {/* Row 2: Store bars + Region */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">Store-wise Compliance Score (%)</div>
-          <div className="relative h-[190px] w-full"><Bar data={storeBarData} options={storeBarOpts}/></div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">Store-wise Compliance Score (%)<span className="ml-2 text-[11px] font-normal text-muted-foreground">{qLabel}, top 7 of {scored.length} scored</span></div>
+          {storeBarD.length ? <div className="relative h-[190px] w-full"><Bar data={storeBarData} options={storeBarOpts}/></div> : <div className="flex h-[190px] items-center justify-center text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
         </div>
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">Audit Distribution by Region</div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">Audit Distribution by Region<span className="ml-2 text-[11px] font-normal text-muted-foreground">{audits.length} checklist audits</span></div>
           <div className="flex h-[190px] items-center justify-center gap-3.5">
             <div className="relative h-[150px] w-[150px] shrink-0">
-              <Doughnut data={regData} options={donutOpts('58%', openRegionDrill)}/>
+              {regD.length ? <Doughnut data={regData} options={donutOpts('58%', openRegionDrill)}/> : null}
             </div>
             <div className="text-[11.5px]">
-              <div className="mb-1 text-[17px] font-bold">{avgScore ? avgScore + '%' : '74.5%'}</div>
-              <div className="mb-2 text-[10px] text-muted-foreground">Avg Score</div>
+              <div className="mb-1 text-[17px] font-bold">{regionAvg !== null ? regionAvg + '%' : '--'}</div>
+              <div className="mb-2 text-[10px] text-muted-foreground">Avg audit score ({regionScores.length} of {audits.length} scored)</div>
+              {!regD.length && <div className="text-xs text-muted-foreground">No audits yet</div>}
               {regD.map(d => (
                 <div key={d.l} className="mb-1 flex cursor-pointer items-center gap-1.5" onClick={() => openRegionDrill(regD.indexOf(d))}>
                   <span className="inline-block h-[9px] w-[9px] rounded-sm" style={{background:d.c}}/>
-                  <span className="text-[11.5px]">{d.l}: <b>{d.v}%</b></span>
+                  <span className="text-[11.5px]">{d.l}: <b>{d.pct}% ({d.count})</b></span>
                 </div>
               ))}
             </div>
@@ -296,35 +254,37 @@ function OverviewDashboard() {
       {/* Row 3: Format + Distribution */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">Store Format Performance (Avg. Score)</div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">Store Format Performance (Avg. Score, {qLabel})</div>
           <div className="flex gap-4.5">
-            <div className="flex-1"><Bar data={fmtData} options={fmtOpts} height={145}/></div>
+            <div className="flex-1">{fmtScored.length ? <Bar data={fmtData} options={fmtOpts} height={145}/> : <div className="flex h-[145px] items-center justify-center text-xs text-muted-foreground">No scored stores in {qLabel}</div>}</div>
             <div className="min-w-[155px] text-xs">
               <div className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Format Summary</div>
               {fmtD.map(d => (
                 <div key={d.l} className="mb-1 cursor-pointer border-b border-gray-200 pb-1 hover:opacity-80" onClick={() => navigate(storesLink({ format: d.l }))}>
                   <div className="mb-1 flex justify-between">
-                    <span className="text-gray-500">{d.l} Average</span><b style={{color:d.c}}>{d.v}%</b>
+                    <span className="text-gray-500">{d.l} Average ({d.n} scored)</span><b style={{color:d.c}}>{d.v === null ? 'Not scored' : `${d.v}%`}</b>
                   </div>
-                  <div className="h-[5px] overflow-hidden rounded-[3px] bg-gray-200"><div className="h-full rounded-[3px]" style={{width:`${d.v}%`,background:d.c}}/></div>
+                  <div className="h-[5px] overflow-hidden rounded-[3px] bg-gray-200"><div className="h-full rounded-[3px]" style={{width:`${d.v || 0}%`,background:d.c}}/></div>
                 </div>
               ))}
             </div>
           </div>
         </div>
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">Store Score Distribution</div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">Store Score Distribution ({qLabel})</div>
           <div className="flex h-[185px] items-center justify-center gap-3">
             <div className="relative h-[145px] w-[145px] shrink-0">
-              <Doughnut data={distData} options={donutOpts('58%', openDistDrill)}/>
+              {scored.length ? <Doughnut data={distData} options={donutOpts('58%', openDistDrill)}/> : null}
             </div>
             <div className="text-[11.5px]">
-              {distD.map(d => (
+              {!scored.length && <div className="mb-1 text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
+              {scored.length > 0 && distD.map(d => (
                 <div key={d.l} className="mb-1 flex cursor-pointer items-center gap-1.5" onClick={() => openDistDrill(distD.indexOf(d))}>
                   <span className="inline-block h-[9px] w-[9px] rounded-sm" style={{background:d.c}}/>
-                  <span className="text-[11.5px]">{d.l}: <b>{d.v}</b></span>
+                  <span className="text-[11.5px]">{d.l}: <b>{d.count}</b></span>
                 </div>
               ))}
+              <div className="mt-1 cursor-pointer text-[11px] text-muted-foreground hover:underline" onClick={openUnscoredDrill}>Not scored: <b>{unscored.length}</b></div>
             </div>
           </div>
         </div>
@@ -337,6 +297,7 @@ function OverviewDashboard() {
           <div className="flex gap-4.5">
             <div className="flex-1">
               <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider" style={{color:'var(--green)'}}>&#x1F3C6; Top 5 Stores</div>
+              {!t5.length && <div className="py-2 text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
               {t5.map(s => { const v = parseInt(s.v); return (
                 <div key={s.n} className={cn('flex cursor-pointer items-center justify-between border-b border-border py-1 text-xs last:border-0', s.id && 'hover:bg-accent/40')} onClick={() => s.id && navigate(storeScorecardLink(s.id, role))}>
                   <span>{s.n}</span>
@@ -349,6 +310,7 @@ function OverviewDashboard() {
             </div>
             <div className="flex-1">
               <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider" style={{color:'var(--red)'}}>&#x26A0; Bottom 5 Stores</div>
+              {!b5.length && <div className="py-2 text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
               {b5.map(s => { const v = parseInt(s.v); return (
                 <div key={s.n} className={cn('flex cursor-pointer items-center justify-between border-b border-border py-1 text-xs last:border-0', s.id && 'hover:bg-accent/40')} onClick={() => s.id && navigate(storeScorecardLink(s.id, role))}>
                   <span>{s.n}</span>
@@ -367,6 +329,8 @@ function OverviewDashboard() {
             <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', obsTab==='top' && 'border-primary bg-primary text-primary-foreground')} onClick={() => setObsTab('top')}>Top 5 Observations</button>
             <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', obsTab==='repeat' && 'border-primary bg-primary text-primary-foreground')} onClick={() => setObsTab('repeat')}>Top 5 Repeat</button>
           </div>
+          {obsTab === 'top' && !topObservations.length && <div className="p-3 text-center text-xs text-muted-foreground">No observations yet</div>}
+          {obsTab === 'repeat' && !repeatObservations.length && <div className="p-3 text-center text-xs text-muted-foreground">No issues yet</div>}
           {obsTab === 'top' && topObservations.map(o => (
             <div key={o} className="flex items-start gap-1.5 border-b border-border py-1.5 text-xs text-foreground/80 last:border-0"><div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{background:'var(--orange)'}}/><div>{o}</div></div>
           ))}
@@ -378,10 +342,6 @@ function OverviewDashboard() {
 
       {/* Row 5: Recent Issues */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Recent Communications<span className="cursor-pointer text-[11px] font-normal text-muted-foreground" onClick={() => navigate('/email')}>View all &rarr;</span></div>
-          <div className="p-5 text-center text-xs text-muted-foreground">No communications yet</div>
-        </div>
         <div className="self-start rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Recent Issues<span className="cursor-pointer text-[11px] font-normal text-muted-foreground" onClick={() => navigate('/issues')}>View all &rarr;</span></div>
           {recentIssues.length ? recentIssues.map((i, idx) => (
@@ -432,6 +392,7 @@ function OverviewDashboard() {
             </div>
             <div style={{flex:1,minWidth:0,background:'#f4f5f9',display:'flex',flexDirection:'column'}}>
               <div style={{padding:'6px 14px 0',display:'flex',justifyContent:'flex-end',flexShrink:0}}>
+                <span style={{marginRight:'auto',fontSize:11,fontWeight:600,color:'#b45309'}}>SAMPLE DATA - illustrative preview, not connected to Power BI or your stores</span>
                 <span style={{cursor:'pointer',color:'var(--text3)',fontSize:15}} onClick={() => setPbiOpen(false)}>&#x2715;</span>
               </div>
               <div style={{padding:'0 16px 8px',flex:1,minHeight:0,display:'flex',flexDirection:'column'}}>

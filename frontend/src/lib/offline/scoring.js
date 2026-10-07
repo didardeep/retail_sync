@@ -27,6 +27,14 @@ export function isAnswered(criterion, row) {
   return isNa(criterion, row) || (row != null && row.score != null)
 }
 
+// Where to resume a draft: the first question that is neither answered nor N/A
+// (or the last question when everything is answered).
+export function firstUnansweredIndex(template, rows) {
+  const flat = flattenCriteria(template)
+  const index = flat.findIndex((c) => !isAnswered(c, rows[c.id]))
+  return index === -1 ? Math.max(0, flat.length - 1) : index
+}
+
 export function validateScore(value, marks) {
   if (value === '' || value == null) return null
   const n = Number(value)

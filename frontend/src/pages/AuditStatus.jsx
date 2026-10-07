@@ -1,319 +1,303 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { api } from '../api/client';
-import { avC, sBadge, sColor, prC, stC, seedRand } from '../utils/helpers';
+import { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+
+import { api, loadSession } from '../api/client';
+import { fetchAuditRows } from '../api/sopSchedule';
+import { avC, prC, stC } from '../utils/helpers';
 import { cn, fieldClass } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Modal, ModalActions } from '../components/Modal';
+import { useToast } from '../components/Toast';
+import AuditRowStatus from '@/components/AuditRowStatus';
+import {
+  distinctOptions, filterRows, formatDate, formatTime, mergeRows, scoreLabel,
+} from '@/lib/auditRows';
+import { auditsLink, sopAuditReviewLink, sopAuditRunLink } from '@/lib/links';
+import { STAGES, isAuditorEditable } from '@/lib/statuses';
+import { useUrlFilters } from '@/lib/useUrlFilters';
 
-const OBS_POOL = [
-  { title: 'GSTIN certificate not displayed at store', desc: 'Mandatory regulatory compliance issue.', pri: 'Critical' },
-  { title: 'Manual bills issued from store not regularized', desc: 'Financial discrepancy identified.', pri: 'High' },
-  { title: 'Defined Merchandise layout not followed across the store', desc: 'Visual merchandising standards not met.', pri: 'Medium' },
-  { title: 'Delay in deposit of cash collected through sales', desc: 'Cash management protocol violation.', pri: 'High' },
-  { title: 'Fake note detector not available in stores', desc: 'Security equipment missing.', pri: 'Critical' },
-  { title: 'Freezer temperature fluctuation', desc: 'Cold chain compliance issue detected.', pri: 'High' },
-  { title: 'Generator oil leakage detected', desc: 'EHS risk identified during inspection.', pri: 'Medium' },
-  { title: 'AC unit not cooling in customer area', desc: 'Customer experience impacted.', pri: 'Low' },
-];
+const FILTER_KEYS = ['stage', 'kind', 'store', 'region', 'auditor', 'q', 'id'];
+const KIND_LABEL = { legacy: 'Checklist audit', sop: 'SOP tool' };
+// Statuses a manager or admin may set by hand on a checklist audit (same list as the API).
+const EDIT_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Approved', 'Cancelled'];
+const MANAGER_ROLES = ['AUDIT_MANAGER', 'ADMIN'];
 
-const COMMENT_POOL = [
-  ['Audit completed successfully. Key areas of improvement identified in cash handling and store hygiene.', 'Thank you for the audit. We will address the issues within the timeline.'],
-  ['Several compliance gaps found. Immediate action needed on critical items.', 'Acknowledged. Team has been briefed on corrective actions.'],
-  ['Store performing well overall. Minor observations noted.', 'Appreciate the feedback. Will work on the minor items.'],
-];
+// SOP audit ids are UUIDs; show a short form, keep the full id in the link.
+function shortId(row) {
+  return row.kind === 'sop' ? `SOP-${row.id.slice(0, 8)}` : row.id;
+}
+
+function scoreColor(v) {
+  return v >= 80 ? '#0e9f6e' : v >= 60 ? '#f59e0b' : '#e02424';
+}
+
+function ScoreCircle({ row, size = 34 }) {
+  if (typeof row.percent !== 'number') return <span className="text-muted-foreground">--</span>;
+  return (
+    <span
+      className="inline-flex items-center justify-center rounded-full text-[10.5px] font-bold"
+      style={{ width: size, height: size, border: `2px solid ${scoreColor(row.percent)}`, color: scoreColor(row.percent) }}
+    >
+      {scoreLabel(row)}
+    </span>
+  );
+}
+
+// What the open audit looks like on the server. Only classic audits have
+// per-question responses to load; SOP audits open on their own screens.
+function useLegacyDetail(row) {
+  const [state, setState] = useState({ loading: false, data: null, error: null });
+  const id = row?.kind === 'legacy' ? row.id : null;
+  useEffect(() => {
+    if (!id) return undefined;
+    let cancelled = false;
+    setState({ loading: true, data: null, error: null });
+    api.audit(id)
+      .then((data) => { if (!cancelled) setState({ loading: false, data, error: null }); })
+      .catch((error) => { if (!cancelled) setState({ loading: false, data: null, error }); });
+    return () => { cancelled = true; };
+  }, [id]);
+  return state;
+}
+
+function answerBadge(answer) {
+  if (answer === 'Yes') return 'bg-emerald-50 text-emerald-700';
+  if (answer === 'No') return 'bg-red-50 text-red-800';
+  if (answer === 'Partial') return 'bg-yellow-50 text-yellow-900';
+  return 'bg-muted text-muted-foreground border border-border';
+}
 
 export default function AuditStatus() {
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [regionFilter, setRegionFilter] = useState('');
-  const [auditorFilter, setAuditorFilter] = useState('');
+  const { filters, setFilter, clearAll } = useUrlFilters(FILTER_KEYS);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [detailAudit, setDetailAudit] = useState(null);
-  const [editAudit, setEditAudit]     = useState(null);
-  const [editForm, setEditForm]       = useState({});
-  const [editSaving, setEditSaving]   = useState(false);
-  const [dropdown, setDropdown]       = useState(null); // audit id with open dropdown
-  const dropdownRef = useRef(null);
+  const me = loadSession()?.user;
+  const toast = useToast();
+  const canEdit = MANAGER_ROLES.includes(me?.role);
 
-  // API data
-  const [audits, setAudits]       = useState([]);
-  const [issues, setIssues]       = useState([]);
-  const [questions, setQuestions] = useState([]);
-  const [auditors, setAuditors]   = useState([]);
-  const [loading, setLoading]     = useState(true);
+  const [editRow, setEditRow] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
+  const [auditors, setAuditors] = useState([]);
+  const [legacy, setLegacy] = useState([]);
+  const [sop, setSop] = useState([]);
+  const [issues, setIssues] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
-      api.audits().catch(() => []),
+      fetchAuditRows().catch(() => [[], []]),
       api.issues().catch(() => []),
-      api.questions().catch(() => []),
-      api.users('AUDITOR').catch(() => []),
-    ]).then(([a, i, q, u]) => {
-      setAudits(a || []);
+      canEdit ? api.users('AUDITOR').catch(() => []) : Promise.resolve([]),
+    ]).then(([[l, s], i, u]) => {
+      setLegacy(l || []);
+      setSop(s || []);
       setIssues(i || []);
-      setQuestions(q || []);
       setAuditors(u || []);
       setLoading(false);
     });
-  }, []);
+  }, [canEdit]);
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handler(e) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setDropdown(null);
-    }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  async function reloadAudits() {
+    const [l, s] = await fetchAuditRows().catch(() => [null, null]);
+    if (l) setLegacy(l);
+    if (s) setSop(s);
+  }
 
-  function openEdit(a) {
-    setEditAudit(a);
+  function openEdit(row) {
+    setEditRow(row);
     setEditForm({
-      status: a.status || 'Planned',
-      scheduled_at: a.scheduled_at ? a.scheduled_at.substring(0, 16) : '',
-      auditor_id: a.auditor_id || '',
+      status: row.status || 'Planned',
+      scheduled_at: row.date ? row.date.substring(0, 16) : '',
+      auditor_id: row.auditor_id || '',
     });
+  }
+
+  // Only the fields that changed are sent, so editing the status of a started
+  // audit does not trip the "date and auditor can only change while planned" rule.
+  async function patchAudit(row, changes) {
+    try {
+      await api.updateAudit(row.id, changes);
+      await reloadAudits();
+      return true;
+    } catch (e) {
+      toast.error(e.message || 'Could not update the audit');
+      return false;
+    }
   }
 
   async function saveEdit() {
+    const changes = {};
+    if (editForm.status !== editRow.status) changes.status = editForm.status;
+    const was = editRow.date ? editRow.date.substring(0, 16) : '';
+    if (editForm.scheduled_at !== was) changes.scheduled_at = editForm.scheduled_at;
+    if ((editForm.auditor_id || '') !== (editRow.auditor_id || '')) changes.auditor_id = editForm.auditor_id;
+    if (!Object.keys(changes).length) {
+      setEditRow(null);
+      return;
+    }
     setEditSaving(true);
-    try {
-      await api.updateAudit(editAudit.id, editForm);
-      const fresh = await api.audits().catch(() => []);
-      setAudits(fresh || []);
-      setEditAudit(null);
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setEditSaving(false);
+    const ok = await patchAudit(editRow, changes);
+    setEditSaving(false);
+    if (ok) {
+      toast('Audit updated');
+      setEditRow(null);
     }
   }
 
-  async function quickStatus(a, status) {
-    setDropdown(null);
-    try {
-      await api.updateAudit(a.id, { status });
-      const fresh = await api.audits().catch(() => []);
-      setAudits(fresh || []);
-    } catch (e) {
-      alert(e.message);
-    }
-  }
+  const rows = useMemo(() => mergeRows(legacy, sop), [legacy, sop]);
+  const regionOptions = useMemo(() => distinctOptions(rows, 'region', 'region'), [rows]);
+  const storeOptions = useMemo(() => distinctOptions(rows, 'store_id', 'store'), [rows]);
+  const auditorOptions = useMemo(() => distinctOptions(rows, 'auditor_id', 'auditor'), [rows]);
 
-  /* auditor dropdown values from data */
-  const auditorOptions = useMemo(
-    () => [...new Set(audits.map(a => a.auditor).filter(Boolean))],
-    [audits]
-  );
-
-  /* ── filtering + scoring + sorting ── */
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    const sdDate = startDate ? new Date(startDate + 'T00:00:00') : null;
-    const edDate = endDate ? new Date(endDate + 'T23:59:59') : null;
-
-    let data = audits.filter(a => {
-      if (q && !(a.id||'').toLowerCase().includes(q) && !(a.store||'').toLowerCase().includes(q) && !(a.auditor||'').toLowerCase().includes(q)) return false;
-      if (statusFilter && a.status !== statusFilter) return false;
-      if (regionFilter && a.region !== regionFilter) return false;
-      if (auditorFilter && a.auditor !== auditorFilter) return false;
-      if (sdDate || edDate) {
-        const schedDate = new Date(a.scheduled_at || a.sched);
-        if (!isNaN(schedDate.getTime())) {
-          if (sdDate && schedDate < sdDate) return false;
-          if (edDate && schedDate > edDate) return false;
-        }
-      }
-      return true;
+    const from = startDate ? new Date(`${startDate}T00:00:00`) : null;
+    const to = endDate ? new Date(`${endDate}T23:59:59`) : null;
+    return filterRows(rows, {
+      stage: filters.stage, kind: filters.kind, store: filters.store,
+      region: filters.region, auditor: filters.auditor, q: filters.q,
+    }).filter((r) => {
+      if (!from && !to) return true;
+      const d = r.date ? new Date(r.date) : null;
+      if (!d || Number.isNaN(d.getTime())) return false;
+      return !(from && d < from) && !(to && d > to);
     });
+  }, [rows, filters.stage, filters.kind, filters.store, filters.region, filters.auditor, filters.q, startDate, endDate]);
 
-    /* compute score for completed audits if not already set */
-    data = data.map(a => {
-      if ((a.status === 'Completed' || a.status === 'Approved') && a.score == null) {
-        const relatedIssues = issues.filter(i => i.audit_id === a.id);
-        return { ...a, score: Math.max(40, 98 - relatedIssues.length * 4) };
-      }
-      return { ...a };
-    });
+  const issueCount = (row) => issues.filter((i) => (row.kind === 'sop' ? i.sop_audit_id : i.audit_id) === row.id).length;
 
-    /* sort: scored first (desc), then by status order */
-    const statusOrder = { Completed: 0, Approved: 0, 'In Progress': 1, Ongoing: 1, Planned: 2, Overdue: 3 };
-    data.sort((a, b) => {
-      if (a.score != null && b.score != null) return b.score - a.score;
-      if (a.score != null) return -1;
-      if (b.score != null) return 1;
-      return (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4);
-    });
+  const detailRow = filters.id ? rows.find((r) => r.id === filters.id) : null;
+  const legacyDetail = useLegacyDetail(detailRow);
+  const detailIssues = detailRow
+    ? issues.filter((i) => (detailRow.kind === 'sop' ? i.sop_audit_id : i.audit_id) === detailRow.id)
+    : [];
 
-    return data;
-  }, [search, statusFilter, regionFilter, auditorFilter, startDate, endDate, audits, issues]);
-
-  /* ── clear all filters ── */
   function clearFilters() {
-    setSearch('');
-    setStatusFilter('');
-    setRegionFilter('');
-    setAuditorFilter('');
+    clearAll();
     setStartDate('');
     setEndDate('');
   }
 
-  /* ── audit detail modal data (deterministic) ── */
-  const detailData = useMemo(() => {
-    if (!detailAudit) return null;
-    const a = detailAudit;
-    const rnd = seedRand(a.id);
+  const anyFilter = FILTER_KEYS.some((k) => k !== 'id' && filters[k]) || startDate || endDate;
 
-    /* questions answered */
-    const activeQ = questions.filter(q => q.active !== false);
-    const qCount = Math.min(6, activeQ.length);
-    const shuffledQ = [...activeQ].sort(() => rnd() - 0.5);
-    const answered = shuffledQ.slice(0, qCount).map(q => ({
-      text: q.text,
-      sp: q.sub_process || q.sp || q.process || '',
-      ans: rnd() > (q.is_critical ? 0.35 : 0.15) ? 'Yes' : 'No',
-    }));
-
-    /* observations: linked issues + pool samples */
-    const linkedIssues = issues
-      .filter(i => i.audit_id === a.id)
-      .map(i => ({ title: i.title, desc: i.description || '', pri: i.priority, status: i.status }));
-
-    const targetCount = 4 + Math.floor(rnd() * 2);
-    const statusOptions = ['Open', 'In Progress', 'Resolved'];
-    const poolShuffled = [...OBS_POOL].sort(() => rnd() - 0.5);
-    const sampled = [];
-    for (const o of poolShuffled) {
-      if (linkedIssues.length + sampled.length >= targetCount) break;
-      if (linkedIssues.some(li => li.title === o.title)) continue;
-      sampled.push({
-        title: o.title,
-        desc: o.desc,
-        pri: o.pri,
-        status: statusOptions[Math.floor(rnd() * statusOptions.length)],
-      });
-    }
-    const findings = [...linkedIssues, ...sampled];
-
-    /* comments */
-    const cSet = COMMENT_POOL[Math.floor(rnd() * COMMENT_POOL.length)];
-
-    return { answered, findings, cSet };
-  }, [detailAudit, issues, questions]);
+  function openLink(row) {
+    const mine = row.auditor_id && row.auditor_id === me?.id;
+    return mine && isAuditorEditable(row.status) ? sopAuditRunLink(row.id) : sopAuditReviewLink(row.id);
+  }
 
   if (loading) {
     return <div className="flex h-[60vh] items-center justify-center text-muted-foreground">Loading audit data...</div>;
   }
 
-  /* ── render ── */
   return (
     <>
-      {/* ── Filter bar ── */}
+      {/* Filter bar */}
       <div className="mb-3.5 flex flex-wrap items-center gap-2">
         <div className="relative max-w-[260px] flex-1">
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">&#x1F50D;</span>
-          <Input className="pl-8" placeholder="Search by ID, store or auditor..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search by ID, store, tool or auditor..." value={filters.q} onChange={(e) => setFilter('q', e.target.value)} />
         </div>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.stage} onChange={(e) => setFilter('stage', e.target.value)} aria-label="Filter by status">
           <option value="">Status</option>
-          <option>In Progress</option>
-          <option>Planned</option>
-          <option>Overdue</option>
-          <option>Completed</option>
+          {STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={regionFilter} onChange={e => setRegionFilter(e.target.value)}>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.kind} onChange={(e) => setFilter('kind', e.target.value)} aria-label="Filter by type">
+          <option value="">All types</option>
+          <option value="legacy">Checklist audit</option>
+          <option value="sop">SOP tool</option>
+        </select>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.region} onChange={(e) => setFilter('region', e.target.value)} aria-label="Filter by region">
           <option value="">Region</option>
-          <option>North India</option>
-          <option>South India</option>
-          <option>East India</option>
-          <option>West India</option>
+          {regionOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={auditorFilter} onChange={e => setAuditorFilter(e.target.value)}>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.store} onChange={(e) => setFilter('store', e.target.value)} aria-label="Filter by store">
+          <option value="">Store</option>
+          {storeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.auditor} onChange={(e) => setFilter('auditor', e.target.value)} aria-label="Filter by auditor">
           <option value="">Auditor</option>
-          {auditorOptions.map(n => <option key={n}>{n}</option>)}
+          <option value="unassigned">Unassigned</option>
+          {auditorOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={startDate} onChange={e => setStartDate(e.target.value)} />
-        <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={endDate} onChange={e => setEndDate(e.target.value)} />
-        <button className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-card text-[13px]" onClick={clearFilters} title="Clear filters">&#x1F504;</button>
+        <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={startDate} onChange={(e) => setStartDate(e.target.value)} aria-label="From date" />
+        <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={endDate} onChange={(e) => setEndDate(e.target.value)} aria-label="To date" />
+        {anyFilter && <Button size="sm" variant="outline" onClick={clearFilters}>Clear filters</Button>}
       </div>
 
-      {/* ── Table ── */}
+      {/* Table */}
       <div className="overflow-hidden rounded-[10px] border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead><input type="checkbox" readOnly /></TableHead>
               <TableHead>Audit ID</TableHead>
+              <TableHead>Audit</TableHead>
               <TableHead>Store</TableHead>
-              <TableHead>Scheduled &#x21C5;</TableHead>
-              <TableHead>Status &#x25BC;</TableHead>
+              <TableHead>Scheduled</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Score</TableHead>
               <TableHead>Issues</TableHead>
               <TableHead>Auditor</TableHead>
-              <TableHead>Actions</TableHead>
+              {canEdit && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length > 0 ? filtered.map(a => {
-              const issCount = issues.filter(i => i.audit_id === a.id).length;
-              const schedDisplay = a.scheduled_at ? new Date(a.scheduled_at).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'}) + ', ' + new Date(a.scheduled_at).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'}) : (a.sched || '—');
-              return (
-              <TableRow key={a.id} className="cursor-pointer" onClick={() => setDetailAudit(a)}>
-                <TableCell onClick={e => e.stopPropagation()}><input type="checkbox" /></TableCell>
-                <TableCell><a className="font-semibold text-primary no-underline">{a.id}</a></TableCell>
+            {filtered.length > 0 ? filtered.map((a) => (
+              <TableRow key={a.key} className="cursor-pointer" onClick={() => setFilter('id', a.id)}>
+                <TableCell>
+                  <Link className="font-semibold text-primary no-underline hover:underline" to={auditsLink({ id: a.id })} onClick={(e) => e.stopPropagation()}>
+                    {shortId(a)}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <div className="font-medium">
+                    {a.tool}{a.version > 1 ? <span className="ml-1 text-[10px] font-normal text-muted-foreground">v{a.version}</span> : null}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">{KIND_LABEL[a.kind]}</div>
+                </TableCell>
                 <TableCell>
                   <div className="font-medium">{a.store}</div>
                   <div className="text-[11px] text-muted-foreground">{a.city}</div>
                 </TableCell>
                 <TableCell>
-                  <span className="text-[11px] text-muted-foreground">&#x1F550;</span> {schedDisplay}
+                  {a.date ? <>{formatDate(a.date)}, {formatTime(a.date)}</> : <span className="text-muted-foreground">--</span>}
                 </TableCell>
-                <TableCell><Badge className={sBadge(a.status)}>{a.status}</Badge></TableCell>
-                <TableCell>
-                  {a.score != null ? (
-                    <div className="flex items-center gap-1.5">
-                      <span className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-full text-[10.5px] font-bold" style={{ border: `2px solid ${sColor(a.score)}`, color: sColor(a.score) }}>{a.score}%</span>
-                      <span className="text-[11px] text-muted-foreground">{a.score}/100</span>
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground">&mdash;</span>
-                  )}
-                </TableCell>
+                <TableCell><AuditRowStatus row={a} /></TableCell>
+                <TableCell><ScoreCircle row={a} /></TableCell>
                 <TableCell className="font-medium">
-                  {(a.status === 'Completed' || a.status === 'Approved') ? issCount : '—'}
+                  {(a.stage === 'completed' || a.stage === 'approved') ? issueCount(a) : '--'}
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-1.5">
-                    <div className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(a.auditor || 'U'))}>{(a.auditor||'U')[0]}</div>
-                    <span className="text-xs">{a.auditor || 'Unassigned'}</span>
-                  </div>
-                </TableCell>
-                <TableCell onClick={e => e.stopPropagation()}>
-                  <div className="flex gap-1">
-                    <button title="Preview" className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px] hover:bg-muted/50" onClick={() => setDetailAudit(a)}>&#x1F441;</button>
-                    <button title="Edit" className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px] hover:bg-muted/50" onClick={() => openEdit(a)}>&#x270F;&#xFE0F;</button>
-                    <div className="relative" ref={dropdown === a.id ? dropdownRef : null}>
-                      <button title="More actions" className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px] hover:bg-muted/50" onClick={() => setDropdown(d => d === a.id ? null : a.id)}>&hellip;</button>
-                      {dropdown === a.id && (
-                        <div className="absolute right-0 top-[28px] z-50 min-w-[160px] overflow-hidden rounded-lg border border-border bg-card shadow-lg">
-                          {['Planned','In Progress','Completed','Overdue'].filter(s => s !== a.status).map(s => (
-                            <button key={s} onClick={() => quickStatus(a, s)} className="flex w-full items-center px-3 py-2 text-left text-[12px] text-foreground hover:bg-muted/50">
-                              Mark as {s}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                  {a.auditor ? (
+                    <div className="flex items-center gap-1.5">
+                      <div className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(a.auditor))}>{a.auditor[0]}</div>
+                      <span className="text-xs">{a.auditor}</span>
                     </div>
-                  </div>
+                  ) : <span className="text-xs text-muted-foreground">Unassigned</span>}
                 </TableCell>
+                {canEdit && (
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    {a.kind === 'legacy' ? (
+                      <div className="flex items-center gap-1.5">
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => openEdit(a)}>Edit</Button>
+                        <select
+                          aria-label="Mark as"
+                          className="h-7 rounded-md border border-border bg-card px-1 text-[11px]"
+                          value=""
+                          onChange={(e) => e.target.value && patchAudit(a, { status: e.target.value })}
+                        >
+                          <option value="">Mark as...</option>
+                          {EDIT_STATUSES.filter((st) => st !== a.status).map((st) => <option key={st} value={st}>{st}</option>)}
+                        </select>
+                      </div>
+                    ) : <span className="text-[11px] text-muted-foreground">Reschedule in Scheduling</span>}
+                  </TableCell>
+                )}
               </TableRow>
-            )}) : (
+            )) : (
               <TableRow>
-                <TableCell colSpan={9} className="p-10 text-center text-muted-foreground">No audits match your filters</TableCell>
+                <TableCell colSpan={canEdit ? 9 : 8} className="p-10 text-center text-muted-foreground">No audits match your filters</TableCell>
               </TableRow>
             )}
           </TableBody>
@@ -321,152 +305,156 @@ export default function AuditStatus() {
       </div>
       <div className="mt-3 flex justify-end text-xs text-muted-foreground"><span>{filtered.length} items</span></div>
 
-      {/* ── Edit Audit Modal ── */}
-      {editAudit && (
-        <Modal open={!!editAudit} onClose={() => setEditAudit(null)} className="w-[440px]">
-          <div className="mb-4 text-[15px] font-bold text-foreground">Edit Audit — {editAudit.id}</div>
+      {/* Audit detail */}
+      {detailRow && (
+        <Modal open onClose={() => setFilter('id', '')} className="w-[700px] max-w-[95vw]">
+          <div className="mb-3.5 flex items-center justify-between">
+            <div className="text-[15px] font-bold text-foreground">{shortId(detailRow)} &middot; {detailRow.store}</div>
+            <button type="button" className="text-base text-muted-foreground" onClick={() => setFilter('id', '')} aria-label="Close">&times;</button>
+          </div>
+
+          <div className="mb-4 grid grid-cols-3 gap-2.5 text-xs">
+            <div>
+              <div className="mb-0.5 text-muted-foreground">Audit</div>
+              <b className="text-foreground/80">{detailRow.tool}{detailRow.version ? ` (v${detailRow.version})` : ''}</b>
+            </div>
+            <div>
+              <div className="mb-0.5 text-muted-foreground">Store</div>
+              <b className="text-foreground/80">{[detailRow.store, detailRow.city].filter(Boolean).join(', ')}</b>
+            </div>
+            <div>
+              <div className="mb-0.5 text-muted-foreground">Scheduled</div>
+              <b className="text-foreground/80">{detailRow.date ? `${formatDate(detailRow.date)}, ${formatTime(detailRow.date)}` : '--'}</b>
+            </div>
+            <div>
+              <div className="mb-0.5 text-muted-foreground">Status</div>
+              <AuditRowStatus row={detailRow} />
+            </div>
+            <div>
+              <div className="mb-0.5 text-muted-foreground">Auditor</div>
+              <b className="text-foreground/80">{detailRow.auditor || 'Unassigned'}</b>
+            </div>
+            <div>
+              <div className="mb-0.5 text-muted-foreground">Score</div>
+              <ScoreCircle row={detailRow} size={36} />
+            </div>
+          </div>
+
+          {detailRow.notes && (
+            <div className="mb-4 text-xs"><span className="text-muted-foreground">Notes: </span>{detailRow.notes}</div>
+          )}
+
+          {detailRow.kind === 'sop' ? (
+            <div className="mb-4 rounded-lg border border-border p-3 text-[12.5px] text-foreground/80">
+              Marks per criterion, photos and remarks are on the audit itself.
+              {detailRow.score != null && detailRow.percent != null && <> Total score {detailRow.score} ({scoreLabel(detailRow)}).</>}
+            </div>
+          ) : (
+            <div className="mb-4">
+              <div className="mb-2 text-[13px] font-semibold text-foreground">Audit Questions Answered</div>
+              <div className="overflow-hidden rounded-lg border border-border">
+                {legacyDetail.loading && <div className="p-5 text-center text-xs text-muted-foreground">Loading answers...</div>}
+                {legacyDetail.error && <div className="p-5 text-center text-xs text-destructive">{legacyDetail.error.message}</div>}
+                {legacyDetail.data && (legacyDetail.data.responses || []).length === 0 && (
+                  <div className="p-5 text-center text-xs text-muted-foreground">This audit has no questions.</div>
+                )}
+                {legacyDetail.data && (legacyDetail.data.responses || []).map((r) => (
+                  <div key={r.id} className="grid grid-cols-[1fr_auto] items-start gap-2.5 border-b border-border px-3 py-2.5 last:border-0">
+                    <div>
+                      <div className="text-[12.5px] text-foreground/80">{r.question_text}</div>
+                      {r.process && <span className="mt-1 inline-block rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10.5px] font-medium text-gray-700">{r.process}</span>}
+                      {r.remarks && <div className="mt-1 text-[11.5px] text-muted-foreground">{r.remarks}</div>}
+                    </div>
+                    <Badge className={answerBadge(r.answer)}>{r.answer || 'Not answered'}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mb-4">
+            <div className="mb-2 text-[13px] font-semibold text-foreground">Issues raised ({detailIssues.length})</div>
+            <div className="overflow-hidden rounded-lg border border-border">
+              {detailIssues.length > 0 ? detailIssues.map((i) => (
+                <div key={i.id} className="border-b border-border px-3 py-2.5 last:border-0">
+                  <div className="mb-1 flex items-start justify-between gap-4">
+                    <span className="min-w-0 flex-1 pr-2 text-left text-[12.5px] font-semibold text-foreground">{i.title}</span>
+                    <div className="flex shrink-0 justify-end gap-1.5">
+                      <Badge className={cn('whitespace-nowrap', prC(i.priority))}>{i.priority}</Badge>
+                      <Badge className={cn('whitespace-nowrap', stC(i.status))}>{i.status}</Badge>
+                    </div>
+                  </div>
+                  {i.description && <div className="text-[11.5px] leading-snug text-muted-foreground">{i.description}</div>}
+                </div>
+              )) : (
+                <div className="p-5 text-center text-xs text-muted-foreground">No issues recorded for this audit.</div>
+              )}
+            </div>
+          </div>
+
+          {detailRow.kind === 'legacy' && legacyDetail.data && (legacyDetail.data.sm_comment || legacyDetail.data.sm_rating) && (
+            <div className="mb-2">
+              <div className="mb-2 text-[13px] font-semibold text-foreground">Store manager feedback</div>
+              <div className="rounded-lg bg-gray-100 px-3 py-2 text-[12.5px] text-foreground/80">
+                {legacyDetail.data.sm_rating ? <div className="mb-0.5 font-semibold">Rating {legacyDetail.data.sm_rating}</div> : null}
+                {legacyDetail.data.sm_comment}
+              </div>
+            </div>
+          )}
+
+          <ModalActions>
+            <Button variant="outline" onClick={() => setFilter('id', '')}>Close</Button>
+            {detailRow.kind === 'sop' && (
+              <Button asChild><Link to={openLink(detailRow)}>Open audit</Link></Button>
+            )}
+          </ModalActions>
+        </Modal>
+      )}
+      {editRow && (
+        <Modal open onClose={() => setEditRow(null)} className="w-[440px]">
+          <div className="mb-4 text-[15px] font-bold text-foreground">Edit audit {shortId(editRow)}</div>
           <div className="space-y-3">
             <div>
               <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Status</label>
               <select
                 value={editForm.status}
-                onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus:border-primary"
+                onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
+                className={fieldClass}
               >
-                {['Planned','In Progress','Completed','Overdue','Approved'].map(s => <option key={s}>{s}</option>)}
+                {EDIT_STATUSES.map((st) => <option key={st}>{st}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Scheduled Date &amp; Time</label>
+              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Scheduled date and time</label>
               <input
                 type="datetime-local"
                 value={editForm.scheduled_at}
-                onChange={e => setEditForm(f => ({ ...f, scheduled_at: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus:border-primary"
+                disabled={editRow.status !== 'Planned'}
+                onChange={(e) => setEditForm((f) => ({ ...f, scheduled_at: e.target.value }))}
+                className={fieldClass}
               />
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Auditor</label>
               <select
                 value={editForm.auditor_id}
-                onChange={e => setEditForm(f => ({ ...f, auditor_id: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus:border-primary"
+                disabled={editRow.status !== 'Planned'}
+                onChange={(e) => setEditForm((f) => ({ ...f, auditor_id: e.target.value }))}
+                className={fieldClass}
               >
-                <option value="">— Unassigned —</option>
-                {auditors.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                <option value="">-- Unassigned --</option>
+                {auditors.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </div>
+            {editRow.status !== 'Planned' && (
+              <p className="text-[11px] text-muted-foreground">
+                The date and auditor can only be changed while the audit is planned.
+              </p>
+            )}
           </div>
           <ModalActions>
-            <Button variant="outline" onClick={() => setEditAudit(null)}>Cancel</Button>
-            <Button onClick={saveEdit} disabled={editSaving}>{editSaving ? 'Saving…' : 'Save Changes'}</Button>
-          </ModalActions>
-        </Modal>
-      )}
-
-      {/* ── Audit Detail Modal ── */}
-      {detailAudit && detailData && (
-        <Modal open={!!detailAudit} onClose={() => setDetailAudit(null)} className="w-[700px] max-w-[95vw]">
-          {/* header */}
-          <div className="mb-3.5 flex items-center justify-between">
-            <div className="text-[15px] font-bold text-foreground">{detailAudit.id} &middot; {detailAudit.store}</div>
-            <span className="cursor-pointer text-base text-muted-foreground" onClick={() => setDetailAudit(null)}>&times;</span>
-          </div>
-
-          {/* 3-col header grid */}
-          <div className="mb-4 grid grid-cols-3 gap-2.5 text-xs">
-            <div>
-              <div className="mb-0.5 text-muted-foreground">Store</div>
-              <b className="text-foreground/80">{detailAudit.store}, {detailAudit.city}</b>
-            </div>
-            <div>
-              <div className="mb-0.5 text-muted-foreground">Scheduled</div>
-              <b className="text-foreground/80">{detailAudit.scheduled_at?.substring(0,10) || detailAudit.sched}</b>
-            </div>
-            <div>
-              <div className="mb-0.5 text-muted-foreground">Status</div>
-              <Badge className={sBadge(detailAudit.status)}>{detailAudit.status}</Badge>
-            </div>
-            <div>
-              <div className="mb-0.5 text-muted-foreground">Auditor</div>
-              <b className="text-foreground/80">{detailAudit.auditor || 'Unassigned'}</b>
-            </div>
-            <div>
-              <div className="mb-0.5 text-muted-foreground">Issues Raised</div>
-              <b className="text-foreground/80">{issues.filter(i => i.audit_id === detailAudit.id).length}</b>
-            </div>
-            <div>
-              <div className="mb-0.5 text-muted-foreground">Score</div>
-              <div>
-                {detailAudit.score != null ? (
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[11px] font-bold" style={{ border: `2px solid ${sColor(detailAudit.score)}`, color: sColor(detailAudit.score) }}>{detailAudit.score}%</span>
-                ) : (
-                  <span className="text-muted-foreground">Pending</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Audit Questions Answered */}
-          <div className="mb-4">
-            <div className="mb-2 text-[13px] font-semibold text-foreground">Audit Questions Answered</div>
-            <div className="overflow-hidden rounded-lg border border-border">
-              {detailData.answered.length > 0 ? (
-                <>
-                  {detailData.answered.map((q, idx) => (
-                    <div key={idx} className="grid grid-cols-[14px_1fr_150px_60px] items-center gap-2.5 border-b border-border px-3 py-2.5 last:border-0">
-                      <span className="h-[9px] w-[9px] shrink-0 rounded-full" style={{ background: q.ans === 'Yes' ? '#0e9f6e' : '#e02424' }} />
-                      <span className="text-[12.5px] text-foreground/80">{q.text}</span>
-                      <span className="justify-self-start rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10.5px] font-medium text-gray-700">{q.sp}</span>
-                      <Badge className={cn('justify-self-end', q.ans === 'Yes' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-800')}>{q.ans}</Badge>
-                    </div>
-                  ))}
-                  <div className="px-3 py-2.5 text-xs text-muted-foreground">(Showing a sample of questions)</div>
-                </>
-              ) : (
-                <div className="p-5 text-center text-xs text-muted-foreground">No questions answered yet.</div>
-              )}
-            </div>
-          </div>
-
-          {/* Observations */}
-          <div className="mb-4">
-            <div className="mb-2 text-[13px] font-semibold text-foreground">Observations</div>
-            <div className="overflow-hidden rounded-lg border border-border">
-              {detailData.findings.length > 0 ? detailData.findings.map((i, idx) => (
-                <div key={idx} className="border-b border-border px-3 py-2.5 last:border-0">
-                  <div className="mb-1 flex items-start justify-between gap-4">
-                    <span className="min-w-0 flex-1 pr-2 text-left text-[12.5px] font-semibold text-foreground">{i.title}</span>
-                    <div className="flex shrink-0 justify-end gap-1.5">
-                      <Badge className={cn('whitespace-nowrap', prC(i.pri))}>{i.pri}</Badge>
-                      <Badge className={cn('whitespace-nowrap', stC(i.status))}>{i.status}</Badge>
-                    </div>
-                  </div>
-                  <div className="text-[11.5px] leading-snug text-muted-foreground">{i.desc}</div>
-                </div>
-              )) : (
-                <div className="p-5 text-center text-xs text-muted-foreground">No observations recorded for this audit.</div>
-              )}
-            </div>
-          </div>
-
-          {/* Auditor & Store Comments */}
-          <div>
-            <div className="mb-2 text-[13px] font-semibold text-foreground">Auditor &amp; Store Comments</div>
-            <div className="flex flex-col gap-2">
-              <div className="max-w-[75%] self-end rounded-[12px_12px_2px_12px] bg-primary px-3 py-2 text-[12.5px] text-primary-foreground">
-                {detailData.cSet[0]}
-                <div className="mt-0.5 text-[10px] opacity-75">{detailAudit.auditor || 'Auditor'}</div>
-              </div>
-              <div className="max-w-[75%] self-start rounded-[12px_12px_12px_2px] bg-gray-100 px-3 py-2 text-[12.5px] text-foreground/80">
-                {detailData.cSet[1]}
-                <div className="mt-0.5 text-[10px] text-muted-foreground">Store Manager</div>
-              </div>
-            </div>
-          </div>
-
-          <ModalActions>
-            <Button variant="outline" onClick={() => setDetailAudit(null)}>Close</Button>
+            <Button variant="outline" onClick={() => setEditRow(null)}>Cancel</Button>
+            <Button onClick={saveEdit} disabled={editSaving}>{editSaving ? 'Saving...' : 'Save changes'}</Button>
           </ModalActions>
         </Modal>
       )}

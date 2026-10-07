@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user, require_roles
 from ..db import get_db
-from ..models import ROLE_AUDIT_MANAGER, Checklist, ChecklistItem, User
+from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, Checklist, ChecklistItem, User
 from ..schemas import ChecklistCreate
 
 router = APIRouter(prefix="/api/checklists", tags=["checklists"])
@@ -28,7 +28,7 @@ def get_checklist(cid: str, db: Session = Depends(get_db), user: User = Depends(
 def create_checklist(
     body: ChecklistCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     existing = db.query(func.max(Checklist.version)).filter(
         Checklist.name == body.name).scalar()

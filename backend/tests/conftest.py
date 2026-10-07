@@ -18,7 +18,7 @@ from app.auth import hash_password  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import (  # noqa: E402
-    ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, SopTemplate, Store, User,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, SopTemplate, Store, User,
 )
 from app.routers import sop_audits  # noqa: E402
 from import_sop import import_sop  # noqa: E402
@@ -42,6 +42,7 @@ def client():
         db = SessionLocal()
         try:
             _user(db, "manager@test", "Manager", ROLE_AUDIT_MANAGER)
+            _user(db, "admin@test", "Admin", ROLE_ADMIN)
             _user(db, "auditor1@test", "Auditor One", ROLE_AUDITOR)
             _user(db, "auditor2@test", "Auditor Two", ROLE_AUDITOR)
             sm1 = _user(db, "sm1@test", "Store Manager One", ROLE_STORE_MANAGER)
@@ -66,7 +67,7 @@ def _attachments_in_tmp(monkeypatch, tmp_path):
 def tokens(client):
     out = {}
     for key, email in {
-        "manager": "manager@test", "auditor1": "auditor1@test",
+        "manager": "manager@test", "admin": "admin@test", "auditor1": "auditor1@test",
         "auditor2": "auditor2@test", "sm1": "sm1@test", "sm2": "sm2@test",
     }.items():
         r = client.post("/api/auth/login", json={"email": email, "password": PASSWORD})

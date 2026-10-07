@@ -163,6 +163,9 @@ def test_booking_rules_are_shared_between_classic_and_sop_audits(client, tokens,
     clash = schedule("T002")                       # same day, different store
     assert clash.status_code == 409
     assert clash.json()["error"] == "auditor already booked" and clash.json()["kind"] == "sop"
+    # the message can say where and when, not just quote an id
+    assert clash.json()["store"] == "Test Store 1"
+    assert clash.json()["scheduled_at"].startswith("2031-04-07T09:00")
     assert schedule("T001").status_code == 201     # same store, same day: allowed
 
     again = schedule("T002")                       # now also clashes with the classic audit

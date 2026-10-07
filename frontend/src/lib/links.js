@@ -66,7 +66,7 @@ export function sopToolEditorLink(code) {
 // Managers land on the SOP dashboard filtered to the store; everyone else on
 // the SOP audit list for that store.
 export function storeScorecardLink(storeId, role) {
-  if (role === 'AUDIT_MANAGER') return sopDashboardLink({ store: storeId })
+  if (role === 'AUDIT_MANAGER' || role === 'ADMIN') return sopDashboardLink({ store: storeId })
   return sopAuditsLink({ store: storeId })
 }
 

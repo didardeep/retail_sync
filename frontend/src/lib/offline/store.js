@@ -5,7 +5,7 @@
 import { api, loadSession } from '@/api/client'
 import { isAuditorEditable } from '../statuses'
 import { getDb } from './db'
-import { problems } from './scoring'
+import { firstUnansweredIndex, problems } from './scoring'
 
 export function currentUserId() {
   return loadSession()?.user?.id || null
@@ -266,7 +266,9 @@ export async function hydrateFromServer(id) {
     submit_pending: false,
     remote: true,
     overall_remarks: detail.overall_remarks || '',
-    position: 0,
+    // Resume where the work stopped, not at question 1.
+    position: firstUnansweredIndex(
+      template, Object.fromEntries(detail.scores.map((s) => [s.criterion_id, s]))),
     header_rev: 0,
     header_synced_rev: 0,
     sync_error: null,
@@ -300,6 +302,21 @@ export async function hydrateFromServer(id) {
   })
   await tx.done
   return { template }
+}
+
+// Remove an audit and its answers and photos from this device. Only for
+// audits that were never edited here (see assigned.js).
+export async function deleteLocalAudit(id) {
+  const db = await getDb()
+  const [scoreKeys, attKeys] = await Promise.all([
+    db.getAllKeysFromIndex('scores', 'by_audit', id),
+    db.getAllKeysFromIndex('attachments', 'by_audit', id),
+  ])
+  const tx = db.transaction(['audits', 'scores', 'attachments'], 'readwrite')
+  scoreKeys.forEach((k) => tx.objectStore('scores').delete(k))
+  attKeys.forEach((k) => tx.objectStore('attachments').delete(k))
+  tx.objectStore('audits').delete(id)
+  await tx.done
 }
 
 // --------------------------------------------------------------------------
