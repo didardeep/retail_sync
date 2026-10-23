@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  distinctOptions, filterRows, isOverdue, kpiCounts, mergeRows, normalizeLegacy,
+  distinctOptions, durationLabel, filterRows, isOverdue, kpiCounts, mergeRows, normalizeLegacy,
   normalizeSop, scoreLabel,
 } from '../src/lib/auditRows.js';
 
@@ -136,4 +136,23 @@ test('normalizeLegacy and normalizeSop pass progress and checklist_id through', 
 
 test('a Cancelled classic audit normalizes to the cancelled stage', () => {
   assert.equal(normalizeLegacy({ ...legacy[0], status: 'Cancelled' }).stage, 'cancelled')
+})
+
+test('with an end date, overdue means not finished by the end', () => {
+  const planned = normalizeSop({ ...sop[0], due_at: '2031-05-10T18:00:00' })
+  const started = normalizeSop({ ...sop[2], due_at: '2031-03-02T18:00:00' })
+  const done = normalizeLegacy({ ...legacy[1], due_at: '2031-04-01T18:00:00' })
+  assert.equal(planned.start, '2031-05-10T09:00:00')
+  assert.equal(isOverdue(planned, new Date('2031-05-10T17:00:00')), false)
+  assert.equal(isOverdue(planned, new Date('2031-05-10T19:00:00')), true)
+  assert.equal(isOverdue(started, new Date('2031-03-03T08:00:00')), true)   // in progress past its end
+  assert.equal(isOverdue(done, new Date('2031-06-01T00:00:00')), false)     // finished
+})
+
+test('durationLabel', () => {
+  assert.equal(durationLabel('2031-05-10T09:00:00', '2031-05-12T13:00:00'), '2d 4h')
+  assert.equal(durationLabel('2031-05-10T09:00:00', '2031-05-10T15:30:00'), '6h 30m')
+  assert.equal(durationLabel('2031-05-10T09:00:00', '2031-05-10T09:45:00'), '45m')
+  assert.equal(durationLabel('2031-05-10T09:00:00', null), '')
+  assert.equal(durationLabel('2031-05-10T09:00:00', '2031-05-09T09:00:00'), '')
 })

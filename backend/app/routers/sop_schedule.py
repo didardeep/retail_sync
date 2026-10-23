@@ -36,6 +36,20 @@ def _parse_when(text):
     return when
 
 
+def _parse_due(text, start):
+    """Planned end of an audit: an ISO date-time, not before the start."""
+    if not text:
+        return None
+    due = _parse_when(text)
+    _check_window(start, due)
+    return due
+
+
+def _check_window(start, due):
+    if start and due and due < start:
+        raise _unprocessable("the end must not be before the start")
+
+
 def _check_store(db, store_id):
     if not db.get(Store, store_id):
         raise _unprocessable("unknown store")
@@ -78,6 +92,7 @@ def schedule_sop_audit(
     if template is None:
         raise _unprocessable("unknown or inactive audit tool")
     when = _parse_when(body.scheduled_at)
+    due = _parse_due(body.due_at, when)
     _check_store(db, body.store_id)
     _check_auditor(db, body.auditor_id)
     conflict = auditor_conflict(db, body.auditor_id, when.date(), body.store_id)
@@ -86,7 +101,7 @@ def schedule_sop_audit(
 
     audit = SopAudit(
         id=str(uuid.uuid4()), template_id=template.id, store_id=body.store_id,
-        auditor_id=body.auditor_id, status=SOP_PLANNED, scheduled_at=when,
+        auditor_id=body.auditor_id, status=SOP_PLANNED, scheduled_at=when, due_at=due,
         notes=body.notes, created_by_id=user.id,
     )
     db.add(audit)
@@ -120,6 +135,8 @@ def patch_sop_audit(
     d = body.model_dump(exclude_unset=True)
 
     when = _parse_when(d["scheduled_at"]) if d.get("scheduled_at") else audit.scheduled_at
+    due = _parse_due(d.get("due_at"), when) if "due_at" in d else audit.due_at
+    _check_window(when, due)
     store_id = d.get("store_id") or audit.store_id
     auditor_id = d.get("auditor_id") or audit.auditor_id
     if store_id != audit.store_id:
@@ -139,10 +156,13 @@ def patch_sop_audit(
         changes["store_id"] = store_id
     if auditor_id != audit.auditor_id:
         changes["auditor_id"] = auditor_id
+    if due != audit.due_at:
+        changes["due_at"] = due.isoformat() if due else None
     if "notes" in d and d["notes"] != audit.notes:
         changes["notes"] = d["notes"]
         audit.notes = d["notes"]
     audit.scheduled_at, audit.store_id, audit.auditor_id = when, store_id, auditor_id
+    audit.due_at = due
     if changes:
         log_action(db, user.id, "reschedule_sop_audit", "sop_audit", audit.id, changes)
     db.commit()

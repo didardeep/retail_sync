@@ -103,6 +103,7 @@ class ChecklistCreate(ORMBase):
 class AuditScheduleRequest(ORMBase):
     store_id: str
     scheduled_at: str
+    due_at: str | None = None
     checklist_id: str | None = None
     auditor_id: str | None = None
     audit_type: str = "Checklist based Audit"
@@ -386,6 +387,7 @@ class SopScheduleCreate(ORMBase):
     store_id: str
     auditor_id: str
     scheduled_at: str
+    due_at: str | None = None
     notes: str | None = None
 
 
@@ -393,6 +395,7 @@ class SopSchedulePatch(ORMBase):
     store_id: str | None = None
     auditor_id: str | None = None
     scheduled_at: str | None = None
+    due_at: str | None = None
     notes: str | None = None
 
 
@@ -400,4 +403,5 @@ class AuditPatchRequest(ORMBase):
     status: str | None = None
     auditor_id: str | None = None
     scheduled_at: str | None = None
+    due_at: str | None = None
     notes: str | None = None

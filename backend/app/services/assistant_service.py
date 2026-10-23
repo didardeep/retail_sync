@@ -610,7 +610,7 @@ User: {user.name} | Role: {user.role} | Today: {today} (IST)
 {ctx.get(user.role, "")}
 
 FIXED FACTS (no tool needed):
-- Score = round(Σ(weight × answer_value) / Σ(weight) × 100, 2). Yes=1.0, Partial=0.5, No=0.0, NA excluded.
+- Score = round(Σ(weight × answer_value) / Σ(weight) × 100, 2). Answers are Yes / No / NA: Yes=1.0, No=0.0, NA excluded (older audits may have Partial=0.5).
 - Audit flow: Planned → Ongoing → Completed → Approved.
 - Issue status: Open / In Progress / Resolved. Overdue = due_date < today AND status ≠ Resolved.
 - Observation status: Open - Not Due / Open - Overdue / In Progress / Closed.

@@ -2,7 +2,7 @@
 // on paths and query keys. See docs/URL_Contract.md for who reads each key.
 //
 //   /audits?stage&status&view&tool&kind&store&region&auditor&q&id   (the one Audit page)
-//   /scheduling?stage&auditor&id&new=sop
+//   /audits?stage&auditor&id&new=sop   (/scheduling redirects here)
 //   /issues?status&priority&store&audit&sop_audit&id
 //   /stores?region&format&id
 //   /sop-audits?...            (old list URL: redirects to /audits with the same query)
@@ -28,8 +28,9 @@ export function auditsLink({ stage, kind, store, region, id } = {}) {
   return buildLink('/audits', { stage, kind, store, region, id })
 }
 
+// Scheduling lives on the Audit page; `new` opens the schedule form.
 export function schedulingLink({ stage, auditor, id, newKind } = {}) {
-  return buildLink('/scheduling', { stage, auditor, id, new: newKind })
+  return buildLink('/audits', { stage, auditor, id, new: newKind })
 }
 
 export function issuesLink({ status, priority, store, audit, sop_audit, id } = {}) {

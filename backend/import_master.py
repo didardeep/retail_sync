@@ -519,10 +519,10 @@ def seed_from_excel():
         for q in questions.values():
             answer = None
             if status == "Completed":
-                answer = random.choices(["Yes", "No", "Partial", "NA"],
-                                        weights=[70, 10, 15, 5])[0]
+                answer = random.choices(["Yes", "No", "NA"],
+                                        weights=[75, 20, 5])[0]
             elif status == "Ongoing":
-                answer = random.choice(["Yes", "Partial", None])
+                answer = random.choice(["Yes", "No", None])
             s.add(AuditResponse(audit_id=audit.id, question_id=q.id, answer=answer))
 
     s.flush()

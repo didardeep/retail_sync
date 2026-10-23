@@ -1,63 +1,52 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X } from 'lucide-react';
+import {
+  AlarmClock, CalendarDays, CheckCircle2, ClipboardList, Eye, Loader2, Pencil, Plus, UserX, X, XCircle,
+} from 'lucide-react';
 
 import { api, loadSession } from '../api/client';
+import { scheduleApiFor } from '../api/sopSchedule';
 import { avC, prC, stC } from '../utils/helpers';
 import { cn, fieldClass } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Modal, ModalActions } from '../components/Modal';
+import { Drawer } from '../components/Modal';
 import { useToast } from '../components/Toast';
 import AuditRowStatus from '@/components/AuditRowStatus';
 import SyncChip from '@/components/SyncChip';
-import AuditTypeChip from '@/components/audit/AuditTypeChip';
+import Tile from '@/components/Tile';
 import NewAuditSection from '@/components/audit/NewAuditSection';
 import ScheduledForYou from '@/components/audit/ScheduledForYou';
+import ScheduleAuditModal, { KIND_LABEL, scheduleErrorMessage } from '@/components/audit/ScheduleAuditModal';
 import useAuditorWorkspace from '@/components/audit/useAuditorWorkspace';
 import {
   ACTION_LABELS, attachExtras, filterStatusValue, isMine, mergeSopSources, rowAction,
   rowMatchesStatusFilter, scheduledForYou, statusChipLabel,
 } from '@/components/audit/auditHelpers';
 import {
-  distinctOptions, filterRows, formatDate, formatTime, mergeRows, scoreLabel,
+  UNASSIGNED, distinctOptions, durationLabel, filterRows, formatDate, formatTime, isOverdue,
+  kpiCounts, mergeRows, scoreLabel,
 } from '@/lib/auditRows';
 import { progressPercent } from '@/lib/auditorStats';
-import {
-  auditsLink, schedulingLink, sopAuditReviewLink, sopAuditRunLink, sopDashboardLink,
-} from '@/lib/links';
+import { sopAuditReviewLink, sopAuditRunLink, sopDashboardLink } from '@/lib/links';
 import { STAGES, isAuditorEditable } from '@/lib/statuses';
 import { useUrlFilters } from '@/lib/useUrlFilters';
 
 // stage / status / view all filter by status (see components/audit/auditHelpers
-// rowMatchesStatusFilter); tool is an SOP tool code; id opens the detail.
-const FILTER_KEYS = ['stage', 'status', 'view', 'tool', 'kind', 'store', 'region', 'auditor', 'q', 'id'];
+// rowMatchesStatusFilter); tool is an SOP tool code; id opens the detail;
+// new=sop|legacy opens the schedule form (old /scheduling links land here).
+const FILTER_KEYS = ['stage', 'status', 'view', 'tool', 'kind', 'store', 'region', 'auditor', 'q', 'id', 'new'];
 const STATUS_OPTIONS = [...STAGES, { value: 'overdue', label: 'Overdue' }];
 // Statuses a manager or admin may set by hand on a checklist audit (same list as the API).
 const EDIT_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Approved', 'Cancelled'];
 const MANAGER_ROLES = ['AUDIT_MANAGER', 'ADMIN'];
+const PER_PAGE = 10;
 
 // SOP audit ids are UUIDs; show a short form, keep the full id in the link.
 function shortId(row) {
   return row.kind === 'sop' ? `SOP-${row.id.slice(0, 8)}` : row.id;
-}
-
-function scoreColor(v) {
-  return v >= 80 ? '#0e9f6e' : v >= 60 ? '#f59e0b' : '#e02424';
-}
-
-function ScoreCircle({ row, size = 34 }) {
-  if (typeof row.percent !== 'number') return <span className="text-muted-foreground">--</span>;
-  return (
-    <span
-      className="inline-flex items-center justify-center rounded-full text-[10.5px] font-bold"
-      style={{ width: size, height: size, border: `2px solid ${scoreColor(row.percent)}`, color: scoreColor(row.percent) }}
-    >
-      {scoreLabel(row)}
-    </span>
-  );
 }
 
 // Progress bar and "x% done" for an audit that is in progress (only when known).
@@ -71,6 +60,17 @@ function RowProgress({ row }) {
       </div>
       <span className="text-[11px] font-semibold text-foreground">{pct}% done</span>
     </div>
+  );
+}
+
+// Date on one line, time under it; '--' when unknown.
+function DateCell({ iso, className }) {
+  if (!iso) return <span className="text-muted-foreground">--</span>;
+  return (
+    <>
+      <div className={cn('text-[12.5px] font-semibold', className)}>{formatDate(iso)}</div>
+      <div className="text-[11px] text-muted-foreground">{formatTime(iso)}</div>
+    </>
   );
 }
 
@@ -98,10 +98,22 @@ function answerBadge(answer) {
   return 'bg-muted text-muted-foreground border border-border';
 }
 
+function Section({ label, children }) {
+  return (
+    <div className="mb-4">
+      <div className="mb-1 text-[10.5px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+// Audit: every audit (checklist and SOP) in one list, plus scheduling for
+// managers and start / resume for auditors.
 export default function Audit() {
   const { filters, setFilter, setMany, clearAll } = useUrlFilters(FILTER_KEYS);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [page, setPage] = useState(1);
   const me = loadSession()?.user;
   const toast = useToast();
   const canEdit = MANAGER_ROLES.includes(me?.role);
@@ -109,16 +121,18 @@ export default function Audit() {
   const ws = useAuditorWorkspace();
   const { loadLocal, prepare } = ws;
 
-  const [editRow, setEditRow] = useState(null);
-  const [editForm, setEditForm] = useState({});
-  const [editSaving, setEditSaving] = useState(false);
-  const [auditors, setAuditors] = useState([]);
   const [legacy, setLegacy] = useState(null);
   const [sop, setSop] = useState(null);
   const [remoteError, setRemoteError] = useState(null);
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
+  // Scheduling data (managers only).
+  const [auditors, setAuditors] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [checklists, setChecklists] = useState([]);
+  const [schedule, setSchedule] = useState(null); // { kind } new, { row } edit
 
   // The two server lists load separately so one failing does not hide the other.
   const loadRemote = useCallback(async () => {
@@ -142,7 +156,18 @@ export default function Audit() {
           loadRemote(),
           api.issues().then((i) => { if (!cancelled) setIssues(i || []); }).catch(() => {}),
           canEdit
-            ? api.users('AUDITOR').then((u) => { if (!cancelled) setAuditors(u || []); }).catch(() => {})
+            ? Promise.all([
+              api.users('AUDITOR').catch(() => []),
+              api.stores().catch(() => []),
+              api.sopTemplates().catch(() => []),
+              api.checklists().catch(() => []),
+            ]).then(([us, st, tp, cl]) => {
+              if (cancelled) return;
+              setAuditors((us || []).filter((u) => u.active !== false));
+              setStores(st || []);
+              setTemplates(tp || []);
+              setChecklists((cl || []).filter((c) => c.is_active !== false));
+            })
             : Promise.resolve(),
         ]);
       }
@@ -159,48 +184,12 @@ export default function Audit() {
     if (ws.online) loadRemote();
   }, [ws.sync.lastSync, ws.sync.pending]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const reloadAudits = loadRemote;
-
-  function openEdit(row) {
-    setEditRow(row);
-    setEditForm({
-      status: row.status || 'Planned',
-      scheduled_at: row.date ? row.date.substring(0, 16) : '',
-      auditor_id: row.auditor_id || '',
-    });
-  }
-
-  // Only the fields that changed are sent, so editing the status of a started
-  // audit does not trip the "date and auditor can only change while planned" rule.
-  async function patchAudit(row, changes) {
-    try {
-      await api.updateAudit(row.id, changes);
-      await reloadAudits();
-      return true;
-    } catch (e) {
-      toast.error(e.message || 'Could not update the audit');
-      return false;
-    }
-  }
-
-  async function saveEdit() {
-    const changes = {};
-    if (editForm.status !== editRow.status) changes.status = editForm.status;
-    const was = editRow.date ? editRow.date.substring(0, 16) : '';
-    if (editForm.scheduled_at !== was) changes.scheduled_at = editForm.scheduled_at;
-    if ((editForm.auditor_id || '') !== (editRow.auditor_id || '')) changes.auditor_id = editForm.auditor_id;
-    if (!Object.keys(changes).length) {
-      setEditRow(null);
-      return;
-    }
-    setEditSaving(true);
-    const ok = await patchAudit(editRow, changes);
-    setEditSaving(false);
-    if (ok) {
-      toast('Audit updated');
-      setEditRow(null);
-    }
-  }
+  // ?new=sop (or legacy) opens the schedule form once the data is in, then leaves the URL clean.
+  useEffect(() => {
+    if (loading || !filters.new) return;
+    if (canEdit) setSchedule({ kind: filters.new === 'legacy' ? 'legacy' : 'sop' });
+    setFilter('new', '');
+  }, [loading, filters.new]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auditors: the on-device SOP drafts are merged into the server rows (the
   // device copy wins) and only their own audits are listed.
@@ -218,26 +207,31 @@ export default function Audit() {
   const auditorOptions = useMemo(() => distinctOptions(rows, 'auditor_id', 'auditor'), [rows]);
   const toolOptions = useMemo(() => distinctOptions(rows, 'tool_code', 'tool'), [rows]);
 
-  const filtered = useMemo(() => {
+  // Tiles count everything except the status filter, so they stay a way to switch status.
+  const forTiles = useMemo(() => {
     const from = startDate ? new Date(`${startDate}T00:00:00`) : null;
     const to = endDate ? new Date(`${endDate}T23:59:59`) : null;
-    const statusKeys = { stage: filters.stage, status: filters.status, view: filters.view };
     return filterRows(rows, {
       kind: filters.kind, store: filters.store,
       region: filters.region, auditor: filters.auditor, q: filters.q,
     }).filter((r) => {
       if (filters.tool && r.tool_code !== filters.tool) return false;
-      if (!rowMatchesStatusFilter(r, statusKeys)) return false;
       if (!from && !to) return true;
       const d = r.date ? new Date(r.date) : null;
       if (!d || Number.isNaN(d.getTime())) return false;
       return !(from && d < from) && !(to && d > to);
     });
-  }, [rows, filters.stage, filters.status, filters.view, filters.tool, filters.kind, filters.store, filters.region, filters.auditor, filters.q, startDate, endDate]);
+  }, [rows, filters.tool, filters.kind, filters.store, filters.region, filters.auditor, filters.q, startDate, endDate]);
+  const counts = kpiCounts(forTiles);
+  const overdueCount = forTiles.filter((r) => isOverdue(r)).length;
+  const statusKeys = { stage: filters.stage, status: filters.status, view: filters.view };
+  const filtered = forTiles.filter((r) => rowMatchesStatusFilter(r, statusKeys));
   const statusValue = filterStatusValue(filters);
   const chipLabel = statusChipLabel(filters);
 
-  const issueCount = (row) => issues.filter((i) => (row.kind === 'sop' ? i.sop_audit_id : i.audit_id) === row.id).length;
+  const pages = Math.ceil(filtered.length / PER_PAGE);
+  const pageNo = Math.min(page, Math.max(pages, 1));
+  const paged = filtered.slice((pageNo - 1) * PER_PAGE, pageNo * PER_PAGE);
 
   const detailRow = filters.id ? rows.find((r) => r.id === filters.id) : null;
   const legacyDetail = useLegacyDetail(detailRow);
@@ -246,13 +240,57 @@ export default function Audit() {
     ? issues.filter((i) => (detailRow.kind === 'sop' ? i.sop_audit_id : i.audit_id) === detailRow.id)
     : [];
 
+  function applyFilter(key, value) {
+    setPage(1);
+    setFilter(key, value);
+  }
+
+  function setStatus(value) {
+    setPage(1);
+    setMany({ stage: value, status: '', view: '' });
+  }
+
+  function toggleStatus(value) {
+    setStatus(statusValue === value ? '' : value);
+  }
+
   function clearFilters() {
+    setPage(1);
     clearAll();
     setStartDate('');
     setEndDate('');
   }
 
-  const anyFilter = FILTER_KEYS.some((k) => k !== 'id' && filters[k]) || startDate || endDate;
+  const anyFilter = FILTER_KEYS.some((k) => k !== 'id' && k !== 'new' && filters[k]) || startDate || endDate;
+  const canChange = (r) => canEdit && r.stage === 'scheduled';
+
+  function openEdit(row) {
+    setFilter('id', '');
+    setSchedule({ row });
+  }
+
+  async function cancelRow(r) {
+    if (!window.confirm(`Cancel the ${r.tool} audit at ${r.store}? It stays in the history as Cancelled.`)) return;
+    try {
+      await scheduleApiFor(r.kind).cancel(r.id);
+      toast.success('Audit cancelled');
+      setFilter('id', '');
+      await loadRemote();
+    } catch (e) {
+      toast.error(scheduleErrorMessage(e));
+    }
+  }
+
+  // Checklist audits only: a manager may set the status by hand.
+  async function markAs(row, status) {
+    try {
+      await api.updateAudit(row.id, { status });
+      toast('Audit updated');
+      await loadRemote();
+    } catch (e) {
+      toast.error(e.message || 'Could not update the audit');
+    }
+  }
 
   function openLink(row) {
     const mine = row.auditor_id && row.auditor_id === me?.id;
@@ -263,26 +301,11 @@ export default function Audit() {
     return <div className="flex h-[60vh] items-center justify-center text-muted-foreground">Loading audit data...</div>;
   }
 
+  const iconBtn = 'flex h-[26px] w-[26px] items-center justify-center rounded-md border border-border bg-card';
+  const colCount = 7 + (isAuditor ? 0 : 1);
+
   return (
     <>
-      {/* Header: sync state and New audit for auditors, shortcuts for managers */}
-      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">{isAuditor && <SyncChip />}</div>
-        <div className="flex gap-2">
-          {isAuditor && (
-            <Button size="sm" onClick={() => setShowNew((v) => !v)} aria-expanded={showNew}>
-              <Plus className="size-4" />New audit
-            </Button>
-          )}
-          {canEdit && (
-            <>
-              <Button asChild size="sm" variant="outline"><Link to={sopDashboardLink({})}>View scores</Link></Button>
-              <Button asChild size="sm"><Link to={schedulingLink({ newKind: 'sop' })}>Schedule an audit</Link></Button>
-            </>
-          )}
-        </div>
-      </div>
-
       {remoteError && (
         <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           {ws.online
@@ -295,6 +318,25 @@ export default function Audit() {
           {isAuditor ? 'You are offline. Showing the audits saved on this device.' : 'You are offline. Connect to see audits.'}
         </div>
       )}
+
+      <div className={cn('mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2', canEdit ? 'lg:grid-cols-6' : 'lg:grid-cols-5')}>
+        <Tile icon={ClipboardList} tint="#e8eefa" label="Total Audits" value={counts.total}
+          active={!statusValue && filters.auditor !== UNASSIGNED}
+          onClick={() => { setPage(1); setMany({ stage: '', status: '', view: '', ...(filters.auditor === UNASSIGNED ? { auditor: '' } : {}) }); }} />
+        <Tile icon={CalendarDays} tint="#e8eefa" label="Scheduled" value={counts.scheduled}
+          active={statusValue === 'scheduled'} onClick={() => toggleStatus('scheduled')} />
+        <Tile icon={Loader2} tint="#fffbeb" label="In progress" value={counts.in_progress}
+          active={statusValue === 'in_progress'} onClick={() => toggleStatus('in_progress')} />
+        <Tile icon={CheckCircle2} tint="#ecfdf5" label="Completed" value={counts.completed}
+          active={statusValue === 'completed'} onClick={() => toggleStatus('completed')} />
+        <Tile icon={AlarmClock} tint="#fde8e8" label="Overdue" value={overdueCount}
+          active={statusValue === 'overdue'} onClick={() => toggleStatus('overdue')} />
+        {canEdit && (
+          <Tile icon={UserX} tint="#f3f4f6" label="Unassigned" value={counts.unassigned}
+            active={filters.auditor === UNASSIGNED}
+            onClick={() => applyFilter('auditor', filters.auditor === UNASSIGNED ? '' : UNASSIGNED)} />
+        )}
+      </div>
 
       {isAuditor && <ScheduledForYou rows={scheduled} openingKey={ws.openingKey} onOpen={ws.openRow} />}
       {isAuditor && showNew && (
@@ -313,52 +355,55 @@ export default function Audit() {
 
       {/* Filter bar */}
       <div className="mb-3.5 flex flex-wrap items-center gap-2">
-        <div className="relative max-w-[260px] flex-1">
-          <Input placeholder="Search by ID, store, tool or auditor..." value={filters.q} onChange={(e) => setFilter('q', e.target.value)} />
+        {isAuditor && <SyncChip />}
+        <div className="relative min-w-[180px] flex-1">
+          <Input placeholder="Search audit, tool, store or auditor..." value={filters.q} onChange={(e) => applyFilter('q', e.target.value)} />
         </div>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={statusValue} onChange={(e) => setMany({ stage: e.target.value, status: '', view: '' })} aria-label="Filter by status">
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.kind} onChange={(e) => applyFilter('kind', e.target.value)} aria-label="Filter by type">
+          <option value="">All types</option>
+          <option value="legacy">Checklist audit</option>
+          <option value="sop">SOP tool</option>
+        </select>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={statusValue} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
           <option value="">Status</option>
           {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.kind} onChange={(e) => setFilter('kind', e.target.value)} aria-label="Filter by type">
-          <option value="">All types</option>
-          <option value="legacy">Checklist</option>
-          <option value="sop">Scored (SOP tool)</option>
-        </select>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.tool} onChange={(e) => setFilter('tool', e.target.value)} aria-label="Filter by audit tool">
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.tool} onChange={(e) => applyFilter('tool', e.target.value)} aria-label="Filter by audit tool">
           <option value="">Tool</option>
           {toolOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.region} onChange={(e) => setFilter('region', e.target.value)} aria-label="Filter by region">
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.region} onChange={(e) => applyFilter('region', e.target.value)} aria-label="Filter by region">
           <option value="">Region</option>
           {regionOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.store} onChange={(e) => setFilter('store', e.target.value)} aria-label="Filter by store">
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.store} onChange={(e) => applyFilter('store', e.target.value)} aria-label="Filter by store">
           <option value="">Store</option>
           {storeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         {!isAuditor && (
-          <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.auditor} onChange={(e) => setFilter('auditor', e.target.value)} aria-label="Filter by auditor">
+          <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.auditor} onChange={(e) => applyFilter('auditor', e.target.value)} aria-label="Filter by auditor">
             <option value="">Auditor</option>
-            <option value="unassigned">Unassigned</option>
+            <option value={UNASSIGNED}>Unassigned</option>
             {auditorOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         )}
-        <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={startDate} onChange={(e) => setStartDate(e.target.value)} aria-label="From date" />
-        <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={endDate} onChange={(e) => setEndDate(e.target.value)} aria-label="To date" />
-        {anyFilter && <Button size="sm" variant="outline" onClick={clearFilters}>Clear filters</Button>}
+        <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={startDate} onChange={(e) => { setPage(1); setStartDate(e.target.value); }} aria-label="From date" />
+        <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={endDate} onChange={(e) => { setPage(1); setEndDate(e.target.value); }} aria-label="To date" />
+        {anyFilter && <Button size="sm" variant="outline" onClick={clearFilters}>Clear</Button>}
+        {canEdit && <Button asChild size="sm" variant="outline"><Link to={sopDashboardLink({})}>View scores</Link></Button>}
+        {canEdit && <Button size="sm" onClick={() => setSchedule({ kind: 'sop' })}>+ Schedule Audit</Button>}
+        {isAuditor && (
+          <Button size="sm" onClick={() => setShowNew((v) => !v)} aria-expanded={showNew}>
+            <Plus className="size-4" />New audit
+          </Button>
+        )}
       </div>
 
       {chipLabel && (
         <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 font-medium text-foreground">
             Filter: {chipLabel}
-            <button
-              type="button"
-              onClick={() => setMany({ stage: '', status: '', view: '' })}
-              className="inline-flex items-center gap-0.5 text-primary hover:underline"
-              aria-label="Clear status filter"
-            >
+            <button type="button" onClick={() => setStatus('')} className="inline-flex items-center gap-0.5 text-primary hover:underline" aria-label="Clear status filter">
               (clear)
               <X className="size-3" />
             </button>
@@ -367,261 +412,224 @@ export default function Audit() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+      <div className="overflow-x-auto rounded-[10px] border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Audit ID</TableHead>
               <TableHead>Audit</TableHead>
               <TableHead>Store</TableHead>
-              <TableHead>Scheduled</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Score</TableHead>
-              <TableHead>Issues</TableHead>
+              <TableHead>Scheduled on</TableHead>
+              <TableHead>Start</TableHead>
+              <TableHead>End</TableHead>
               {!isAuditor && <TableHead>Auditor</TableHead>}
-              {(canEdit || isAuditor) && <TableHead>Actions</TableHead>}
+              <TableHead>Status</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length > 0 ? filtered.map((a) => (
-              <TableRow key={a.key} className="cursor-pointer" onClick={() => setFilter('id', a.id)}>
-                <TableCell>
-                  <Link className="font-semibold text-primary no-underline hover:underline" to={auditsLink({ id: a.id })} onClick={(e) => e.stopPropagation()}>
-                    {shortId(a)}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <div className="font-medium">
-                    {a.tool}{a.version > 1 ? <span className="ml-1 text-[10px] font-normal text-muted-foreground">v{a.version}</span> : null}
-                  </div>
-                  <AuditTypeChip label={a.kind === 'sop' ? 'Scored' : 'Checklist'} className="mt-0.5" />
-                </TableCell>
-                <TableCell>
-                  <div className="font-medium">{a.store}</div>
-                  <div className="text-[11px] text-muted-foreground">{a.city}</div>
-                </TableCell>
-                <TableCell>
-                  {a.date ? <>{formatDate(a.date)}, {formatTime(a.date)}</> : <span className="text-muted-foreground">--</span>}
-                </TableCell>
-                <TableCell>
-                  <AuditRowStatus row={a} />
-                  <RowProgress row={a} />
-                  {a.sync_error && <div className="mt-0.5 max-w-[180px] truncate text-[11px] text-destructive">{a.sync_error}</div>}
-                </TableCell>
-                <TableCell><ScoreCircle row={a} /></TableCell>
-                <TableCell className="font-medium">
-                  {(a.stage === 'completed' || a.stage === 'approved') ? issueCount(a) : '--'}
-                </TableCell>
-                {!isAuditor && <TableCell>
-                  {a.auditor ? (
-                    <div className="flex items-center gap-1.5">
-                      <div className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(a.auditor))}>{a.auditor[0]}</div>
-                      <span className="text-xs">{a.auditor}</span>
-                    </div>
-                  ) : <span className="text-xs text-muted-foreground">Unassigned</span>}
-                </TableCell>}
-                {isAuditor && (
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      size="sm"
-                      variant={rowAction(a, ws.userId) === 'view' ? 'outline' : 'default'}
-                      className="h-7 px-2.5 text-[11px]"
-                      disabled={ws.openingKey === a.key}
-                      onClick={() => ws.openRow(a)}
-                    >
-                      {ACTION_LABELS[rowAction(a, ws.userId)]}
-                    </Button>
-                  </TableCell>
-                )}
-                {canEdit && (
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    {a.kind === 'legacy' ? (
-                      <div className="flex items-center gap-1.5">
-                        <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => openEdit(a)}>Edit</Button>
-                        <select
-                          aria-label="Mark as"
-                          className="h-7 rounded-md border border-border bg-card px-1 text-[11px]"
-                          value=""
-                          onChange={(e) => e.target.value && patchAudit(a, { status: e.target.value })}
-                        >
-                          <option value="">Mark as...</option>
-                          {EDIT_STATUSES.filter((st) => st !== a.status).map((st) => <option key={st} value={st}>{st}</option>)}
-                        </select>
-                      </div>
-                    ) : <span className="text-[11px] text-muted-foreground">Reschedule in Scheduling</span>}
-                  </TableCell>
-                )}
-              </TableRow>
-            )) : (
-              <TableRow>
-                <TableCell colSpan={7 + (isAuditor ? 0 : 1) + (canEdit || isAuditor ? 1 : 0)} className="p-10 text-center text-muted-foreground">No audits match your filters</TableCell>
-              </TableRow>
+            {paged.length === 0 && (
+              <TableRow><TableCell colSpan={colCount} className="p-10 text-center text-muted-foreground">No audits match these filters</TableCell></TableRow>
             )}
+            {paged.map((s) => {
+              const overdue = isOverdue(s);
+              const duration = durationLabel(s.start, s.due_at);
+              const action = rowAction(s, ws.userId);
+              return (
+                <TableRow key={s.key} className={cn(overdue && 'bg-red-50/40')}>
+                  <TableCell>
+                    <div className="text-[12.5px] font-semibold">
+                      {s.tool}{s.version > 1 ? <span className="ml-1 text-[10px] font-normal text-muted-foreground">v{s.version}</span> : null}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">{KIND_LABEL[s.kind]} &middot; {shortId(s)}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-[12.5px] font-medium">{s.store}</div>
+                    <div className="text-[11px] text-muted-foreground">{[s.city, s.region].filter(Boolean).join(', ')}</div>
+                  </TableCell>
+                  <TableCell><DateCell iso={s.scheduled_on} /></TableCell>
+                  <TableCell><DateCell iso={s.start} /></TableCell>
+                  <TableCell>
+                    <DateCell iso={s.due_at} className={overdue ? 'text-destructive' : undefined} />
+                    {duration && <div className="text-[11px] text-muted-foreground">{duration}</div>}
+                  </TableCell>
+                  {!isAuditor && (
+                    <TableCell>
+                      {s.auditor ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(s.auditor))}>{s.auditor[0]}</div>
+                          <div className="text-[12.5px] font-semibold">{s.auditor}</div>
+                        </div>
+                      ) : <Badge className="bg-muted text-muted-foreground border border-border">Unassigned</Badge>}
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <AuditRowStatus row={s} />
+                    <RowProgress row={s} />
+                    {scoreLabel(s) !== '--' && <div className="mt-1 text-[11px] text-muted-foreground">Score {scoreLabel(s)}</div>}
+                    {s.sync_error && <div className="mt-0.5 max-w-[180px] truncate text-[11px] text-destructive">{s.sync_error}</div>}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      {isAuditor && action !== 'view' ? (
+                        <Button size="sm" className="h-7 px-2.5 text-[11px]" disabled={ws.openingKey === s.key} onClick={() => ws.openRow(s)}>
+                          {ACTION_LABELS[action]}
+                        </Button>
+                      ) : (
+                        <button className={iconBtn} onClick={() => setFilter('id', s.id)} title="View" aria-label="View"><Eye className="size-3.5" /></button>
+                      )}
+                      {canChange(s) && <button className={iconBtn} onClick={() => openEdit(s)} title="Edit" aria-label="Edit"><Pencil className="size-3.5" /></button>}
+                      {canChange(s) && <button className={iconBtn} onClick={() => cancelRow(s)} title="Cancel audit" aria-label="Cancel audit"><XCircle className="size-3.5 text-destructive" /></button>}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
-      <div className="mt-3 flex justify-end text-xs text-muted-foreground"><span>{filtered.length} items</span></div>
 
-      {/* Audit detail */}
-      {detailRow && (
-        <Modal open onClose={() => setFilter('id', '')} className="w-[700px] max-w-[95vw]">
-          <div className="mb-3.5 flex items-center justify-between">
-            <div className="text-[15px] font-bold text-foreground">{shortId(detailRow)} &middot; {detailRow.store}</div>
-            <button type="button" className="text-base text-muted-foreground" onClick={() => setFilter('id', '')} aria-label="Close">&times;</button>
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-1 text-xs text-muted-foreground">
+        <span className="mr-2">{filtered.length} audits</span>
+        {Array.from({ length: pages }, (_, i) => (
+          <button key={i} className={cn('flex h-[27px] w-[27px] items-center justify-center rounded-md border border-border bg-card text-xs text-foreground/80', pageNo === i + 1 && 'border-primary bg-primary text-primary-foreground')} onClick={() => setPage(i + 1)}>{i + 1}</button>
+        ))}
+      </div>
+
+      {/* Detail drawer */}
+      <Drawer open={!!detailRow} onClose={() => setFilter('id', '')}>
+        {detailRow && <>
+          <div className="mb-1 flex items-center justify-between">
+            <div className="text-[10.5px] uppercase tracking-wide text-muted-foreground">Audit Reference</div>
+            <button type="button" className="text-[15px] text-muted-foreground" onClick={() => setFilter('id', '')} aria-label="Close">&times;</button>
+          </div>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="break-all text-base font-bold text-foreground">{shortId(detailRow)}</div>
+            <AuditRowStatus row={detailRow} />
+          </div>
+          <div className="mb-4 text-[13px] font-semibold text-foreground">
+            {detailRow.tool}{detailRow.version ? ` (v${detailRow.version})` : ''} - {KIND_LABEL[detailRow.kind]}
+            <RowProgress row={detailRow} />
           </div>
 
-          <div className="mb-4 grid grid-cols-3 gap-2.5 text-xs">
-            <div>
-              <div className="mb-0.5 text-muted-foreground">Audit</div>
-              <b className="text-foreground/80">{detailRow.tool}{detailRow.version ? ` (v${detailRow.version})` : ''}</b>
+          <Section label="Store Location">
+            <div className="text-[12.5px] font-semibold text-foreground">{detailRow.store}</div>
+            <div className="text-[11.5px] text-muted-foreground">{[detailRow.city, detailRow.region].filter(Boolean).join(', ')}</div>
+          </Section>
+          <Section label="Schedule">
+            <div className="grid grid-cols-2 gap-2 text-[12.5px]">
+              <div><div className="text-[11px] text-muted-foreground">Scheduled on</div><b>{detailRow.scheduled_on ? `${formatDate(detailRow.scheduled_on)}, ${formatTime(detailRow.scheduled_on)}` : '--'}</b></div>
+              <div><div className="text-[11px] text-muted-foreground">Start</div><b>{detailRow.start ? `${formatDate(detailRow.start)}, ${formatTime(detailRow.start)}` : '--'}</b></div>
+              <div><div className="text-[11px] text-muted-foreground">End</div><b className={isOverdue(detailRow) ? 'text-destructive' : undefined}>{detailRow.due_at ? `${formatDate(detailRow.due_at)}, ${formatTime(detailRow.due_at)}` : '--'}</b></div>
+              <div><div className="text-[11px] text-muted-foreground">Duration</div><b>{durationLabel(detailRow.start, detailRow.due_at) || '--'}</b></div>
+              {detailRow.submitted_at && (
+                <div><div className="text-[11px] text-muted-foreground">Submitted</div><b>{formatDate(detailRow.submitted_at)}, {formatTime(detailRow.submitted_at)}</b></div>
+              )}
             </div>
-            <div>
-              <div className="mb-0.5 text-muted-foreground">Store</div>
-              <b className="text-foreground/80">{[detailRow.store, detailRow.city].filter(Boolean).join(', ')}</b>
-            </div>
-            <div>
-              <div className="mb-0.5 text-muted-foreground">Scheduled</div>
-              <b className="text-foreground/80">{detailRow.date ? `${formatDate(detailRow.date)}, ${formatTime(detailRow.date)}` : '--'}</b>
-            </div>
-            <div>
-              <div className="mb-0.5 text-muted-foreground">Status</div>
-              <AuditRowStatus row={detailRow} />
-              <RowProgress row={detailRow} />
-            </div>
-            <div>
-              <div className="mb-0.5 text-muted-foreground">Auditor</div>
-              <b className="text-foreground/80">{detailRow.auditor || 'Unassigned'}</b>
-            </div>
-            <div>
-              <div className="mb-0.5 text-muted-foreground">Score</div>
-              <ScoreCircle row={detailRow} size={36} />
-            </div>
-          </div>
-
-          {detailRow.notes && (
-            <div className="mb-4 text-xs"><span className="text-muted-foreground">Notes: </span>{detailRow.notes}</div>
+          </Section>
+          <Section label="Assigned Personnel">
+            {detailRow.auditor ? (
+              <div className="flex items-center gap-2">
+                <div className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(detailRow.auditor))}>{detailRow.auditor[0]}</div>
+                <div className="text-[12.5px] font-semibold">{detailRow.auditor}</div>
+              </div>
+            ) : <Badge className="bg-muted text-muted-foreground border border-border">Unassigned</Badge>}
+          </Section>
+          {scoreLabel(detailRow) !== '--' && (
+            <div className="mb-4 text-[12.5px]"><span className="text-muted-foreground">Score: </span><b>{scoreLabel(detailRow)}</b>{detailRow.kind === 'sop' && detailRow.score != null ? ` (${detailRow.score} marks)` : ''}</div>
           )}
 
-          {detailRow.kind === 'sop' ? (
-            <div className="mb-4 rounded-lg border border-border p-3 text-[12.5px] text-foreground/80">
-              Marks per criterion, photos and remarks are on the audit itself.
-              {detailRow.score != null && detailRow.percent != null && <> Total score {detailRow.score} ({scoreLabel(detailRow)}).</>}
-            </div>
-          ) : (
-            <div className="mb-4">
-              <div className="mb-2 text-[13px] font-semibold text-foreground">Audit Questions Answered</div>
+          <Section label="Audit Notes & Objectives">
+            <div className="min-h-[60px] whitespace-pre-wrap rounded-lg border border-border px-2.5 py-2 text-[12.5px] text-foreground/80">{detailRow.notes || 'No notes.'}</div>
+          </Section>
+
+          {detailRow.kind === 'legacy' && (
+            <Section label="Questions answered">
               <div className="overflow-hidden rounded-lg border border-border">
-                {legacyDetail.loading && <div className="p-5 text-center text-xs text-muted-foreground">Loading answers...</div>}
-                {legacyDetail.error && <div className="p-5 text-center text-xs text-destructive">{legacyDetail.error.message}</div>}
+                {legacyDetail.loading && <div className="p-4 text-center text-xs text-muted-foreground">Loading answers...</div>}
+                {legacyDetail.error && <div className="p-4 text-center text-xs text-destructive">{legacyDetail.error.message}</div>}
                 {legacyDetail.data && (legacyDetail.data.responses || []).length === 0 && (
-                  <div className="p-5 text-center text-xs text-muted-foreground">This audit has no questions.</div>
+                  <div className="p-4 text-center text-xs text-muted-foreground">This audit has no questions.</div>
                 )}
                 {legacyDetail.data && (legacyDetail.data.responses || []).map((r) => (
-                  <div key={r.id} className="grid grid-cols-[1fr_auto] items-start gap-2.5 border-b border-border px-3 py-2.5 last:border-0">
+                  <div key={r.id} className="grid grid-cols-[1fr_auto] items-start gap-2.5 border-b border-border px-3 py-2 last:border-0">
                     <div>
-                      <div className="text-[12.5px] text-foreground/80">{r.question_text}</div>
-                      {r.process && <span className="mt-1 inline-block rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10.5px] font-medium text-gray-700">{r.process}</span>}
-                      {r.remarks && <div className="mt-1 text-[11.5px] text-muted-foreground">{r.remarks}</div>}
+                      <div className="text-[12px] text-foreground/80">{r.question_text}</div>
+                      {r.remarks && <div className="mt-1 text-[11px] text-muted-foreground">{r.remarks}</div>}
                     </div>
                     <Badge className={answerBadge(r.answer)}>{r.answer || 'Not answered'}</Badge>
                   </div>
                 ))}
               </div>
-            </div>
+            </Section>
           )}
 
-          <div className="mb-4">
-            <div className="mb-2 text-[13px] font-semibold text-foreground">Issues raised ({detailIssues.length})</div>
+          <Section label={`Issues raised (${detailIssues.length})`}>
             <div className="overflow-hidden rounded-lg border border-border">
               {detailIssues.length > 0 ? detailIssues.map((i) => (
-                <div key={i.id} className="border-b border-border px-3 py-2.5 last:border-0">
-                  <div className="mb-1 flex items-start justify-between gap-4">
-                    <span className="min-w-0 flex-1 pr-2 text-left text-[12.5px] font-semibold text-foreground">{i.title}</span>
-                    <div className="flex shrink-0 justify-end gap-1.5">
+                <div key={i.id} className="border-b border-border px-3 py-2 last:border-0">
+                  <div className="mb-1 flex items-start justify-between gap-3">
+                    <span className="min-w-0 flex-1 text-[12px] font-semibold text-foreground">{i.title}</span>
+                    <div className="flex shrink-0 gap-1">
                       <Badge className={cn('whitespace-nowrap', prC(i.priority))}>{i.priority}</Badge>
                       <Badge className={cn('whitespace-nowrap', stC(i.status))}>{i.status}</Badge>
                     </div>
                   </div>
-                  {i.description && <div className="text-[11.5px] leading-snug text-muted-foreground">{i.description}</div>}
+                  {i.description && <div className="text-[11px] leading-snug text-muted-foreground">{i.description}</div>}
                 </div>
               )) : (
-                <div className="p-5 text-center text-xs text-muted-foreground">No issues recorded for this audit.</div>
+                <div className="p-4 text-center text-xs text-muted-foreground">No issues recorded for this audit.</div>
               )}
             </div>
-          </div>
+          </Section>
 
           {detailRow.kind === 'legacy' && legacyDetail.data && (legacyDetail.data.sm_comment || legacyDetail.data.sm_rating) && (
-            <div className="mb-2">
-              <div className="mb-2 text-[13px] font-semibold text-foreground">Store manager feedback</div>
-              <div className="rounded-lg bg-gray-100 px-3 py-2 text-[12.5px] text-foreground/80">
+            <Section label="Store manager feedback">
+              <div className="rounded-lg bg-muted px-3 py-2 text-[12.5px] text-foreground/80">
                 {legacyDetail.data.sm_rating ? <div className="mb-0.5 font-semibold">Rating {legacyDetail.data.sm_rating}</div> : null}
                 {legacyDetail.data.sm_comment}
               </div>
-            </div>
+            </Section>
           )}
 
-          <ModalActions>
-            <Button variant="outline" onClick={() => setFilter('id', '')}>Close</Button>
-            {isAuditor ? (
-              (detailRow.kind === 'sop' || detailAction !== 'view') && (
-                <Button disabled={ws.openingKey === detailRow.key} onClick={() => ws.openRow(detailRow)}>
-                  {ACTION_LABELS[detailAction]}
-                </Button>
-              )
-            ) : detailRow.kind === 'sop' && (
-              <Button asChild><Link to={openLink(detailRow)}>Open audit</Link></Button>
-            )}
-          </ModalActions>
-        </Modal>
-      )}
-      {editRow && (
-        <Modal open onClose={() => setEditRow(null)} className="w-[440px]">
-          <div className="mb-4 text-[15px] font-bold text-foreground">Edit audit {shortId(editRow)}</div>
-          <div className="space-y-3">
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Status</label>
+          {canEdit && detailRow.kind === 'legacy' && (
+            <Section label="Mark as">
               <select
-                value={editForm.status}
-                onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
+                aria-label="Mark as"
                 className={fieldClass}
+                value=""
+                onChange={(e) => e.target.value && markAs(detailRow, e.target.value)}
               >
-                {EDIT_STATUSES.map((st) => <option key={st}>{st}</option>)}
+                <option value="">Change status...</option>
+                {EDIT_STATUSES.filter((st) => st !== detailRow.status).map((st) => <option key={st} value={st}>{st}</option>)}
               </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Scheduled date and time</label>
-              <input
-                type="datetime-local"
-                value={editForm.scheduled_at}
-                disabled={editRow.status !== 'Planned'}
-                onChange={(e) => setEditForm((f) => ({ ...f, scheduled_at: e.target.value }))}
-                className={fieldClass}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Auditor</label>
-              <select
-                value={editForm.auditor_id}
-                disabled={editRow.status !== 'Planned'}
-                onChange={(e) => setEditForm((f) => ({ ...f, auditor_id: e.target.value }))}
-                className={fieldClass}
-              >
-                <option value="">-- Unassigned --</option>
-                {auditors.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
-            </div>
-            {editRow.status !== 'Planned' && (
-              <p className="text-[11px] text-muted-foreground">
-                The date and auditor can only be changed while the audit is planned.
-              </p>
+            </Section>
+          )}
+
+          <div className="mb-3 flex gap-2">
+            {canChange(detailRow) && <Button className="flex-1" onClick={() => openEdit(detailRow)}>Edit Audit</Button>}
+            {canChange(detailRow) && <Button variant="outline" className="border-red-200 text-destructive" onClick={() => cancelRow(detailRow)}>Cancel audit</Button>}
+            {isAuditor && (detailRow.kind === 'sop' || detailAction !== 'view') && (
+              <Button className="flex-1" disabled={ws.openingKey === detailRow.key} onClick={() => ws.openRow(detailRow)}>
+                {ACTION_LABELS[detailAction]}
+              </Button>
             )}
           </div>
-          <ModalActions>
-            <Button variant="outline" onClick={() => setEditRow(null)}>Cancel</Button>
-            <Button onClick={saveEdit} disabled={editSaving}>{editSaving ? 'Saving...' : 'Save changes'}</Button>
-          </ModalActions>
-        </Modal>
+          {!isAuditor && detailRow.kind === 'sop' && (
+            <Link className="text-[12.5px] font-medium text-primary" to={openLink(detailRow)}>Open audit</Link>
+          )}
+        </>}
+      </Drawer>
+
+      {canEdit && (
+        <ScheduleAuditModal
+          open={schedule}
+          onClose={() => setSchedule(null)}
+          onSaved={loadRemote}
+          stores={stores}
+          auditors={auditors}
+          templates={templates}
+          checklists={checklists}
+        />
       )}
     </>
   );

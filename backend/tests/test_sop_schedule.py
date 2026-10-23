@@ -282,3 +282,36 @@ def test_classic_patch_and_cancel(client, tokens, user_ids):
     assert client.post("/api/audits/AUD-0/cancel",
                        headers=tokens["manager"]).status_code == 404
 
+
+
+def test_end_date_is_stored_and_must_follow_the_start(client, tokens, user_ids):
+    day = _day()
+    end = _when(day + dt.timedelta(days=2), 18)
+    r = _schedule(client, tokens, user_ids, day, due_at=end)
+    assert r.status_code == 200, r.text
+    assert r.json()["due_at"] == end
+    assert _schedule(client, tokens, user_ids, _day(), due_at=_when(day, 9)).status_code == 422
+
+    url = f"/api/sop-schedule/{r.json()['id']}"
+    new_end = _when(day + dt.timedelta(days=3), 12)
+    r2 = client.patch(url, headers=tokens["manager"], json={"due_at": new_end})
+    assert r2.status_code == 200 and r2.json()["due_at"] == new_end
+    assert client.patch(url, headers=tokens["manager"],
+                        json={"due_at": _when(day, 8)}).status_code == 422
+
+
+def test_classic_end_date_and_booking_time(client, tokens, user_ids):
+    day = _day()
+    end = _when(day, 17)
+    r = client.post("/api/audits", headers=tokens["manager"], json={
+        "store_id": "T001", "scheduled_at": _when(day), "due_at": end,
+        "auditor_id": user_ids["auditor1@test"]})
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["due_at"] == end and body["created_at"]
+    r2 = client.patch(f"/api/audits/{body['id']}", headers=tokens["manager"],
+                      json={"due_at": _when(day, 9)})
+    assert r2.status_code == 422
+    r3 = client.patch(f"/api/audits/{body['id']}", headers=tokens["manager"],
+                      json={"due_at": _when(day + dt.timedelta(days=1), 12)})
+    assert r3.status_code == 200 and r3.json()["due_at"].startswith((day + dt.timedelta(days=1)).isoformat())

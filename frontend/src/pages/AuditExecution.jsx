@@ -9,13 +9,12 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { sColor, sBadge, pbClass, prC } from '../utils/helpers'
 
-const ANSWERS = ['Yes', 'No', 'Partial', 'NA']
+const ANSWERS = ['Yes', 'No', 'NA']
 const RISKS   = ['', 'Low', 'Medium', 'High', 'Critical']
 
 const ANS_STYLE = {
   Yes:     'border-emerald-500 bg-emerald-50 text-emerald-700',
   No:      'border-red-500 bg-red-50 text-red-700',
-  Partial: 'border-amber-500 bg-amber-50 text-amber-700',
   NA:      'border-slate-400 bg-slate-100 text-slate-500',
 }
 const ANS_IDLE = 'border-border bg-card text-muted-foreground hover:bg-muted/60'

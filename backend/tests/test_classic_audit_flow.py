@@ -75,7 +75,8 @@ def test_answer_validation(client, tokens, db):
     a = _start(client, tokens, cl).json()
     assert _answer(client, tokens, a, 0, "Maybe").status_code == 422
     assert _answer(client, tokens, a, 0, "Yes", risk="Severe").status_code == 422
-    for ok in ("Yes", "No", "Partial", "NA"):
+    assert _answer(client, tokens, a, 0, "Partial").status_code == 422
+    for ok in ("Yes", "No", "NA"):
         assert _answer(client, tokens, a, 0, ok).status_code == 200, ok
     for risk in ("None", "Low", "Medium", "High", "Critical", ""):
         assert _answer(client, tokens, a, 0, "Yes", risk=risk).status_code == 200, risk
@@ -111,11 +112,11 @@ def test_submit_scores_with_weights_and_ignores_na(client, tokens, db):
 
     cl = _checklist(db, [(1, False), (1, False), (2, False)])
     a = _start(client, tokens, cl).json()
-    _answer(client, tokens, a, 0, "Partial")
+    _answer(client, tokens, a, 0, "No")
     _answer(client, tokens, a, 1, "Yes")
     _answer(client, tokens, a, 2, "NA")
     r = client.post(f"/api/audits/{a['id']}/submit", headers=tokens["auditor1"])
-    assert r.json()["audit"]["score"] == 75.0
+    assert r.json()["audit"]["score"] == 50.0
 
 
 def test_submit_needs_every_answer(client, tokens, db):

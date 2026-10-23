@@ -3,8 +3,10 @@
 // Status can list, count and filter them together. Pure functions, no React.
 //
 // Row: { key, kind, id, store_id, store, city, region, tool, tool_code,
-//        auditor, auditor_id, date, submitted_at, status, stage, score,
-//        percent, version, notes }
+//        auditor, auditor_id, date, start, due_at, scheduled_on, submitted_at,
+//        status, stage, score, percent, version, notes }
+// start is the planned start (scheduled_at), due_at the planned end and
+// scheduled_on when the audit was booked; each is null when not known.
 // score/percent are null unless the audit really has one: a classic audit
 // carries a 0-100 score once completed; an SOP audit has a percent once it is
 // submitted. Nothing is ever estimated.
@@ -29,6 +31,9 @@ export function normalizeLegacy(audit) {
     auditor: audit.auditor || null,
     auditor_id: audit.auditor_id || null,
     date: audit.scheduled_at || audit.submitted_at || null,
+    start: audit.scheduled_at || null,
+    due_at: audit.due_at || null,
+    scheduled_on: audit.created_at || null,
     submitted_at: audit.submitted_at || null,
     status,
     stage: stageOf('legacy', status),
@@ -59,6 +64,9 @@ export function normalizeSop(audit) {
     auditor: audit.auditor || null,
     auditor_id: audit.auditor_id || null,
     date: audit.scheduled_at || audit.submitted_at || null,
+    start: audit.scheduled_at || null,
+    due_at: audit.due_at || null,
+    scheduled_on: audit.created_at || null,
     submitted_at: audit.submitted_at || null,
     status,
     stage,
@@ -99,8 +107,15 @@ export function kpiCounts(rows) {
   return counts
 }
 
-// A scheduled row whose date is before the start of `now`'s day.
+// Overdue: an audit with an end (due_at) that is not finished by then, whether
+// or not it has started; without an end, a scheduled row dated before the
+// start of `now`'s day.
 export function isOverdue(row, now = new Date()) {
+  if (row.due_at) {
+    if (row.stage !== 'scheduled' && row.stage !== 'in_progress') return false
+    const end = new Date(row.due_at).getTime()
+    return !Number.isNaN(end) && now.getTime() > end
+  }
   if (row.stage !== 'scheduled') return false
   const t = time(row)
   if (t === null) return false
@@ -154,6 +169,19 @@ export function formatDate(iso) {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return '--'
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// '2d 4h', '6h 30m', '45m' between two date-times; '' when either is missing
+// or the end is before the start.
+export function durationLabel(start, end) {
+  if (!start || !end) return ''
+  const ms = new Date(end).getTime() - new Date(start).getTime()
+  if (Number.isNaN(ms) || ms < 0) return ''
+  const mins = Math.round(ms / 60000)
+  const d = Math.floor(mins / 1440)
+  const h = Math.floor((mins % 1440) / 60)
+  const m = mins % 60
+  return [d && `${d}d`, h && `${h}h`, !d && m && `${m}m`].filter(Boolean).join(' ') || '0m'
 }
 
 export function formatTime(iso) {

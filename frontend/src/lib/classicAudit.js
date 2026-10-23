@@ -1,10 +1,11 @@
-// Pure helpers for the classic (Yes/Partial/No/NA) checklist audit wizard.
+// Pure helpers for the classic (Yes/No/NA) checklist audit wizard.
 // No React and no network here so the rules can be unit tested.
 
-export const ANSWERS = ['Yes', 'Partial', 'No', 'NA']
+export const ANSWERS = ['Yes', 'No', 'NA']
 export const RISKS = ['', 'Low', 'Medium', 'High', 'Critical']
 
-// Same values as the server (backend/app/services compute_audit_score).
+// Same values as the server (backend/app/services compute_audit_score). Partial
+// is no longer offered; it stays here so older answers keep their score.
 const ANSWER_VALUE = { Yes: 1, Partial: 0.5, No: 0 }
 
 // Statuses in which the assigned auditor may still edit classic answers.

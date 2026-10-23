@@ -8,6 +8,8 @@ from ..models import (
 )
 
 # How each answer contributes to the weighted score.
+# Answers are Yes / No / NA; "Partial" is no longer accepted but still scores
+# 0.5 so audits answered before it was removed keep their score.
 ANSWER_VALUE = {"Yes": 1.0, "Partial": 0.5, "No": 0.0}
 
 

@@ -29,6 +29,14 @@ function fmtDisp(d) {
 }
 
 /* Shape a server issue for display. The form reads these fields back. */
+// What each KPI tile counts; the same test filters the list when the tile is clicked.
+const DONE = ['Resolved', 'Closed'];
+const KPI_TEST = {
+  open_not_due: (i) => !i.ov && !DONE.includes(i.status),
+  overdue: (i) => i.ov === true && !DONE.includes(i.status),
+  completed: (i) => DONE.includes(i.status),
+};
+
 function normalizeIssue(iss) {
   return {
     ...iss,
@@ -49,7 +57,7 @@ function normalizeIssue(iss) {
 export default function Issues() {
   const toast = useToast();
   const navigate = useNavigate();
-  const { filters, setFilter, clearAll } = useUrlFilters(['status', 'priority', 'store', 'id']);
+  const { filters, setFilter, setMany, clearAll } = useUrlFilters(['status', 'priority', 'store', 'kpi', 'id']);
   const [issues, setIssues] = useState([]);
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +115,7 @@ export default function Issues() {
     if (filters.priority && i.pri !== filters.priority) return false;
     if (filters.store && i.store !== filters.store) return false;
     if (assigneeFilter && i.assignee !== assigneeFilter) return false;
+    if (filters.kpi && KPI_TEST[filters.kpi] && !KPI_TEST[filters.kpi](i)) return false;
     return true;
   });
 
@@ -114,9 +123,19 @@ export default function Issues() {
 
   /* KPI counts from full issues array */
   const totalCount = issues.length;
-  const openNotDue = issues.filter(i => !i.ov && i.status !== 'Resolved' && i.status !== 'Closed').length;
-  const overdueCount = issues.filter(i => i.ov === true).length;
-  const completedCount = issues.filter(i => i.status === 'Resolved').length;
+  const openNotDue = issues.filter(KPI_TEST.open_not_due).length;
+  const overdueCount = issues.filter(KPI_TEST.overdue).length;
+  const completedCount = issues.filter(KPI_TEST.completed).length;
+
+  // A tile shows only the issues it counts (and clears the status / priority
+  // dropdowns, which would otherwise hide some of them); clicking it again clears it.
+  function pickKpi(kpi) {
+    setMany({ kpi: filters.kpi === kpi ? '' : kpi, status: '', priority: '' });
+  }
+  const tileClass = (kpi) => cn(
+    'flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40',
+    filters.kpi === kpi && 'border-primary ring-1 ring-primary',
+  );
 
   /* ── handlers ── */
   function setIssueView(v) {
@@ -242,19 +261,19 @@ export default function Issues() {
 
       {/* KPI Row */}
       <div className="mb-4 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
-        <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => { setFilter('status', ''); setFilter('priority', '') }}>
+        <div className={tileClass('')} onClick={() => setMany({ kpi: '', status: '', priority: '' })}>
           <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#f3f4f6' }}>&#x1F4CA;</div>
           <div><div className="mb-0.5 text-[11px] text-muted-foreground">Total Issues</div><div className="text-2xl font-bold leading-none text-foreground">{totalCount}</div></div>
         </div>
-        <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => setFilter('status', 'Open')}>
+        <div className={tileClass('open_not_due')} onClick={() => pickKpi('open_not_due')}>
           <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#fffbeb' }}>&#x1F7E1;</div>
           <div><div className="mb-0.5 text-[11px] text-muted-foreground">Open (Not Due)</div><div className="text-2xl font-bold leading-none text-foreground">{openNotDue}</div></div>
         </div>
-        <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => { setFilter('status', 'Open'); setFilter('priority', 'Critical') }}>
+        <div className={tileClass('overdue')} onClick={() => pickKpi('overdue')}>
           <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#fde8e8' }}>&#x1F534;</div>
           <div><div className="mb-0.5 text-[11px] text-muted-foreground">Open (Overdue)</div><div className="text-2xl font-bold leading-none text-foreground">{overdueCount}</div></div>
         </div>
-        <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => setFilter('status', 'Resolved')}>
+        <div className={tileClass('completed')} onClick={() => pickKpi('completed')}>
           <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{ background: '#ecfdf5' }}>&#x2705;</div>
           <div><div className="mb-0.5 text-[11px] text-muted-foreground">Completed</div><div className="text-2xl font-bold leading-none text-foreground">{completedCount}</div></div>
         </div>
@@ -271,6 +290,7 @@ export default function Issues() {
           <option>Open</option>
           <option>In Progress</option>
           <option>On Hold</option>
+          <option>Resolved</option>
           <option>Closed</option>
         </select>
         <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.priority} onChange={e => setFilter('priority', e.target.value)}>
@@ -296,7 +316,7 @@ export default function Issues() {
         <div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3">
             {tableData.length ? tableData.map(i => (
-              <div key={i.id} className="rounded-[10px] border border-border bg-card p-3.5" style={{ borderLeft: `4px solid ${stBorder(i.status)}` }}>
+              <div key={i.id} className="cursor-pointer rounded-[10px] border border-border bg-card p-3.5 hover:bg-accent/30" style={{ borderLeft: `4px solid ${stBorder(i.status)}` }} onClick={() => openEditIssue(i.id)}>
                 {/* top row: audit id + overdue + actions */}
                 <div className="mb-1.5 flex items-center justify-between">
                   {i.aid ? (
@@ -304,8 +324,8 @@ export default function Issues() {
                   ) : <span />}
                   <div className="flex items-center gap-1.5">
                     {i.ov && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-800">Overdue</span>}
-                    <button className="flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border bg-card text-[10px]" onClick={() => openEditIssue(i.id)}>&#x270F;&#xFE0F;</button>
-                    {canDelete && <button className="flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border bg-card text-[10px] text-destructive" onClick={() => deleteIssue(i.id)}>&#x1F5D1;</button>}
+                    <button className="flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border bg-card text-[10px]" onClick={e => { e.stopPropagation(); openEditIssue(i.id); }}>&#x270F;&#xFE0F;</button>
+                    {canDelete && <button className="flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border bg-card text-[10px] text-destructive" onClick={e => { e.stopPropagation(); deleteIssue(i.id); }}>&#x1F5D1;</button>}
                   </div>
                 </div>
                 {/* title */}
@@ -353,7 +373,7 @@ export default function Issues() {
                   </div>
                   <div className="flex flex-col gap-2">
                     {items.length ? items.map(i => (
-                      <div key={i.id} className="rounded-lg border border-border bg-card p-2.5" style={{ borderLeft: `3px solid ${colColor[col]}` }}>
+                      <div key={i.id} className="cursor-pointer rounded-lg border border-border bg-card p-2.5 hover:bg-accent/30" style={{ borderLeft: `3px solid ${colColor[col]}` }} onClick={() => openEditIssue(i.id)}>
                         <div className="mb-1 text-xs font-semibold text-foreground">{i.title}</div>
                         <div className="mb-1.5 flex flex-wrap gap-1">
                           <Badge className={prC(i.pri)}>{i.pri}</Badge>

@@ -139,7 +139,7 @@ Tests added: `backend/tests/test_audit_edit_and_admin.py` (10 tests), an admin u
   `.env.example` and ask her which variable).
 - **`ADMIN` role** (above everyone, `ROLE_ADMIN` in `models.py`), `routers/admin.py`, `pages/UserManagement.jsx`, an admin user
   in `seed.py` and a guard that stops `seed.py` re-seeding a populated database.
-- **Store-manager pages:** `StoreDashboard.jsx`, `StoreChecklist.jsx`, `StoreCompliance.jsx`; role isolation fixes.
+- **Store-manager pages:** `StoreDashboard.jsx`; role isolation fixes. (Audit Checklist and Compliance Metrics were later removed.)
 - **Reworked `AuditExecution.jsx`** and "View Report" wiring; Login demo-credential fix.
 - **Stream A (clickable pages), mostly done:** store bar, top/bottom rows, KPI tiles, format bar, Recent Issues and the drill
   drawer on the Overview link onward through `lib/links.js`; Issues filters live in the URL; Stores and Store Audit Scores read URL

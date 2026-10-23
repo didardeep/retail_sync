@@ -1,17 +1,32 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { AlertTriangle, CheckCircle2, CircleOff, ClipboardList, Clock, Pencil, Trash2 } from 'lucide-react'
 import { useToast } from '../components/Toast'
 import { api, loadSession } from '../api/client'
 import { questionsApi } from '../api/questionsApi'
-import { canAccess } from '@/lib/rolesMap'
 import { wColor, qTypeLabel } from '../utils/helpers'
 import { cn, fieldClass, labelClass } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import SopToolsTab from '@/components/sop-admin/SopToolsTab'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import Tile from '@/components/Tile'
 import { Modal, ModalTitle, ModalActions } from '../components/Modal'
+
+const PER_PAGE = 10
+
+// Status filter values: the tiles and the status dropdown share them.
+const STATUS_TEST = {
+  active: q => q.on,
+  inactive: q => !q.on,
+  critical: q => q.crit,
+  pending: q => q.status === 'PENDING',
+}
+
+const APPROVAL_BADGE = {
+  APPROVED: ['Approved', 'bg-emerald-50 text-emerald-700'],
+  REJECTED: ['Rejected', 'bg-red-50 text-red-700'],
+  PENDING: ['Pending', 'bg-amber-50 text-amber-700'],
+}
 
 function normalizeQ(q) {
   return {
@@ -40,9 +55,11 @@ function QuestionBank() {
   const [loading, setLoading] = useState(true)
 
   /* ── filters ── */
-  const [activeProc, setActiveProc] = useState('All Overview')
+  const [procFilter, setProcFilter] = useState('')
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [page, setPage] = useState(1)
 
   /* ── question modal state ── */
   const [showQModal, setShowQModal] = useState(false)
@@ -71,18 +88,41 @@ function QuestionBank() {
   }, [])
 
   /* ────────────────── derived data ────────────────── */
-  const procCounts = {}
-  questions.forEach(q => { procCounts[q.proc] = (procCounts[q.proc] || 0) + 1 })
-
   const qLower = search.toLowerCase()
-  const filtered = questions.filter(item => {
-    if (activeProc !== 'All Overview' && item.proc !== activeProc) return false
+  // Tiles count everything except the status filter, so they stay a way to switch status.
+  const forTiles = questions.filter(item => {
+    if (procFilter && item.proc !== procFilter) return false
     if (qLower && !(item.text.toLowerCase().includes(qLower) || item.tags.some(t => t.toLowerCase().includes(qLower)))) return false
     if (typeFilter && item.at !== typeFilter) return false
     return true
   })
+  const counts = {}
+  Object.entries(STATUS_TEST).forEach(([k, test]) => { counts[k] = forTiles.filter(test).length })
+  const filtered = statusFilter ? forTiles.filter(STATUS_TEST[statusFilter]) : forTiles
 
-  const types = [...new Set(questions.map(q => q.at))]
+  const types = [...new Set(questions.map(q => q.at).filter(Boolean))]
+  const pages = Math.ceil(filtered.length / PER_PAGE)
+  const pageNo = Math.min(page, Math.max(pages, 1))
+  const paged = filtered.slice((pageNo - 1) * PER_PAGE, pageNo * PER_PAGE)
+  const hasFilters = procFilter || search || typeFilter || statusFilter
+
+  function applyFilter(set, value) {
+    setPage(1)
+    set(value)
+  }
+
+  function toggleStatus(value) {
+    setPage(1)
+    setStatusFilter(s => (s === value ? '' : value))
+  }
+
+  function clearAll() {
+    setPage(1)
+    setProcFilter('')
+    setSearch('')
+    setTypeFilter('')
+    setStatusFilter('')
+  }
 
   /* ────────────────── question modal helpers ────────────────── */
   function openAddQuestion() {
@@ -148,13 +188,25 @@ function QuestionBank() {
   /* ────────────────── process / type pickers ────────────────── */
   // Process and type are plain values on a question, so these popups only set
   // the value for the question being edited. Nothing is saved until the question is.
+  // A process created from the toolbar opens a new question under it, since a
+  // process only exists once a question uses it.
+  function openNewProcess() {
+    setProcName('')
+    setShowProcModal(true)
+  }
+
   function saveProc() {
     const n = procName.trim()
     if (!n) { toast.error('Enter a name'); return }
     if (!processes.includes(n)) setProcesses(prev => [...prev, n])
-    setQForm(f => ({ ...f, proc: n }))
     setProcName('')
     setShowProcModal(false)
+    if (showQModal) {
+      setQForm(f => ({ ...f, proc: n }))
+    } else {
+      openAddQuestion()
+      setQForm(f => ({ ...f, proc: n }))
+    }
   }
 
   function saveRespType() {
@@ -212,123 +264,136 @@ function QuestionBank() {
     return <div className="flex h-[60vh] items-center justify-center text-muted-foreground">Loading questions...</div>
   }
 
-  const Toggle = ({ on, onClick }) => (
-    <div
-      className={cn('relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors', on ? 'bg-primary' : 'bg-gray-300')}
+  const Toggle = ({ on, onClick, disabled, label }) => (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
+      className={cn('relative h-5 w-9 shrink-0 rounded-full transition-colors', on ? 'bg-primary' : 'bg-gray-300', disabled ? 'cursor-default opacity-60' : 'cursor-pointer')}
       onClick={onClick}
     >
-      <div className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', on ? 'left-[22px]' : 'left-0.5')} />
-    </div>
+      <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all', on ? 'left-[18px]' : 'left-0.5')} />
+    </button>
   )
+
+  const iconBtn = 'flex h-[26px] w-[26px] items-center justify-center rounded-md border border-border bg-card'
 
   /* ═══════════════════════ RENDER ═══════════════════════ */
   return (
     <>
-      {/* ── page header ── */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
-        <div><h2 className="text-xl font-bold text-foreground">Audit Questions</h2></div>
+      <div className={cn('mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2', isManager ? 'lg:grid-cols-5' : 'lg:grid-cols-4')}>
+        <Tile icon={ClipboardList} tint="#e8eefa" label="Total Questions" value={forTiles.length}
+          active={!statusFilter} onClick={() => applyFilter(setStatusFilter, '')} />
+        <Tile icon={CheckCircle2} tint="#ecfdf5" label="Active" value={counts.active}
+          active={statusFilter === 'active'} onClick={() => toggleStatus('active')} />
+        <Tile icon={CircleOff} tint="#f3f4f6" label="Inactive" value={counts.inactive}
+          active={statusFilter === 'inactive'} onClick={() => toggleStatus('inactive')} />
+        <Tile icon={AlertTriangle} tint="#fde8e8" label="Critical Risk" value={counts.critical}
+          active={statusFilter === 'critical'} onClick={() => toggleStatus('critical')} />
+        {isManager && (
+          <Tile icon={Clock} tint="#fffbeb" label="Pending Approval" value={counts.pending}
+            active={statusFilter === 'pending'} onClick={() => toggleStatus('pending')} />
+        )}
+      </div>
+
+      <div className="mb-3.5 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[180px] flex-1">
+          <Input placeholder="Search question text or tags..." value={search} onChange={e => applyFilter(setSearch, e.target.value)} />
+        </div>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={procFilter} onChange={e => applyFilter(setProcFilter, e.target.value)} aria-label="Filter by process">
+          <option value="">Process</option>
+          {processes.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={typeFilter} onChange={e => applyFilter(setTypeFilter, e.target.value)} aria-label="Filter by type">
+          <option value="">Type</option>
+          {types.map(t => <option key={t} value={t}>{qTypeLabel(t)}</option>)}
+        </select>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={statusFilter} onChange={e => applyFilter(setStatusFilter, e.target.value)} aria-label="Filter by status">
+          <option value="">Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="critical">Critical risk</option>
+          {isManager && <option value="pending">Pending approval</option>}
+        </select>
+        {hasFilters && <Button size="sm" variant="outline" onClick={clearAll}>Clear</Button>}
+        {isManager && <Button size="sm" variant="outline" onClick={openNewProcess}>+ New Process</Button>}
         <Button size="sm" onClick={openAddQuestion}>+ New Question</Button>
       </div>
 
-      {/* ── two-panel layout ── */}
-      <div className="flex gap-3.5">
-        {/* ── left sidebar ── */}
-        <div className="w-[196px] shrink-0">
-          <div className="mb-2 flex items-center justify-between text-xs font-semibold text-foreground/80">
-            Process
-          </div>
-          <div>
-            <div
-              className={cn('mb-0.5 flex cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-[12.5px] text-foreground/80 hover:bg-muted', activeProc === 'All Overview' && 'bg-accent font-semibold text-primary hover:bg-accent')}
-              onClick={() => setActiveProc('All Overview')}
-            >
-              <span>All Overview</span>
-              <span className="rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{questions.length}</span>
-            </div>
-            {processes.map(p => (
-              <div
-                key={p}
-                className={cn('mb-0.5 flex cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-[12.5px] text-foreground/80 hover:bg-muted', activeProc === p && 'bg-accent font-semibold text-primary hover:bg-accent')}
-                onClick={() => setActiveProc(p)}
-              >
-                <span>{p}</span>
-                <span className="rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{procCounts[p] || 0}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── right main area ── */}
-        <div className="min-w-0 flex-1">
-          <div className="mb-3.5 flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[180px] flex-1">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{'🔍'}</span>
-              <Input className="pl-8" placeholder="Search questions..." value={search} onChange={e => setSearch(e.target.value)} />
-            </div>
-            <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
-              <option value="">Type</option>
-              {types.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-
-          <div className="overflow-x-auto rounded-[10px] border border-border bg-card">
-            <div className="min-w-[700px] grid grid-cols-[1fr_150px_155px_55px_75px_110px] gap-2 border-b border-border bg-gray-50 px-2.5 py-2">
-              <span className="text-[11.5px] font-semibold text-muted-foreground">Audit Question</span>
-              <span className="text-[11.5px] font-semibold text-muted-foreground">Process</span>
-              <span className="text-[11.5px] font-semibold text-muted-foreground">Sub-Process</span>
-              <span className="text-[11.5px] font-semibold text-muted-foreground">Weight</span>
-              <span className="text-[11.5px] font-semibold text-muted-foreground">Status</span>
-              <span className="text-[11.5px] font-semibold text-muted-foreground">Actions</span>
-            </div>
-
-            <div className="min-w-[700px]">
-              {filtered.length ? filtered.map(item => (
-                <div className="flex flex-col border-b border-border last:border-0 hover:bg-[#fafbff]" key={item.id}>
-                  <div className="flex">
-                    {item.crit
-                      ? <div className="w-[3px] shrink-0 rounded-l-sm bg-red-600" />
-                      : <div className="w-[3px]" />
-                    }
-                    <div className="grid flex-1 grid-cols-[1fr_150px_155px_55px_75px_110px] items-center gap-2 px-2.5 py-2">
-                      <div>
-                        <div className="mb-0.5 text-[12.5px] leading-snug text-foreground">{item.text}</div>
-                        <div className="mb-0.5 text-[10.5px] font-medium text-muted-foreground">
-                          <span className="font-semibold text-foreground/80">Type:</span> {qTypeLabel(item.at)}
-                          {isManager && <Badge className={cn('ml-2 text-[10px]', item.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' : item.status === 'REJECTED' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700')}>{item.status === 'APPROVED' ? 'Approved' : item.status === 'REJECTED' ? 'Rejected' : 'Pending'}</Badge>}
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {(item.tags || []).map(t => <span className="rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10.5px] font-medium text-gray-700" key={t}>{t}</span>)}
-                        </div>
-                      </div>
-                      <Badge className="bg-sky-50 text-center text-[10px] font-medium leading-tight text-sky-700" style={{whiteSpace:'normal'}}>{item.proc}</Badge>
-                      <span className="text-xs text-muted-foreground">{item.sp}</span>
-                      <div>
-                        <div className="flex h-[19px] w-[19px] items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: wColor(item.w) }}>{item.w}</div>
-                      </div>
-                      <Toggle on={item.on} onClick={() => toggleQ(item.id)} />
-                      {isManager ? (
-                        <div className="flex flex-wrap gap-1">
-                          <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={() => openEditQuestion(item.id)}>{'✏️'}</button>
-                          <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px] text-destructive" onClick={() => deleteQ(item.id)}>{'🗑️'}</button>
-                          {item.status === 'PENDING' && (
-                            <>
-                              <button className="h-[25px] rounded-md border border-border bg-card px-1.5 text-[11px] text-emerald-700" onClick={() => decide(item.id, 'APPROVED')}>Approve</button>
-                              <button className="h-[25px] rounded-md border border-border bg-card px-1.5 text-[11px] text-destructive" onClick={() => decide(item.id, 'REJECTED')}>Reject</button>
-                            </>
-                          )}
-                        </div>
-                      ) : <div />}
+      <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Question</TableHead>
+              <TableHead>Process</TableHead>
+              <TableHead>Weight</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Active</TableHead>
+              {isManager && <TableHead>Actions</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paged.length === 0 && (
+              <TableRow><TableCell colSpan={isManager ? 6 : 5} className="p-10 text-center text-muted-foreground">No questions match these filters</TableCell></TableRow>
+            )}
+            {paged.map(item => {
+              const [statusLabel, statusClass] = APPROVAL_BADGE[item.status] || APPROVAL_BADGE.PENDING
+              return (
+                <TableRow key={item.id} className={cn(!item.on && 'opacity-60')}>
+                  <TableCell className="max-w-[460px] whitespace-normal">
+                    <div className="flex items-start gap-1.5">
+                      {item.crit && <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-destructive" aria-label="Critical risk" />}
+                      <div className="text-[12.5px] font-semibold leading-snug">{item.text}</div>
                     </div>
-                  </div>
-                </div>
-              )) : (
-                <div className="p-10 text-center text-muted-foreground">{'📋'} No questions found</div>
-              )}
-            </div>
-          </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+                      <span>{qTypeLabel(item.at) || 'No type'}</span>
+                      {(item.tags || []).map(t => <span className="rounded border border-border bg-muted px-1.5 text-[10.5px]" key={t}>{t}</span>)}
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    <div className="text-[12.5px] font-medium">{item.proc}</div>
+                    <div className="text-[11px] text-muted-foreground">{item.sp}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex h-[22px] w-[22px] items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ background: wColor(item.w) }}>{item.w}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col items-start gap-1">
+                      {isManager && <Badge className={cn('text-[10.5px]', statusClass)}>{statusLabel}</Badge>}
+                      {item.crit && <Badge className="bg-red-50 text-[10.5px] text-red-700">Critical</Badge>}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Toggle on={item.on} onClick={() => toggleQ(item.id)} disabled={!isManager} label={item.on ? 'Deactivate question' : 'Activate question'} />
+                  </TableCell>
+                  {isManager && (
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <button className={iconBtn} onClick={() => openEditQuestion(item.id)} title="Edit" aria-label="Edit"><Pencil className="size-3.5" /></button>
+                        <button className={iconBtn} onClick={() => deleteQ(item.id)} title="Delete" aria-label="Delete"><Trash2 className="size-3.5 text-destructive" /></button>
+                        {item.status === 'PENDING' && (
+                          <>
+                            <button className={iconBtn} onClick={() => decide(item.id, 'APPROVED')} title="Approve" aria-label="Approve"><CheckCircle2 className="size-3.5 text-emerald-600" /></button>
+                            <button className={iconBtn} onClick={() => decide(item.id, 'REJECTED')} title="Reject" aria-label="Reject"><CircleOff className="size-3.5 text-destructive" /></button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </div>
 
-          <div className="mt-3 flex justify-end text-xs text-muted-foreground"><span>{filtered.length} questions</span></div>
-        </div>
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-1 text-xs text-muted-foreground">
+        <span className="mr-2">{filtered.length} questions</span>
+        {Array.from({ length: pages }, (_, i) => (
+          <button key={i} className={cn('flex h-[27px] w-[27px] items-center justify-center rounded-md border border-border bg-card text-xs text-foreground/80', pageNo === i + 1 && 'border-primary bg-primary text-primary-foreground')} onClick={() => setPage(i + 1)}>{i + 1}</button>
+        ))}
       </div>
 
       {/* ═══════════ QUESTION MODAL ═══════════ */}
@@ -386,14 +451,14 @@ function QuestionBank() {
 
       {/* ═══════════ PROCESS MODAL ═══════════ */}
       <Modal open={showProcModal} onClose={() => setShowProcModal(false)} className="w-[320px]">
-        <ModalTitle>Set Process</ModalTitle>
+        <ModalTitle>{showQModal ? 'Set Process' : 'New Process'}</ModalTitle>
         <div>
-          <label className={labelClass}>Process name (applies to this question)</label>
+          <label className={labelClass}>{showQModal ? 'Process name (applies to this question)' : 'Process name'}</label>
           <Input placeholder="e.g. Inventory Management" value={procName} onChange={e => setProcName(e.target.value)} />
         </div>
         <ModalActions>
           <Button variant="outline" onClick={() => setShowProcModal(false)}>Cancel</Button>
-          <Button onClick={saveProc}>Use</Button>
+          <Button onClick={saveProc}>{showQModal ? 'Use' : 'Create & add question'}</Button>
         </ModalActions>
       </Modal>
 
@@ -413,32 +478,12 @@ function QuestionBank() {
   )
 }
 
-const TABS = [
-  { value: 'bank', label: 'Question bank' },
-  { value: 'sop-tools', label: 'SOP tools' },
-];
-
-// Audit Questions: the question bank, plus (for managers) the editor for the
-// SOP audit tools. The tab lives in the URL (?tab=sop-tools) so links work.
+// Audit Questions: the question bank.
 export default function Questions() {
-  const [params, setParams] = useSearchParams();
-  const role = loadSession()?.user?.role;
-  const tabs = TABS.filter((t) => t.value !== 'sop-tools' || canAccess(role, 'sop-tools'));
-  const requested = params.get('tab');
-  const tab = tabs.some((t) => t.value === requested) ? requested : 'bank';
-
-  function changeTab(value) {
-    setParams(value === 'bank' ? {} : { tab: value }, { replace: true });
-  }
-
-  if (tabs.length === 1) return <QuestionBank />;
   return (
-    <Tabs value={tab} onValueChange={changeTab} className="space-y-4">
-      <TabsList>
-        {tabs.map((t) => <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>)}
-      </TabsList>
-      <TabsContent value="bank" className="mt-0"><QuestionBank /></TabsContent>
-      <TabsContent value="sop-tools" className="mt-0"><SopToolsTab /></TabsContent>
-    </Tabs>
+    <div className="space-y-4">
+      <div className="inline-flex rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">Question bank</div>
+      <QuestionBank />
+    </div>
   );
 }
