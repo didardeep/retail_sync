@@ -75,7 +75,8 @@ def test_answer_validation(client, tokens, db):
     a = _start(client, tokens, cl).json()
     assert _answer(client, tokens, a, 0, "Maybe").status_code == 422
     assert _answer(client, tokens, a, 0, "Yes", risk="Severe").status_code == 422
-    for ok in ("Yes", "No", "Partial", "NA"):
+    assert _answer(client, tokens, a, 0, "Partial").status_code == 422
+    for ok in ("Yes", "No", "NA"):
         assert _answer(client, tokens, a, 0, ok).status_code == 200, ok
     for risk in ("None", "Low", "Medium", "High", "Critical", ""):
         assert _answer(client, tokens, a, 0, "Yes", risk=risk).status_code == 200, risk
@@ -111,11 +112,11 @@ def test_submit_scores_with_weights_and_ignores_na(client, tokens, db):
 
     cl = _checklist(db, [(1, False), (1, False), (2, False)])
     a = _start(client, tokens, cl).json()
-    _answer(client, tokens, a, 0, "Partial")
+    _answer(client, tokens, a, 0, "No")
     _answer(client, tokens, a, 1, "Yes")
     _answer(client, tokens, a, 2, "NA")
     r = client.post(f"/api/audits/{a['id']}/submit", headers=tokens["auditor1"])
-    assert r.json()["audit"]["score"] == 75.0
+    assert r.json()["audit"]["score"] == 50.0
 
 
 def test_submit_needs_every_answer(client, tokens, db):
@@ -127,17 +128,18 @@ def test_submit_needs_every_answer(client, tokens, db):
     assert r.json()["count"] == 1
 
 
-def test_critical_no_raises_exactly_one_issue_and_resubmit_is_409(client, tokens, db):
+def test_failed_critical_question_raises_no_issue_by_itself_and_resubmit_is_409(client, tokens, db):
     cl = _checklist(db, [(1, True), (1, False)])
     a = _start(client, tokens, cl).json()
     _answer(client, tokens, a, 0, "No")
     _answer(client, tokens, a, 1, "Yes")
     first = client.post(f"/api/audits/{a['id']}/submit", headers=tokens["auditor1"])
-    assert first.status_code == 200 and first.json()["issues_raised"] == 1
+    # Issues are the auditor's choice, never automatic.
+    assert first.status_code == 200 and first.json()["issues_raised"] == 0
     second = client.post(f"/api/audits/{a['id']}/submit", headers=tokens["auditor1"])
     assert second.status_code == 409
     db.expire_all()
-    assert db.query(Issue).filter_by(audit_id=a["id"]).count() == 1
+    assert db.query(Issue).filter_by(audit_id=a["id"]).count() == 0
 
 
 def test_auditor_cannot_touch_someone_elses_audit(client, tokens, db):
@@ -166,18 +168,16 @@ def test_list_items_carry_progress(client, tokens, db):
     assert all("progress" in x for x in rows)
 
 
-def test_sop_list_items_carry_progress(client, tokens):
-    rows = client.get("/api/sop-audits", headers=tokens["manager"]).json()
-    for row in rows:
-        assert set(row["progress"]) == {"answered", "total"}
-
-
-def test_auditor_only_sees_issues_from_their_own_audits(client, tokens, db):
+def test_auditor_only_sees_issues_from_their_own_audits(client, tokens, db, user_ids):
     cl = _checklist(db, [(1, True)])
     mine = _start(client, tokens, cl, who="auditor1").json()
     theirs = _start(client, tokens, cl, who="auditor2").json()
     for audit, who in ((mine, "auditor1"), (theirs, "auditor2")):
         _answer(client, tokens, audit, 0, "No", who=who)
+        r = client.post(
+            f"/api/audits/{audit['id']}/responses/{audit['responses'][0]['id']}/issue",
+            headers=tokens[who], json={"assignee_id": user_ids["ae1@test"]})
+        assert r.status_code == 201, r.text
         r = client.post(f"/api/audits/{audit['id']}/submit", headers=tokens[who])
         assert r.status_code == 200, r.text
     loose = client.post("/api/issues", headers=tokens["manager"],

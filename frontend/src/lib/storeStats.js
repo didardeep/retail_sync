@@ -1,9 +1,8 @@
 // Pure helpers behind the "My Store" dashboard. They take rows in the shape from
-// lib/auditRows.js (mergeRows) and raw issue / store-score records, and never
+// lib/auditRows.js (auditRows) and raw issue / store-score records, and never
 // touch the network. Every chart number and every drawer list on the page comes
 // from the same function here, so a count always equals the list it opens.
 import { stageOf } from './statuses.js'
-import { sopAuditReviewLink } from './links.js'
 
 export const QUARTERS = ['q1', 'q2', 'q3', 'q4']
 export const BENCHMARK = 90
@@ -112,7 +111,7 @@ export function topOpenIssues(issues, limit = 5) {
 
 // ---- Audits ---------------------------------------------------------------
 
-// Rows are the output of mergeRows (newest first) already filtered to the store.
+// Rows are the output of auditRows (newest first) already filtered to the store.
 export function doneRows(rows) {
   return rows.filter(isDone)
 }
@@ -126,7 +125,7 @@ export function activeRows(rows) {
 export function stageBreakdown(rows) {
   const total = rows.length
   return STAGE_SLICES.map((s) => {
-    const list = rows.filter((r) => (r.stage || stageOf(r.kind, r.status)) === s.key)
+    const list = rows.filter((r) => (r.stage || stageOf(r.status)) === s.key)
     return { key: s.key, label: s.label, color: s.color, count: list.length, pct: pctOf(list.length, total), rows: list }
   })
 }
@@ -144,9 +143,9 @@ export function recentRows(rows, limit = 8) {
   return rows.slice(0, limit)
 }
 
-// Where a row opens: scored audits their review page, checklist audits their page.
+// Where a row opens: the audit's page.
 export function auditPath(row) {
-  return row.kind === 'sop' ? sopAuditReviewLink(row.id) : `/audits/${encodeURIComponent(row.id)}`
+  return `/audits/${encodeURIComponent(row.id)}`
 }
 
 // All numbers for the tile row, each paired with the list it opens.

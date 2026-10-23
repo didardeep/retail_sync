@@ -4,67 +4,18 @@ import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import { AlertTriangle, CalendarDays, CheckCircle2, Loader2, XCircle } from 'lucide-react';
 
 import { api, loadSession } from '@/api/client';
-import { fetchAuditRows } from '@/api/sopSchedule';
 import { Loading } from '@/components/Loader';
-import { BRAND, bandColors, clickableBar, truncate } from '@/components/sop-dashboard/chartKit';
-import { TARGET } from '@/components/sop-dashboard/logic';
-import Panel, { Empty } from '@/components/sop-dashboard/Panel';
+import { BRAND, TARGET, bandColors, clickableBar, truncate } from '@/components/charts/chartKit';
+import Panel, { Empty } from '@/components/charts/Panel';
 import Tile from '@/components/Tile';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/Toast';
-import { formatDate, isOverdue, mergeRows, scoreLabel } from '@/lib/auditRows';
+import { auditRows, formatDate, isOverdue, scoreLabel } from '@/lib/auditRows';
 import {
   auditorKpis, finishList, monthlyScheduledVsCompleted, monthlyScoreTrend, nextUp,
   progressPercent, recentSubmitted, statusBreakdown, storeLatestScores,
 } from '@/lib/auditorStats';
-import { sopAuditReviewLink, sopAuditRunLink, sopAuditsLink } from '@/lib/links';
-import {
-  getBundle, hydrateFromServer, listLocalAudits, summarize,
-} from '@/lib/offline';
-
-// Rebuilds the /api/sop-audits item shape from an on-device audit so offline
-// drafts count. Progress comes from the local answers, never estimated.
-async function localToItem(a) {
-  let progress = null;
-  if (a.status === 'Draft' || a.status === 'Returned') {
-    try {
-      const bundle = await getBundle(a.id);
-      if (bundle && bundle.template) {
-        const s = summarize(bundle.template, bundle.rows);
-        progress = { answered: s.answered, total: s.applicable };
-      }
-    } catch {
-      progress = null;
-    }
-  }
-  return {
-    id: a.id, store_id: a.store_id, store: a.store_name, template: a.template_name,
-    template_code: a.template_code, template_version: a.template_version,
-    scheduled_at: a.scheduled_at, notes: a.notes, status: a.status,
-    auditor_id: a.auditor_id, updated_at: a.updated_at, progress,
-  };
-}
-
-// Local items win over server items with the same id (the device can be ahead).
-async function mergeLocalSop(remoteSop, localAudits) {
-  const byId = new Map((remoteSop || []).map((r) => [r.id, r]));
-  const items = await Promise.all(localAudits.map(localToItem));
-  for (const it of items) {
-    const next = { ...(byId.get(it.id) || {}) };
-    for (const [k, v] of Object.entries(it)) {
-      if (v !== undefined && v !== null && v !== '') next[k] = v;
-    }
-    byId.set(it.id, next);
-  }
-  return [...byId.values()];
-}
-
-function countWaitingToSync(localAudits) {
-  return localAudits.filter(
-    (a) => a.submit_pending || (a.header_rev || 0) > (a.header_synced_rev || 0),
-  ).length;
-}
+import { auditsLink } from '@/lib/links';
 
 function whenText(iso) {
   if (!iso) return 'No date';
@@ -134,26 +85,20 @@ function Stat({ label, value }) {
 
 export default function AuditorDashboard() {
   const navigate = useNavigate();
-  const toast = useToast();
   const user = loadSession()?.user;
   const [state, setState] = useState({ status: 'loading', error: null });
-  const [data, setData] = useState({ rows: [], issues: null, waiting: 0, localIds: [] });
-  const [openingId, setOpeningId] = useState(null);
+  const [data, setData] = useState({ rows: [], issues: null });
 
   const load = useCallback(async () => {
     setState({ status: 'loading', error: null });
     try {
-      const [[legacy, sop], issues, local] = await Promise.all([
-        fetchAuditRows(),
+      const [audits, issues] = await Promise.all([
+        api.audits(),
         api.issues().catch(() => null),
-        listLocalAudits().catch(() => []),
       ]);
-      const sopAll = await mergeLocalSop(sop || [], local);
       setData({
-        rows: mergeRows(legacy || [], sopAll),
+        rows: auditRows(audits || []),
         issues: Array.isArray(issues) ? issues.length : null,
-        waiting: countWaitingToSync(local),
-        localIds: local.map((a) => a.id),
       });
       setState({ status: 'ready', error: null });
     } catch (e) {
@@ -173,30 +118,7 @@ export default function AuditorDashboard() {
   const monthly = useMemo(() => monthlyScheduledVsCompleted(data.rows, now, 6), [data.rows, now]);
   const storeScores = useMemo(() => storeLatestScores(data.rows), [data.rows]);
 
-  // Same behaviour as SopAudits open(): SOP audits go to the wizard (downloaded
-  // to the device first if needed), classic audits to their audit page.
-  async function open(row) {
-    if (row.kind !== 'sop') {
-      navigate(`/audits/${encodeURIComponent(row.id)}`);
-      return;
-    }
-    setOpeningId(row.id);
-    try {
-      if (!data.localIds.includes(row.id)) {
-        if (!navigator.onLine) throw new Error('Connect to the internet once to download this audit.');
-        await hydrateFromServer(row.id);
-      }
-      navigate(sopAuditRunLink(row.id));
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setOpeningId(null);
-    }
-  }
-
-  function review(row) {
-    navigate(row.kind === 'sop' ? sopAuditReviewLink(row.id) : `/audits/${encodeURIComponent(row.id)}`);
-  }
+  const open = (row) => navigate(`/audits/${encodeURIComponent(row.id)}`);
 
   if (state.status === 'loading') return <Loading what="your dashboard" />;
 
@@ -216,7 +138,7 @@ export default function AuditorDashboard() {
 
   // Every click opens the Audit page filtered the same way the numbers are
   // counted (see statusMatches in components/audit/auditHelpers).
-  const toStatus = (status) => () => navigate(sopAuditsLink({ status }));
+  const toStatus = (status) => () => navigate(auditsLink({ status }));
 
   const sliceTotal = slices.reduce((n, sl) => n + sl.count, 0);
   const pctOf = (n) => (sliceTotal ? Math.round((n / sliceTotal) * 100) : 0);
@@ -224,7 +146,7 @@ export default function AuditorDashboard() {
     labels: slices.map((sl) => sl.label),
     datasets: [{ data: slices.map((sl) => sl.count), backgroundColor: slices.map((sl) => sl.color), borderWidth: 2, borderColor: '#fff' }],
   };
-  const openSlice = (idx) => navigate(sopAuditsLink({ status: slices[idx].key }));
+  const openSlice = (idx) => navigate(auditsLink({ status: slices[idx].key }));
 
   const hasTrend = trend.some((m) => m.avg !== null);
   const trendData = {
@@ -252,7 +174,7 @@ export default function AuditorDashboard() {
   const storeOpts = clickableBar({
     horizontal: true,
     percentAxis: true,
-    onPick: (i) => navigate(sopAuditsLink({ store: storeBars[i].store_id })),
+    onPick: (i) => navigate(auditsLink({ store: storeBars[i].store_id })),
   });
 
   const monthYear = now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
@@ -341,7 +263,7 @@ export default function AuditorDashboard() {
                 </div>
                 {next.notes && <div className="mt-0.5 truncate text-xs text-muted-foreground">{next.notes}</div>}
               </div>
-              <Button size="sm" className="h-10 shrink-0" disabled={openingId === next.id} onClick={() => open(next)}>
+              <Button size="sm" className="h-10 shrink-0" onClick={() => open(next)}>
                 Start
               </Button>
             </div>
@@ -360,7 +282,6 @@ export default function AuditorDashboard() {
                     key={r.key}
                     type="button"
                     onClick={() => open(r)}
-                    disabled={openingId === r.id}
                     className="block w-full text-left"
                   >
                     <div className="flex items-baseline justify-between gap-2">
@@ -386,7 +307,7 @@ export default function AuditorDashboard() {
                 <button
                   key={r.key}
                   type="button"
-                  onClick={() => review(r)}
+                  onClick={() => open(r)}
                   className="flex w-full items-center gap-3 py-2 text-left first:pt-0 last:pb-0"
                 >
                   <div className="min-w-0 flex-1">
@@ -408,7 +329,6 @@ export default function AuditorDashboard() {
             <Stat label="Audits this month" value={kpis.audits_this_month} />
             <Stat label="Stores audited this month" value={kpis.stores_this_month} />
             <Stat label="Issues raised" value={data.issues === null ? '--' : data.issues} />
-            {data.waiting > 0 && <Stat label="Waiting to sync" value={data.waiting} />}
           </div>
         </Panel>
       </div>

@@ -7,11 +7,10 @@ import { StoreFilters, StoreRow } from './StoreList';
 import { filterStoreSummaries, regionList } from './auditHelpers';
 
 // "New audit": the auditor's store list with the per-store panel, so an
-// unscheduled audit (scored or checklist) can be started. Works offline for
-// scored audits (stores and templates come from the device copy).
-// rows are the auditor's own merged audit rows.
+// unscheduled checklist audit can be started. Online only.
+// rows are the auditor's own audit rows.
 export default function NewAuditSection({
-  stores, templates, checklists, checklistsFailed, online, rows, openingKey, onRun, onClose,
+  stores, checklists, checklistsFailed, online, rows, openingKey, onRun, onClose,
 }) {
   const [q, setQ] = useState('');
   const [region, setRegion] = useState('');
@@ -26,12 +25,12 @@ export default function NewAuditSection({
   );
   const selected = summaries.find((s) => s.store_id === storeId) || null;
   const options = useMemo(
-    () => (selected ? auditOptions(selected.store_id, rows, templates, checklists) : []),
-    [selected, rows, templates, checklists],
+    () => (selected ? auditOptions(selected.store_id, rows, checklists) : []),
+    [selected, rows, checklists],
   );
 
   const checklistNote = (checklistsFailed || (!online && checklists.length === 0))
-    ? 'Checklist audits could not be loaded, so only scored audits are shown.'
+    ? 'Checklists could not be loaded.'
     : null;
   const panel = selected && (
     <StoreOptionsPanel
@@ -70,7 +69,7 @@ export default function NewAuditSection({
         {visible.length === 0 ? (
           <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
             {stores.length === 0 && !online
-              ? 'Connect to the internet once to download your stores.'
+              ? 'Connect to the internet to load your stores.'
               : 'No stores match.'}
           </div>
         ) : (

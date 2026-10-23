@@ -21,6 +21,7 @@ from app.models import (
     CashDepositPickup, Checklist, ChecklistItem, DataImport,
     ExpiredInventory, Issue, Observation, Question, Store, StoreScore, User,
 )
+from app.services import get_or_create_brand
 from import_excel import (
     _parse_date, _float, _int, _normalise_status,
     json_safe_row, _read_sheet,
@@ -169,6 +170,8 @@ def seed_from_excel():
 
         store = Store(
             id=sid,
+            # No Brand column (or a blank cell) puts the store under 'Unassigned'.
+            brand_id=get_or_create_brand(s, row.get("Brand")).id,
             store_code=code,
             name=name,
             state=str(row.get("State", "") or ""),
@@ -519,10 +522,10 @@ def seed_from_excel():
         for q in questions.values():
             answer = None
             if status == "Completed":
-                answer = random.choices(["Yes", "No", "Partial", "NA"],
-                                        weights=[70, 10, 15, 5])[0]
+                answer = random.choices(["Yes", "No", "NA"],
+                                        weights=[80, 15, 5])[0]
             elif status == "Ongoing":
-                answer = random.choice(["Yes", "Partial", None])
+                answer = random.choice(["Yes", "No", None])
             s.add(AuditResponse(audit_id=audit.id, question_id=q.id, answer=answer))
 
     s.flush()

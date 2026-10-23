@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user, require_roles
+from ..auth import get_staff_user, require_roles
 from ..db import get_db
 from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, Question, User
 from ..schemas import QuestionApprove, QuestionCreate, QuestionEdit
@@ -16,7 +16,7 @@ def list_questions(
     process: str | None = None,
     status: str | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_staff_user),
 ):
     q = db.query(Question).filter(Question.is_current.is_(True))
     if process:

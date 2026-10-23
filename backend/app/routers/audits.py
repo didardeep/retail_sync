@@ -4,25 +4,26 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user, require_roles
+from ..auth import get_staff_user, require_roles
 from ..db import get_db
 from ..models import (
     ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
-    Audit, AuditResponse, AuditorAvailability, Checklist, ChecklistItem, Store, User,
+    Audit, AuditResponse, AuditorAvailability, Checklist, ChecklistItem, Issue, Store, User,
 )
 from ..schemas import (
     AnswerQuestionRequest, AuditApproveRequest, AuditPatchRequest,
-    AuditRatingRequest, AuditScheduleRequest, AuditStartRequest,
+    AuditRatingRequest, AuditScheduleRequest, AuditStartRequest, RaiseIssueRequest,
 )
 from ..services import (
-    auditor_conflict, compute_audit_score, log_action, next_audit_id,
-    raise_issue_from_response,
+    auditor_conflict, compute_audit_score, linked_auditee_ids, log_action, next_audit_id,
 )
 
 router = APIRouter(prefix="/api/audits", tags=["audits"])
 
-ANSWERS = ("Yes", "No", "Partial", "NA")
+ANSWERS = ("Yes", "No", "NA")
 RISKS = ("None", "Low", "Medium", "High", "Critical")
+ISSUE_PRIORITIES = ("Critical", "High", "Medium", "Low")
+DEFAULT_ISSUE_DAYS = 7
 CLASSIC_AUDIT_TYPE = "Checklist based Audit"
 
 
@@ -52,7 +53,7 @@ def _copy_checklist_items(db, audit):
 def list_audits(
     status: str | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_staff_user),
 ):
     q = db.query(Audit)
     if user.role == ROLE_AUDITOR:
@@ -72,8 +73,27 @@ def list_audits(
     return out
 
 
+@router.get("/conflicts")
+def check_conflicts(
+    auditor_id: str,
+    date: str,
+    store_id: str | None = None,
+    exclude_audit_id: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
+):
+    """Lets the scheduling form warn before saving. Never fails on a clash: the
+    clash is the answer."""
+    try:
+        day = dt.date.fromisoformat(date[:10])
+    except ValueError:
+        raise HTTPException(status_code=422, detail={"error": "date must be YYYY-MM-DD"})
+    return {"conflict": auditor_conflict(
+        db, auditor_id, day, store_id, exclude_audit_id=exclude_audit_id)}
+
+
 @router.get("/{aid}")
-def get_audit(aid: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def get_audit(aid: str, db: Session = Depends(get_db), user: User = Depends(get_staff_user)):
     a = db.get(Audit, aid)
     if not a:
         raise HTTPException(status_code=404, detail={"error": "not found"})
@@ -302,6 +322,58 @@ def answer_question(
     return resp.to_dict()
 
 
+@router.post("/{aid}/responses/{rid}/issue", status_code=201)
+def raise_issue(
+    aid: str,
+    rid: str,
+    body: RaiseIssueRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDITOR, ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
+):
+    """The auditor's choice to follow up one answered question: raise an issue
+    and give it to an auditee linked to the audit's store. Never automatic."""
+    audit = db.get(Audit, aid)
+    resp = db.get(AuditResponse, rid)
+    if not audit or not resp or resp.audit_id != aid:
+        raise HTTPException(status_code=404, detail={"error": "not found"})
+    if user.role == ROLE_AUDITOR and audit.auditor_id != user.id:
+        raise HTTPException(status_code=403, detail={"error": "forbidden"})
+    if audit.status == "Cancelled":
+        raise HTTPException(status_code=409, detail={"error": "audit is cancelled"})
+    if not resp.answer:
+        raise HTTPException(status_code=409, detail={"error": "answer the question before raising an issue"})
+    if body.priority not in ISSUE_PRIORITIES:
+        raise HTTPException(status_code=422, detail={
+            "error": f"priority must be one of {', '.join(ISSUE_PRIORITIES)}"})
+    if body.assignee_id not in linked_auditee_ids(db, audit.store_id):
+        raise HTTPException(status_code=422, detail={
+            "error": "assignee must be an auditee linked to this audit's store"})
+    if resp.issues:
+        raise HTTPException(status_code=409, detail={
+            "error": "an issue was already raised for this question", "issue_id": resp.issues[0].id})
+    try:
+        due = dt.date.fromisoformat(body.due_date[:10]) if body.due_date else (
+            dt.date.today() + dt.timedelta(days=DEFAULT_ISSUE_DAYS))
+    except ValueError:
+        raise HTTPException(status_code=422, detail={"error": "due_date must be a date like 2026-01-31"})
+
+    q = resp.question
+    issue = Issue(
+        audit_id=audit.id, store_id=audit.store_id, response_id=resp.id,
+        title=q.text[:200] if q else "Audit question", description=body.description or resp.remarks,
+        process=q.process if q else None, sub_process=q.sub_process if q else None,
+        priority=body.priority, status="Open",
+        assignee_id=body.assignee_id, raised_by_id=user.id, due_date=due,
+        meta={"question_code": q.code if q else None},
+    )
+    db.add(issue)
+    db.flush()
+    log_action(db, user.id, "raise_issue", "issue", issue.id,
+               {"audit_id": audit.id, "assignee_id": issue.assignee_id})
+    db.commit()
+    return issue.to_dict()
+
+
 @router.post("/{aid}/submit")
 def submit_audit(
     aid: str,
@@ -329,13 +401,13 @@ def submit_audit(
     audit.status = "Completed"
     audit.submitted_at = dt.datetime.utcnow()
 
-    # Every failed critical question becomes an action for the store manager.
-    created = [raise_issue_from_response(db, audit, r)
-               for r in audit.responses if r.answer == "No" and r.question.is_critical]
+    # Issues are never raised automatically: the auditor chose them, per question,
+    # while answering (see raise_issue below). Report how many that was.
+    raised = db.query(Issue).filter(Issue.audit_id == audit.id).count()
     log_action(db, user.id, "submit_audit", "audit", audit.id,
                {"score": audit.score})
     db.commit()
-    return {"audit": audit.to_dict(), "issues_raised": len([c for c in created if c])}
+    return {"audit": audit.to_dict(), "issues_raised": raised}
 
 
 @router.post("/{aid}/approve")

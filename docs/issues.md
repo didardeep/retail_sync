@@ -2,7 +2,7 @@
 
 ## 1. Checklist has no question that captures store format (COCO / COFO / FOCO / FOFO)
 
-**Status:** Open
+**Status:** Closed. Store format stays master data only (decision); no checklist question, no code change.
 
 **What:** The dashboard has a "Store Format Performance" graph that groups
 average audit scores by store format (COCO, COFO, FOCO, FOFO). No checklist
@@ -28,7 +28,7 @@ the UI were not inspected.
 
 ## 2. "Average store score by quarter" chart is not useful: one chain-wide line
 
-**Status:** Open
+**Status:** Done. Trend is one line per brand with brand chips and a store list to show or hide lines; it reads the same quarterly store scores as the other charts (the KPI tiles count audits and are labelled so).
 
 **What:** The Overview dashboard trend chart (`frontend/src/pages/Dashboard.jsx`)
 plots a single line: the average of every store's score for Q1 to Q4. A single
@@ -58,7 +58,7 @@ Excel import, seed data) before this chart can group by it.
 
 ## 3. Data hierarchy and roles: Brand -> Store, plus a new Auditee role
 
-**Status:** Open (design agreed, not built). Issue 2 (per-brand trend chart)
+**Status:** Done. Brand model, Store.brand_id, brand CRUD, brand column in Excel import/upload, Auditee role with store links, admin UI and seed data (migration 0007). Store managers keep Store.manager_id.
 depends on this.
 
 **Target hierarchy:**
@@ -102,7 +102,7 @@ depends on this.
 
 ## 4. Dashboard UI: one basic outline, wording that follows what is selected
 
-**Status:** Open (proposal, not built)
+**Status:** Done. One heading naming the scope, a labelled selector, one shared wording set, scope filters every chart, ranked lists fixed. Quarter buttons stay in the header and apply to everything.
 
 **Problems today:**
 - The page title is the same fixed text ("Audit Operations") whatever is shown,
@@ -154,3 +154,112 @@ depends on this.
   frequency / repetition? Today they do not (see the dashboard data review).
 - Should the heading and selector be shared by the Overview, SOP and store
   views so all three feel like one page?
+
+## 5. Remove SOP audits: only checklist-question audits
+
+**Status:** Done. SOP code, tables and the issue SOP columns are removed (migration 0006); the dev DB was rebuilt.
+
+**What:** The product only needs audits made of checklist questions. SOP audits
+(a separate audit type with its own import, versions, scheduling, dashboard and
+pages) are not needed.
+
+**Where SOP lives today (to be scoped for removal):**
+- Backend: `backend/import_sop.py`, `backend/seed_sop_demo.py`,
+  `backend/app/sop_versions.py`, SOP models in `backend/app/models.py`, SOP
+  fields in `schemas.py`, `services/`, and `assistant_service.py`.
+- Migrations `0002_link_issues_to_sop_audits` and `0003_sop_audit_scheduling`
+  tie issues and scheduling to SOP audits. Removing SOP needs a new migration,
+  not edits to old ones.
+- Frontend: `api/sopAdmin.js`, `api/sopDashboard.js`, `components/checklist/SopToolCard.jsx`,
+  `components/audit/AuditTypeChip.jsx`, SOP routes in `App.jsx`, links in
+  `lib/links.js`, SOP tab on the dashboard, SOP counts in `AuditorDashboard.jsx`.
+
+**Open questions:**
+- Is there existing SOP audit data to keep or archive, or can it be dropped?
+- Issues currently link to SOP audits: should they link only to checklist audits
+  afterwards?
+- Does the dashboard "SOP" view go away entirely (see issue 4)?
+
+## 6. Remove the "Partial" answer from the audit view
+
+**Status:** Done. Answers are Yes / No / NA only; old audit data deleted in migration 0006 and the dev DB reseeded.
+
+**What:** Checklist questions are answered Yes / Partial / No / NA. Partial is
+to be removed, leaving Yes / No / NA.
+
+**Where it appears:** `frontend/src/lib/classicAudit.js` (answer list and score
+value `Partial: 0.5`), `components/classic/AnswerButtons.jsx`,
+`pages/AuditExecution.jsx`, `pages/Audit.jsx` (row colour), plus any backend
+scoring or validation that accepts "Partial".
+
+**Decided:** delete the existing audit data (it holds Partial answers) and
+rebuild it properly with Yes / No / NA only. No conversion of old answers, no
+legacy handling of Partial left in the code. Seed and demo data generators
+(`backend/seed.py`, `backend/demo.py`, `generate_excel.py`) must be updated to
+produce Yes / No / NA only, so the rebuilt data is clean.
+
+**Open questions:**
+- Do checklist templates or the Excel import contain Partial-only logic?
+- Delete only audits and answers, or also issues linked to them?
+
+## 8. Remove Compliance Metrics; keep checklist-entity and Power BI modal
+
+**Status:** Done. The Compliance Metrics page, route, nav entry, API calls and its three list endpoints are removed; the cash/expiry data tables stay (assistant uses them).
+
+**What:** From the list of features added beyond the approved demo:
+- **Remove:** Compliance Metrics.
+- **Keep:** the checklist-entity feature and the Power BI sample modal.
+
+Also kept (see `docs/demo-gap-and-personas.md`): AI assistant, audit approval,
+offline auditor wizard, checklist question approval, NA answer.
+
+**Open questions:**
+- Where does Compliance Metrics live (page, route, API, dashboard widget)? To be
+  scoped before removal.
+
+## 7. Assign a failed question to an auditee of that store
+
+**Status:** Done. The auditor raises an issue per question (not automatic) and picks an auditee linked to the store; the auditee replies in text and sets the status. Evidence upload for issues is not built (no upload mechanism exists, only an evidence link on the audit answer).
+store association).
+
+**What:** When an audit question gets a bad result, it should be assignable to
+one of the auditees associated with that store, who then follows it up. Typical
+triggers:
+- the answer is "No"
+- a collection / cash figure is short
+- a cost-control check fails
+
+**Gap today:** Issues have an `assignee_id`, but assignment is to any user and
+is not tied to a store. There is no list of "auditees for this store" to pick
+from, and no rule that turns these answers into assignable items.
+
+**Proposed change:**
+- Link auditees to stores (many auditees per store).
+- On a failing question, offer an assign action limited to that store's auditees.
+- Assigned items appear in the auditee's own list (issue 3) with the question,
+  the answer given and the audit it came from.
+
+**Open questions:**
+- DECIDED: the issue is not created automatically. The auditor chooses, per
+  question, whether it needs an issue and who to assign it to.
+- How do "collection short" and "cost control" get detected: a question type
+  with a numeric expected-vs-actual value, a flag on the checklist question, or
+  a manual call by the auditor?
+- Can one question be assigned to more than one auditee?
+- Who can assign: the auditor during the audit, the audit manager afterwards, or both?
+- What does the auditee do to close it: free-text reply, evidence upload,
+  both? Who confirms it is closed?
+
+## 9. Offline mode for checklist audits was lost with the SOP removal
+
+**Status:** Open
+
+**What:** The offline sync / IndexedDB layer was built only for SOP audits and
+was deleted with them (issue 5). The checklist audit wizard is online-only now.
+The offline auditor wizard was a "keep" decision, so offline support has to be
+rebuilt for checklist audits (save answers locally, sync when back online, show
+sync state). The `idb` npm dependency is currently unused.
+
+**Open questions:**
+- What must work offline: answering questions only, or also photos/evidence?
+- Conflict rule if the same audit changed on the server while offline?

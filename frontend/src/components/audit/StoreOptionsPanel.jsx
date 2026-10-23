@@ -1,7 +1,6 @@
 import { X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import AuditTypeChip from './AuditTypeChip';
 import { ACTION_LABELS, optionStateLine, percentOf } from './auditHelpers';
 
 // A submitted audit can only be viewed, whatever action the option carries.
@@ -50,10 +49,7 @@ export default function StoreOptionsPanel({
                 className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-border' : ''}`}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <AuditTypeChip label={o.type_label} />
-                    <span className="truncate text-sm font-semibold text-foreground">{o.name}</span>
-                  </div>
+                  <div className="truncate text-sm font-semibold text-foreground">{o.name}</div>
                   <div className="mt-0.5 text-xs text-muted-foreground">{optionStateLine(o)}</div>
                   {pct !== null && (
                     <div

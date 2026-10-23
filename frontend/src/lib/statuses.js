@@ -1,9 +1,7 @@
-// Audit statuses and the shared "stage" vocabulary. Legacy audits (/audits) and
-// SOP audits (/sop-audits) use different status names; a stage is the common
-// bucket both map onto, so scheduling, status and dashboards can talk about
-// them in one language.
-export const LEGACY_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Approved']
-export const SOP_STATUSES = ['Planned', 'Draft', 'Submitted', 'Approved', 'Returned', 'Cancelled']
+// Audit statuses and the "stage" vocabulary. A stage is the bucket a status
+// maps onto, so scheduling, status and dashboards talk about audits in one
+// language.
+export const AUDIT_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Approved']
 
 export const STAGES = [
   { value: 'scheduled', label: 'Scheduled' },
@@ -13,7 +11,7 @@ export const STAGES = [
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
-const LEGACY_STAGE = {
+const STAGE_OF_STATUS = {
   Planned: 'scheduled',
   Ongoing: 'in_progress',
   Completed: 'completed',
@@ -21,35 +19,20 @@ const LEGACY_STAGE = {
   Cancelled: 'cancelled',
 }
 
-const SOP_STAGE = {
-  Planned: 'scheduled',
-  Draft: 'in_progress',
-  Returned: 'in_progress',
-  Submitted: 'completed',
-  Approved: 'approved',
-  Cancelled: 'cancelled',
-}
-
-// kind is 'legacy' or 'sop'. Unknown statuses fall back to 'scheduled' when
-// they look like Planned, otherwise 'in_progress'.
-export function stageOf(kind, status) {
-  const map = kind === 'sop' ? SOP_STAGE : LEGACY_STAGE
-  if (map[status]) return map[status]
+// Unknown statuses fall back to 'scheduled' when they look like Planned,
+// otherwise 'in_progress'.
+export function stageOf(status) {
+  if (STAGE_OF_STATUS[status]) return STAGE_OF_STATUS[status]
   return /^planned/i.test(status || '') ? 'scheduled' : 'in_progress'
 }
 
 // Statuses in which the assigned auditor may still edit answers.
-// The review stream adds 'Returned' here when it ships.
-export const AUDITOR_EDITABLE = ['Planned', 'Draft']
+export const AUDITOR_EDITABLE = ['Planned', 'Ongoing']
 
 export function isAuditorEditable(status) {
   return AUDITOR_EDITABLE.includes(status)
 }
 
-// Statuses that are locked from the auditor's side.
-export const FINAL_STATUSES = ['Submitted', 'Approved']
-
-// Same palette as the SOP audit status badges.
 export function stageBadgeClass(stage) {
   switch (stage) {
     case 'in_progress':

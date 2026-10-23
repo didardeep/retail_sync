@@ -16,10 +16,9 @@ test('every page listed for a role has a sidebar entry', () => {
   }
 });
 
-test('every guarded route in App.jsx is in the nav (except nested editor routes)', () => {
+test('every guarded route in App.jsx is in the nav', () => {
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   const keys = new Set([...app.matchAll(/guarded\('([a-z-]+)'/g)].map((m) => m[1]));
-  keys.delete('sop-tools');                       // /questions/sop-tools/:code is reached from Audit Questions
   for (const key of keys) assert.ok(pages.has(key), `route "${key}" has no nav item`);
 });
 
@@ -39,11 +38,10 @@ test('each role lands on a page it can open', () => {
 });
 
 test('titles resolve for nested and detail routes', () => {
-  assert.equal(titleFor('/sop-audits/abc/review'), 'Audit');
-  assert.equal(titleFor('/questions/sop-tools/CASH'), 'Audit Questions');
+  assert.equal(titleFor('/audits/AUD-1001/review'), 'Audit');
+  assert.equal(titleFor('/questions/anything'), 'Audit Questions');
   assert.equal(titleFor('/audits/AUD-1001'), 'Audit');
   assert.equal(titleFor('/audits'), 'Audit');
-  assert.equal(titleFor('/sop-audits'), 'Audit');
   assert.equal(titleFor('/my-store'), 'My Store');
   assert.equal(titleFor('/nowhere'), 'Store Audit and Analysis');
 });
@@ -64,7 +62,6 @@ test('auditors cannot open Audit Questions (managers and admins only)', () => {
 
 test('Audit is one sidebar item for every role that had either page', () => {
   assert.equal(NAV_ITEMS.filter((n) => n.label === 'Audit').length, 1);
-  assert.ok(!pages.has('sop-audits'));
   for (const role of ['ADMIN', 'AUDIT_MANAGER', 'AUDITOR', 'STORE_MANAGER']) {
     assert.equal(canAccess(role, 'audits'), true, role);
   }
@@ -86,4 +83,16 @@ test('My Store is for store managers only; admin and manager use the Dashboard s
     assert.ok(!labels.includes('My Store'), role);
   }
   assert.equal(canAccess('ADMIN', 'dashboard'), true);
+});
+
+test('auditee sees My Issues and Email only, lands on My Issues, and no one else gets My Issues', () => {
+  const labels = NAV_ITEMS.filter((n) => canAccess('AUDITEE', n.page)).map((n) => n.label);
+  assert.deepEqual(labels, ['My Issues', 'Email Communications']);
+  assert.equal(firstAllowedPage('AUDITEE'), 'my-issues');
+  for (const role of ['ADMIN', 'AUDIT_MANAGER', 'AUDITOR', 'STORE_MANAGER']) {
+    assert.equal(canAccess(role, 'my-issues'), false, role);
+  }
+  for (const page of ['dashboard', 'audits', 'issues', 'stores', 'my-store']) {
+    assert.equal(canAccess('AUDITEE', page), false, page);
+  }
 });

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { cn } from '@/lib/utils';
-import { issuesLink, sopAuditsLink, auditsLink } from '@/lib/links';
+import { issuesLink, auditsLink } from '@/lib/links';
 
 export default function NotificationBell({ role }) {
   const navigate = useNavigate();
@@ -14,21 +14,27 @@ export default function NotificationBell({ role }) {
     async function load() {
       try {
         if (role === 'AUDIT_MANAGER' || role === 'ADMIN') {
-          const [sopAudits, issues] = await Promise.all([
-            api.sopAudits('?status=Submitted').catch(() => []),
+          const [audits, issues] = await Promise.all([
+            api.audits().catch(() => []),
             api.issues().catch(() => []),
           ]);
-          const pending = (sopAudits || []).filter(a => a.status === 'Submitted');
+          const pending = (audits || []).filter(a => a.status === 'Completed');
           const overdue = (issues || []).filter(i => i.is_overdue && i.status !== 'Resolved' && i.status !== 'Closed');
           const notifs = [];
-          if (pending.length) notifs.push({ label: `${pending.length} audit${pending.length > 1 ? 's' : ''} awaiting approval`, link: sopAuditsLink({ status: 'Submitted' }) });
+          if (pending.length) notifs.push({ label: `${pending.length} audit${pending.length > 1 ? 's' : ''} awaiting approval`, link: auditsLink({ stage: 'completed' }) });
           if (overdue.length) notifs.push({ label: `${overdue.length} overdue issue${overdue.length > 1 ? 's' : ''}`, link: issuesLink({ status: 'Open', priority: 'Critical' }) });
           setItems(notifs);
         } else if (role === 'AUDITOR') {
-          const sopAudits = await api.sopAudits('?status=Planned').catch(() => []);
-          const planned = (sopAudits || []).filter(a => a.status === 'Planned');
+          const audits = await api.audits().catch(() => []);
+          const planned = (audits || []).filter(a => a.status === 'Planned');
           setItems(planned.length
-            ? [{ label: `${planned.length} planned audit${planned.length > 1 ? 's' : ''} assigned`, link: sopAuditsLink({ status: 'Planned' }) }]
+            ? [{ label: `${planned.length} planned audit${planned.length > 1 ? 's' : ''} assigned`, link: auditsLink({ stage: 'scheduled' }) }]
+            : []);
+        } else if (role === 'AUDITEE') {
+          const issues = await api.issues().catch(() => []);
+          const open = (issues || []).filter(i => i.status === 'Open' || i.status === 'In Progress');
+          setItems(open.length
+            ? [{ label: `${open.length} open issue${open.length > 1 ? 's' : ''} assigned to you`, link: '/my-issues' }]
             : []);
         } else if (role === 'STORE_MANAGER') {
           const issues = await api.issues().catch(() => []);

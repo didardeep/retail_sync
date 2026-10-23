@@ -41,18 +41,18 @@ test('progress counts answered', () => {
 test('previewScore uses the server rule', () => {
   const a = audit([
     r('1', 'A', 'Yes', { weight: 2 }),
-    r('2', 'A', 'Partial', { weight: 1 }),
+    r('2', 'A', 'Yes', { weight: 1 }),
     r('3', 'A', 'No', { weight: 1 }),
     r('4', 'A', 'NA', { weight: 5 }),
     r('5', 'A', null, { weight: 5 }),
   ]);
-  assert.equal(previewScore(a), 62.5);
+  assert.equal(previewScore(a), 75);
   const b = audit([
     r('1', 'A', 'Yes', { weight: 3 }),
-    r('2', 'A', 'Partial', { weight: 3 }),
+    r('2', 'A', 'No', { weight: 3 }),
     r('3', 'A', 'No', { weight: 1 }),
   ]);
-  assert.equal(previewScore(b), 64.29);
+  assert.equal(previewScore(b), 42.86);
 });
 
 test('previewScore treats a missing weight as 1 and returns null when nothing is scored', () => {
@@ -61,15 +61,16 @@ test('previewScore treats a missing weight as 1 and returns null when nothing is
   assert.equal(previewScore(audit([])), null);
 });
 
-test('problems lists unanswered and critical No', () => {
+test('problems lists unanswered and critical No that has no issue yet', () => {
   const a = audit([
     r('1', 'A', null),
     r('2', 'A', 'No', { is_critical: true }),
     r('3', 'A', 'No', { is_critical: false }),
     r('4', 'A', 'Yes', { is_critical: true }),
+    r('5', 'A', 'No', { is_critical: true, issue_id: 'ISS1' }),
   ]);
   const p = problems(a);
-  assert.deepEqual(p.map((x) => [x.kind, x.id, x.index]), [['unanswered', '1', 0], ['raises_issue', '2', 1]]);
+  assert.deepEqual(p.map((x) => [x.kind, x.id, x.index]), [['unanswered', '1', 0], ['critical_no', '2', 1]]);
 });
 
 test('firstUnansweredIndex follows the wizard order', () => {

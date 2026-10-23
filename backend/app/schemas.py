@@ -31,9 +31,18 @@ class LoginResponse(ORMBase):
 # --------------------------------------------------------------------------
 # Stores
 # --------------------------------------------------------------------------
+class BrandCreate(ORMBase):
+    name: str
+
+
+class BrandUpdate(ORMBase):
+    name: str | None = None
+
+
 class StoreCreate(ORMBase):
     id: str
     name: str
+    brand_id: str | None = None       # blank means the Unassigned brand
     city: str | None = None
     region: str | None = None
     format: str | None = None
@@ -48,6 +57,7 @@ class StoreCreate(ORMBase):
 
 class StoreUpdate(ORMBase):
     name: str | None = None
+    brand_id: str | None = None       # move the store to another brand
     city: str | None = None
     region: str | None = None
     format: str | None = None
@@ -155,6 +165,14 @@ class IssueCreate(ORMBase):
     due_date: str | None = None
 
 
+class RaiseIssueRequest(ORMBase):
+    """The auditor's choice to raise an issue on one answered question."""
+    assignee_id: str
+    description: str | None = None
+    priority: str = "Medium"
+    due_date: str | None = None
+
+
 class IssueUpdate(ORMBase):
     title: str | None = None
     description: str | None = None
@@ -199,44 +217,6 @@ class DataImportOut(ORMBase):
     data_section: str
     column_headers: Any
     imported_at: str | None = None
-
-
-class CashReconciliationOut(ORMBase):
-    id: str
-    store_id: str | None
-    cash_at_tills: float | None
-    cash_in_safe: float | None
-    cash_other_locations: float | None
-    physical_cash_total: float | None
-    cash_sales_as_per_report: float | None
-    float_or_imprest_amount: float | None
-    book_cash_total: float | None
-    difference: float | None
-    remarks: str | None
-    raw_data: Any
-
-
-class CashDepositPickupOut(ORMBase):
-    id: str
-    store_id: str | None
-    sales_date: str | None
-    cash_sales: float | None
-    cash_deposited: float | None
-    difference: float | None
-    cms_pickup_date: str | None
-    handover_delay_days: int | None
-    remarks: str | None
-
-
-class ExpiredInventoryOut(ORMBase):
-    id: str
-    store_id: str | None
-    article_code: str | None
-    article_description: str | None
-    expiry_date: str | None
-    review_date: str | None
-    quantity: float | None
-    mrp: float | None
 
 
 class StoreScoreOut(ORMBase):
@@ -306,10 +286,11 @@ class UserCreate(ORMBase):
     name: str
     email: str
     password: str
-    role: str                         # AUDIT_MANAGER | AUDITOR | STORE_MANAGER
+    role: str                         # AUDIT_MANAGER | AUDITOR | STORE_MANAGER | AUDITEE
     designation: str | None = None
     region: str | None = None
     store_id: str | None = None       # STORE_MANAGER only — assigns as store manager
+    store_ids: list[str] = Field(default_factory=list)   # AUDITEE only — stores linked to
 
 
 class UserUpdate(ORMBase):
@@ -318,84 +299,14 @@ class UserUpdate(ORMBase):
     designation: str | None = None
     region: str | None = None
     store_id: str | None = None       # reassign store for STORE_MANAGER
+    store_ids: list[str] | None = None  # replace the stores an AUDITEE is linked to
     active: bool | None = None
     password: str | None = None       # optional password reset
-# SOP audits
-# --------------------------------------------------------------------------
-class SopScoreIn(ORMBase):
-    criterion_id: str
-    score: float | None = Field(default=None, ge=0)
-    is_na: bool = False
-    comment: str | None = None
-    answered_at: str | None = None
-
-
-class SopAuditUpsert(ORMBase):
-    template_id: str
-    store_id: str
-    scores: list[SopScoreIn] = []
-    overall_remarks: str | None = None
-    client_created_at: str | None = None
-
-
-class SopSubmitIn(ORMBase):
-    overall_remarks: str | None = None
-    client_submitted_at: str | None = None
 
 
 # --------------------------------------------------------------------------
-# SOP tool editor (routers/sop_admin.py). Deliberately lenient: the rules live
-# in sop_versions.validate_tree so every problem comes back in one list.
+# Audit rescheduling
 # --------------------------------------------------------------------------
-class SopCriterionTreeIn(BaseModel):
-    key: str | None = None
-    title: str = ""
-    marks: float | None = None
-    max_text: str | None = None
-    avg_text: str | None = None
-    min_text: str | None = None
-    default_na: bool = False
-    requires_comment: bool = False
-    requires_photo: bool = False
-
-
-class SopSectionTreeIn(BaseModel):
-    key: str | None = None
-    code: str | None = None
-    name: str = ""
-    criteria: list[SopCriterionTreeIn] = []
-
-
-class SopTreeIn(BaseModel):
-    name: str = ""
-    min_rule: str = "zero"
-    sections: list[SopSectionTreeIn] = []
-
-
-class SopPublishIn(BaseModel):
-    tree: SopTreeIn
-    base_version: int
-    change_note: str | None = None
-
-
-# --------------------------------------------------------------------------
-# SOP scheduling and classic audit rescheduling
-# --------------------------------------------------------------------------
-class SopScheduleCreate(ORMBase):
-    template_code: str
-    store_id: str
-    auditor_id: str
-    scheduled_at: str
-    notes: str | None = None
-
-
-class SopSchedulePatch(ORMBase):
-    store_id: str | None = None
-    auditor_id: str | None = None
-    scheduled_at: str | None = None
-    notes: str | None = None
-
-
 class AuditPatchRequest(ORMBase):
     status: str | None = None
     auditor_id: str | None = None

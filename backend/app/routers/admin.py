@@ -6,14 +6,17 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user, hash_password, require_roles
 from ..db import get_db
-from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, Store, User
+from ..models import (
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_STORE_MANAGER, Store, User,
+    UserStore,
+)
 from ..schemas import UserCreate, UserUpdate
 from ..services import log_action
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 # Roles that the admin is allowed to create/manage (not ADMIN itself)
-_MANAGEABLE_ROLES = {ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER}
+_MANAGEABLE_ROLES = {ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, ROLE_AUDITEE}
 
 
 def _user_dict(user: User, db: Session) -> dict:
@@ -25,7 +28,26 @@ def _user_dict(user: User, db: Session) -> dict:
     else:
         d["store_id"] = None
         d["store_name"] = None
+    d["store_ids"] = []
+    d["store_names"] = []
+    if user.role == ROLE_AUDITEE:
+        stores = db.query(Store).join(UserStore, UserStore.store_id == Store.id).filter(
+            UserStore.user_id == user.id).order_by(Store.name).all()
+        d["store_ids"] = [s.id for s in stores]
+        d["store_names"] = [s.name for s in stores]
     return d
+
+
+def _link_stores(db: Session, auditee: User, store_ids: list[str]):
+    """Make `store_ids` exactly the stores this auditee is linked to."""
+    wanted = list(dict.fromkeys(store_ids))
+    found = {s.id for s in db.query(Store).filter(Store.id.in_(wanted)).all()} if wanted else set()
+    missing = [sid for sid in wanted if sid not in found]
+    if missing:
+        raise HTTPException(status_code=404, detail={"error": f"store not found: {missing[0]}"})
+    db.query(UserStore).filter(UserStore.user_id == auditee.id).delete(synchronize_session=False)
+    for sid in wanted:
+        db.add(UserStore(user_id=auditee.id, store_id=sid))
 
 
 @router.get("/users")
@@ -71,6 +93,9 @@ def create_user(
         if not store:
             raise HTTPException(status_code=404, detail={"error": "store not found"})
         store.manager_id = new_user.id
+
+    if body.role == ROLE_AUDITEE:
+        _link_stores(db, new_user, body.store_ids)
 
     log_action(db, user.id, "create_user", "user", new_user.id,
                {"email": email, "role": body.role})
@@ -120,6 +145,10 @@ def update_user(
             if not new_store:
                 raise HTTPException(status_code=404, detail={"error": "store not found"})
             new_store.manager_id = uid
+
+    # Replace the stores an auditee is linked to
+    if d.get("store_ids") is not None and target.role == ROLE_AUDITEE:
+        _link_stores(db, target, d["store_ids"])
 
     log_action(db, user.id, "update_user", "user", uid, {"fields": list(d.keys())})
     db.commit()

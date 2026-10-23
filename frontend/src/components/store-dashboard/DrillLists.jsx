@@ -10,7 +10,7 @@ import { prC, sColor, stC } from '@/utils/helpers';
 
 const ROW = 'block border-b border-border py-2.5 last:border-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:bg-accent/40';
 
-// Audit rows (from lib/auditRows mergeRows), each linking to the audit.
+// Audit rows (from lib/auditRows auditRows), each linking to the audit.
 export function AuditList({ rows, onNavigate }) {
   if (!rows.length) return null;
   return rows.map((r) => (

@@ -57,7 +57,7 @@ def reset_db():
 
     PostgreSQL: drops and recreates the public schema with CASCADE so all FK
     dependencies are removed in one shot — no ordering issues.
-    SQLite: disables FK enforcement, drops via metadata, then re-enables.
+    SQLite: disables FK enforcement, drops every existing table, then re-enables.
     """
     from . import models  # noqa: F401  (register mappers; models imports Base from here)
     if DATABASE_URL.startswith("postgresql"):
@@ -69,9 +69,14 @@ def reset_db():
         # SQLite: turn off FK enforcement so any table order works.
         with engine.begin() as conn:
             conn.execute(text("PRAGMA foreign_keys = OFF"))
-        Base.metadata.drop_all(bind=engine)
+        # Drop whatever tables exist, not just the ones in the models: tables
+        # removed from the models by a migration (e.g. SOP) must go too.
         with engine.begin() as conn:
-            conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+            names = [r[0] for r in conn.execute(text(
+                "SELECT name FROM sqlite_master WHERE type = 'table' "
+                "AND name NOT LIKE 'sqlite_%'"))]
+            for name in names:
+                conn.execute(text(f'DROP TABLE IF EXISTS "{name}"'))
             conn.execute(text("PRAGMA foreign_keys = ON"))
 
 

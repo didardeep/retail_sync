@@ -1,14 +1,12 @@
-// Pure helpers for the classic (Yes/Partial/No/NA) checklist audit wizard.
+// Pure helpers for the checklist (Yes/No/NA) audit wizard.
 // No React and no network here so the rules can be unit tested.
+import { isAuditorEditable as isEditableStatus } from './statuses.js'
 
-export const ANSWERS = ['Yes', 'Partial', 'No', 'NA']
+export const ANSWERS = ['Yes', 'No', 'NA']
 export const RISKS = ['', 'Low', 'Medium', 'High', 'Critical']
 
 // Same values as the server (backend/app/services compute_audit_score).
-const ANSWER_VALUE = { Yes: 1, Partial: 0.5, No: 0 }
-
-// Statuses in which the assigned auditor may still edit classic answers.
-export const CLASSIC_EDITABLE = ['Planned', 'Ongoing']
+const ANSWER_VALUE = { Yes: 1, No: 0 }
 
 const NO_PROCESS = 'General'
 
@@ -73,15 +71,16 @@ export function previewScore(audit) {
 }
 
 // What the review screen needs to flag. kind is 'unanswered' (blocks submit)
-// or 'raises_issue' (a critical question answered No).
+// or 'critical_no' (a critical question answered No with no issue raised yet;
+// issues are never raised automatically, the auditor decides).
 export function problems(audit) {
   const out = []
   for (const q of orderedQuestions(audit)) {
     const base = { index: q.index, id: q.id, code: q.question_code, text: q.question_text, process: q.process }
     if (!q.answer) {
       out.push({ kind: 'unanswered', ...base })
-    } else if (q.is_critical && q.answer === 'No') {
-      out.push({ kind: 'raises_issue', ...base })
+    } else if (q.is_critical && q.answer === 'No' && !q.issue_id) {
+      out.push({ kind: 'critical_no', ...base })
     }
   }
   return out
@@ -95,7 +94,7 @@ export function isAuditorEditable(audit, user) {
   if (!audit || !user) return false
   if (user.role !== 'AUDITOR') return false
   if (audit.auditor_id !== user.id) return false
-  return CLASSIC_EDITABLE.includes(audit.status)
+  return isEditableStatus(audit.status)
 }
 
 // Parse a ?q=<index> deep link; null when absent or out of range.

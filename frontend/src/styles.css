@@ -64,11 +64,6 @@ a{color:inherit;text-decoration:none;}
    handful of migrated pages still reference --green/--orange/--red/--text2/
    --text3 for a few inline spot-colors (chart lines, priority dots).
 
-   NOTE: pages/MyActions.jsx, ProposeQuestion.jsx, AuditExecution.jsx and
-   MyAudits.jsx are NOT wired into any route in App.jsx (dead/orphaned
-   prototype files) and still reference the removed classes -- harmless
-   since they never render, but worth knowing if you wire them up later.
-
    The .login-* block below is Didardeep's split-screen KPMG-branded login
    redesign (main, 2026-09-22) -- not yet migrated to Tailwind; Login.jsx
    still uses these classes directly. Re-migrating it is follow-up work,

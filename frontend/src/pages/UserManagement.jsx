@@ -6,6 +6,7 @@ const ROLES = [
   { value: 'AUDIT_MANAGER', label: 'Audit Manager' },
   { value: 'AUDITOR',       label: 'Auditor' },
   { value: 'STORE_MANAGER', label: 'Store Manager' },
+  { value: 'AUDITEE',       label: 'Auditee' },
 ];
 
 const ROLE_LABEL = {
@@ -13,6 +14,7 @@ const ROLE_LABEL = {
   AUDIT_MANAGER: 'Audit Manager',
   AUDITOR:       'Auditor',
   STORE_MANAGER: 'Store Manager',
+  AUDITEE:       'Auditee',
 };
 
 const ROLE_COLOR = {
@@ -20,11 +22,12 @@ const ROLE_COLOR = {
   AUDIT_MANAGER: 'bg-blue-100 text-blue-700',
   AUDITOR:       'bg-amber-100 text-amber-700',
   STORE_MANAGER: 'bg-emerald-100 text-emerald-700',
+  AUDITEE:       'bg-rose-100 text-rose-700',
 };
 
 const EMPTY_FORM = {
   name: '', email: '', password: '', role: 'AUDITOR',
-  designation: '', region: '', store_id: '',
+  designation: '', region: '', store_id: '', store_ids: [],
 };
 
 export default function UserManagement() {
@@ -63,6 +66,7 @@ export default function UserManagement() {
     am:    users.filter(u => u.role === 'AUDIT_MANAGER').length,
     aud:   users.filter(u => u.role === 'AUDITOR').length,
     sm:    users.filter(u => u.role === 'STORE_MANAGER').length,
+    ae:    users.filter(u => u.role === 'AUDITEE').length,
   };
 
   function openCreate() {
@@ -77,6 +81,7 @@ export default function UserManagement() {
       name: u.name, email: u.email, password: '',
       role: u.role, designation: u.designation || '',
       region: u.region || '', store_id: u.store_id || '',
+      store_ids: u.store_ids || [],
     });
     setModalOpen(true);
   }
@@ -95,6 +100,7 @@ export default function UserManagement() {
       const body = { ...form };
       if (!body.password) delete body.password;
       if (!body.store_id) delete body.store_id;
+      if (body.role !== 'AUDITEE') delete body.store_ids;
       if (editUser) {
         await api.updateUser(editUser.id, body);
         showToast('User updated');
@@ -126,17 +132,19 @@ export default function UserManagement() {
     { key: 'AUDIT_MANAGER', label: 'Audit Manager' },
     { key: 'AUDITOR',       label: 'Auditor' },
     { key: 'STORE_MANAGER', label: 'Store Manager' },
+    { key: 'AUDITEE',       label: 'Auditee' },
   ];
 
   return (
     <div className="space-y-5">
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
         {[
           { label: 'Total Users',     value: counts.total,  color: 'text-foreground' },
           { label: 'Audit Managers',  value: counts.am,     color: 'text-blue-600' },
           { label: 'Auditors',        value: counts.aud,    color: 'text-amber-600' },
           { label: 'Store Managers',  value: counts.sm,     color: 'text-emerald-600' },
+          { label: 'Auditees',        value: counts.ae,     color: 'text-rose-600' },
         ].map(c => (
           <div key={c.label} className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <div className={`text-2xl font-bold ${c.color}`}>{c.value}</div>
@@ -198,7 +206,9 @@ export default function UserManagement() {
                 <td className="px-4 py-2.5 text-muted-foreground">
                   {u.role === 'STORE_MANAGER'
                     ? (u.store_name || <span className="italic text-muted-foreground/60">No store</span>)
-                    : (u.region || '—')}
+                    : u.role === 'AUDITEE'
+                      ? ((u.store_names || []).join(', ') || <span className="italic text-muted-foreground/60">No stores</span>)
+                      : (u.region || '--')}
                 </td>
                 <td className="px-4 py-2.5">
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${u.active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
@@ -261,7 +271,7 @@ export default function UserManagement() {
                 <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Role *</label>
                 <select
                   value={form.role}
-                  onChange={e => setForm(f => ({ ...f, role: e.target.value, store_id: '' }))}
+                  onChange={e => setForm(f => ({ ...f, role: e.target.value, store_id: '', store_ids: [] }))}
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus:border-primary"
                 >
                   {ROLES.map(r => (
@@ -283,6 +293,30 @@ export default function UserManagement() {
                       <option key={s.id} value={s.id}>{s.name} ({s.city})</option>
                     ))}
                   </select>
+                </div>
+              )}
+
+              {form.role === 'AUDITEE' && (
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+                    Linked stores ({form.store_ids.length} selected)
+                  </label>
+                  <div className="max-h-40 overflow-y-auto rounded-lg border border-border bg-background p-2">
+                    {stores.map(s => (
+                      <label key={s.id} className="flex cursor-pointer items-center gap-2 py-0.5 text-[12.5px] text-foreground">
+                        <input
+                          type="checkbox"
+                          checked={form.store_ids.includes(s.id)}
+                          onChange={e => setForm(f => ({
+                            ...f,
+                            store_ids: e.target.checked ? [...f.store_ids, s.id] : f.store_ids.filter(x => x !== s.id),
+                          }))}
+                        />
+                        {s.name}{s.city ? ` (${s.city})` : ''}{s.brand ? ` - ${s.brand}` : ''}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">Issues from these stores can be assigned to this auditee.</p>
                 </div>
               )}
 

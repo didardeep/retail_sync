@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user, require_roles
+from ..auth import get_staff_user, require_roles
 from ..db import get_db
 from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, Observation, Store, User
 from ..schemas import ObservationCreate, ObservationUpdate
@@ -17,7 +17,7 @@ def list_observations(
     risk: str | None = None,
     status: str | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_staff_user),
 ):
     q = db.query(Observation)
     if user.role == ROLE_STORE_MANAGER:

@@ -18,10 +18,9 @@ from app.auth import hash_password  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import (  # noqa: E402
-    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, SopTemplate, Store, User,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_STORE_MANAGER, Brand,
+    Store, User, UserStore,
 )
-from app.routers import sop_audits  # noqa: E402
-from import_sop import import_sop  # noqa: E402
 
 PASSWORD = "test-password"
 
@@ -38,7 +37,6 @@ def _user(db, email, name, role):
 def client():
     """App started inside a context manager so the startup migrations run."""
     with TestClient(app) as c:
-        import_sop()
         db = SessionLocal()
         try:
             _user(db, "manager@test", "Manager", ROLE_AUDIT_MANAGER)
@@ -47,20 +45,24 @@ def client():
             _user(db, "auditor2@test", "Auditor Two", ROLE_AUDITOR)
             sm1 = _user(db, "sm1@test", "Store Manager One", ROLE_STORE_MANAGER)
             _user(db, "sm2@test", "Store Manager Two", ROLE_STORE_MANAGER)
+            ae1 = _user(db, "ae1@test", "Auditee One", ROLE_AUDITEE)
+            ae2 = _user(db, "ae2@test", "Auditee Two", ROLE_AUDITEE)
+            brand_a = Brand(id="BRA", name="Alpha Mart")
+            brand_b = Brand(id="BRB", name="Beta Bazaar")
+            db.add_all([brand_a, brand_b])
+            db.flush()
             db.add(Store(id="T001", name="Test Store 1", city="Delhi",
-                         region="North India", manager_id=sm1.id))
+                         region="North India", manager_id=sm1.id, brand_id=brand_a.id))
             db.add(Store(id="T002", name="Test Store 2", city="Pune",
-                         region="West India"))
+                         region="West India", brand_id=brand_b.id))
+            db.flush()
+            # ae1 is linked to T001 only; ae2 to T002 only.
+            db.add(UserStore(user_id=ae1.id, store_id="T001"))
+            db.add(UserStore(user_id=ae2.id, store_id="T002"))
             db.commit()
         finally:
             db.close()
         yield c
-
-
-@pytest.fixture(autouse=True)
-def _attachments_in_tmp(monkeypatch, tmp_path):
-    """Keep uploaded test photos out of backend/uploads."""
-    monkeypatch.setattr(sop_audits, "ATTACHMENT_FOLDER", tmp_path / "sop")
 
 
 @pytest.fixture(scope="session")
@@ -69,6 +71,7 @@ def tokens(client):
     for key, email in {
         "manager": "manager@test", "admin": "admin@test", "auditor1": "auditor1@test",
         "auditor2": "auditor2@test", "sm1": "sm1@test", "sm2": "sm2@test",
+        "ae1": "ae1@test", "ae2": "ae2@test",
     }.items():
         r = client.post("/api/auth/login", json={"email": email, "password": PASSWORD})
         assert r.status_code == 200, r.text
@@ -92,14 +95,6 @@ def user_ids(client):
         return {u.email: u.id for u in db.query(User).all()}
     finally:
         db.close()
-
-
-@pytest.fixture()
-def cash(db):
-    """The current Cash tool as a tree: {template, criteria: [ids...]}."""
-    tpl = db.query(SopTemplate).filter_by(code="CASH", is_current=True).one()
-    crit = [c for s in tpl.sections for c in s.criteria]
-    return {"template": tpl, "criteria": crit}
 
 
 def new_id():

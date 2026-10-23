@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, Save } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 
 import { api, loadSession } from '@/api/client';
 import { cn, fieldClass, labelClass } from '@/lib/utils';
@@ -15,13 +15,13 @@ import { useToast } from '@/components/Toast';
 import { ErrorNote, Loading } from '@/components/Loader';
 import AnswerButtons from '@/components/classic/AnswerButtons';
 import OnlineBanner from '@/components/classic/OnlineBanner';
-import { useOnline } from '@/lib/offline';
+import RaiseIssue from '@/components/classic/RaiseIssue';
+import { useOnline } from '@/lib/useOnline';
 
 const evidenceType = (url) => (/\.(mp4|mov|webm)$/i.test(url) ? 'video' : 'photo');
 
-// One checklist question per screen. Unlike the SOP wizard this is online
-// only: every change goes to the server first and is shown as saved only after
-// the server accepted it.
+// One checklist question per screen. This is online only: every change goes
+// to the server first and is shown as saved only after the server accepted it.
 export default function ClassicAuditWizard({ initialAudit }) {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -143,6 +143,15 @@ export default function ClassicAuditWizard({ initialAudit }) {
     return save(q.id, { answer: a });
   }
 
+  // Remember on the question that an issue now exists for it.
+  function markRaised(respId, issue) {
+    setAudit((prev) => ({
+      ...prev,
+      responses: prev.responses.map((r) => (
+        r.id === respId ? { ...r, issue_id: issue.id, issue_assignee: issue.assignee } : r)),
+    }));
+  }
+
   async function ready() {
     const pending = live.current.failed;
     if (pending && !(await save(pending.respId, {}))) return false;
@@ -178,7 +187,6 @@ export default function ClassicAuditWizard({ initialAudit }) {
 
   const { answered, total, percent } = progress(audit);
   const isLast = idx === questions.length - 1;
-  const criticalNo = q.is_critical && q.answer === 'No';
 
   return (
     <div ref={topRef} className="mx-auto max-w-2xl scroll-mt-4">
@@ -241,12 +249,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
         <div className="mt-4">
           <AnswerButtons value={q.answer} onPick={pickAnswer} disabled={saving} />
         </div>
-        {criticalNo && (
-          <div className="mt-2 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-2.5 text-sm text-red-900">
-            <AlertTriangle className="size-4 shrink-0" />
-            This will raise an issue for the store manager
-          </div>
-        )}
+        <RaiseIssue audit={audit} question={q} disabled={saving} onRaised={markRaised} />
 
         <div className="mt-4">
           <label className={labelClass} htmlFor="classic-remarks">Remarks</label>

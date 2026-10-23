@@ -1,12 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
 import { clearSession, loadSession, saveSession } from './api/client'
 import Layout from './components/Layout'
 import RoleProtectedRoute from './components/RoleProtectedRoute'
 import ToastProvider from './components/Toast'
-import { listUnsynced, startSync, stopSync } from './lib/offline'
-import { auditListRedirectTarget } from './lib/links'
 import { firstAllowedPage } from './lib/rolesMap'
 import Login from './pages/Login'
 
@@ -22,13 +20,9 @@ import Email from './pages/Email'
 import AuditLog from './pages/AuditLog'
 import StoreDashboard from './pages/StoreDashboard'
 import StoreChecklist from './pages/StoreChecklist'
-import StoreCompliance from './pages/StoreCompliance'
 import UserManagement from './pages/UserManagement'
 import AuditRoute from './components/classic/AuditRoute'
 import ClassicAuditReview from './pages/ClassicAuditReview'
-import SopAuditWizard from './pages/SopAuditWizard'
-import SopAuditReview from './pages/SopAuditReview'
-import SopToolEditor from './pages/SopToolEditor'
 
 // Old My Store bookmarks and links (/my-store?store=<id>) open the Dashboard
 // store view for admin and Audit Manager; the ?store key is kept.
@@ -36,13 +30,6 @@ function MyStoreRedirect() {
   const { search } = useLocation()
   const store = new URLSearchParams(search).get('store')
   return <Navigate to={store ? `/dashboard?store=${encodeURIComponent(store)}` : '/dashboard'} replace />
-}
-
-// The old Audit list URL (/sop-audits?...) now lives on the merged Audit page;
-// the query string (store, tool, status, view) is kept.
-function SopAuditsRedirect() {
-  const { search } = useLocation()
-  return <Navigate to={auditListRedirectTarget(search)} replace />
 }
 
 export default function App() {
@@ -53,21 +40,7 @@ export default function App() {
     setSession(result)
   }
 
-  // Auditors sync offline audits in the background while signed in.
-  const isAuditor = session?.user?.role === 'AUDITOR'
-  useEffect(() => {
-    if (!isAuditor) return undefined
-    startSync()
-    return stopSync
-  }, [isAuditor])
-
-  async function handleLogout() {
-    if (isAuditor) {
-      const pending = await listUnsynced().catch(() => [])
-      const msg = `${pending.length} audit(s) have changes that have not synced yet. ` +
-        'They stay safely on this device and sync when you sign in again. Sign out now?'
-      if (pending.length && !window.confirm(msg)) return
-    }
+  function handleLogout() {
     clearSession()
     setSession(null)
   }
@@ -94,25 +67,21 @@ export default function App() {
             <Route path="/dashboard" element={guarded('dashboard', <Dashboard />)} />
             <Route path="/scores" element={guarded('scores', <StoreAuditScores />)} />
             <Route path="/issues" element={guarded('issues', <Issues />)} />
+            <Route path="/my-issues" element={guarded('my-issues', <Issues />)} />
             <Route path="/my-dashboard" element={guarded('my-dashboard', <AuditorDashboard />)} />
             <Route path="/audits" element={guarded('audits', <Audit />)} />
             <Route path="/audits/:id" element={guarded('audits', <AuditRoute />)} />
             <Route path="/audits/:id/review" element={guarded('audits', <ClassicAuditReview />)} />
             <Route path="/scheduling" element={guarded('scheduling', <Scheduling />)} />
             <Route path="/questions" element={guarded('questions', <Questions />)} />
-            <Route path="/questions/sop-tools/:code" element={guarded('sop-tools', <SopToolEditor />)} />
             <Route path="/stores"element={guarded('stores', <Stores />)} />
             <Route path="/email" element={guarded('email', <Email />)} />
-            <Route path="/sop-audits" element={<SopAuditsRedirect />} />
-            <Route path="/sop-audits/:id" element={guarded('audits', <SopAuditWizard />)} />
-            <Route path="/sop-audits/:id/review" element={guarded('audits', <SopAuditReview />)} />
             <Route path="/audit-log" element={guarded('audit-log', <AuditLog />)} />
             <Route
               path="/my-store"
               element={isManager ? <MyStoreRedirect /> : guarded('my-store', <StoreDashboard />)}
             />
             <Route path="/checklist" element={guarded('checklist', <StoreChecklist />)} />
-            <Route path="/compliance" element={guarded('compliance', <StoreCompliance />)} />
             <Route path="/user-management" element={guarded('user-management', <UserManagement />)} />
             <Route path="*" element={<Navigate to={`/${firstAllowedPage(role)}`} replace />} />
           </Routes>

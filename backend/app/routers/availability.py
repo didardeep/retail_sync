@@ -3,7 +3,7 @@ import datetime as dt
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user, require_roles
+from ..auth import get_staff_user, require_roles
 from ..db import get_db
 from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, AuditorAvailability, User
 from ..schemas import AvailabilityCreate
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/availability", tags=["availability"])
 
 
 @router.get("")
-def list_availability(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_availability(db: Session = Depends(get_db), user: User = Depends(get_staff_user)):
     q = db.query(AuditorAvailability)
     if user.role == ROLE_AUDITOR:
         q = q.filter(AuditorAvailability.auditor_id == user.id)

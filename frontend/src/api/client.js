@@ -89,37 +89,16 @@ export const api = {
   auditLogs: () => request('/audit-logs'),
   // Structured data endpoints
   dataImports: () => request('/data-imports'),
-  cashReconciliations: (q = '') => request('/cash-reconciliations' + q),
-  cashDepositPickups: (q = '') => request('/cash-deposit-pickups' + q),
-  expiredInventory: (q = '') => request('/expired-inventory' + q),
   storeScores: (q = '') => request('/store-scores' + q),
-  // SOP audits (offline-first; see src/lib/offline)
-  sopTemplates: () => request('/sop-audits/templates'),
-  sopTemplate: (id) => request(`/sop-audits/templates/${id}`),
-  sopAudits: (q = '') => request('/sop-audits' + q),
-  sopAudit: (id) => request(`/sop-audits/${id}`),
-  sopSaveAudit: (id, body) => request(`/sop-audits/${id}`, { method: 'PUT', body }),
-  sopSubmit: (id, body = {}) =>
-    request(`/sop-audits/${id}/submit`, { method: 'POST', body }),
-  sopUploadAttachment: async (auditId, id, criterionId, blob) => {
-    const fd = new FormData()
-    fd.append('id', id)
-    fd.append('criterion_id', criterionId)
-    fd.append('file', blob, `${id}.jpg`)
-    const res = await send(`/sop-audits/${auditId}/attachments`, {
-      method: 'POST', headers: authHeaders(), body: fd,
-    })
-    if (!res.ok) await throwFor(res, 'Upload failed')
-    return res.json()
-  },
-  sopDeleteAttachment: (auditId, id) =>
-    request(`/sop-audits/${auditId}/attachments/${id}`, { method: 'DELETE' }),
-  // Attachments need the auth header, so <img src> can't point at them directly.
-  sopAttachmentBlob: async (url) => {
-    const res = await send(url.replace(/^\/api/, ''), { headers: authHeaders() })
-    if (!res.ok) await throwFor(res, 'Download failed')
-    return res.blob()
-  },
+  // Brands (a store belongs to exactly one) and the per-brand score trend
+  brands: () => request('/brands'),
+  createBrand: (body) => request('/brands', { method: 'POST', body }),
+  updateBrand: (id, body) => request(`/brands/${id}`, { method: 'PUT', body }),
+  brandTrend: (q = '') => request('/dashboard/brand-trend' + q),
+  // Auditees linked to a store, and the auditor's choice to raise an issue for one
+  storeAuditees: (storeId) => request(`/stores/${storeId}/auditees`),
+  raiseIssue: (auditId, respId, body) =>
+    request(`/audits/${auditId}/responses/${respId}/issue`, { method: 'POST', body }),
   // CRUD
   createStore: (body) => request('/stores', { method: 'POST', body }),
   updateStore: (id, body) => request(`/stores/${id}`, { method: 'PUT', body }),

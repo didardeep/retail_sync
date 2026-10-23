@@ -59,7 +59,7 @@ export default function ClassicAuditReview() {
   const editable = isAuditorEditable(audit, user) && !result;
   const found = problems(audit);
   const unanswered = found.filter((p) => p.kind === 'unanswered');
-  const raising = found.filter((p) => p.kind === 'raises_issue');
+  const raising = found.filter((p) => p.kind === 'critical_no');
   const { answered, total } = progress(audit);
   const preview = previewScore(audit);
   const questions = orderedQuestions(audit);
@@ -117,7 +117,7 @@ export default function ClassicAuditReview() {
           <div className="text-xs text-muted-foreground">Audit score</div>
           <div className="mt-4 text-sm text-foreground">
             {result.issues > 0
-              ? `${result.issues} ${result.issues > 1 ? 'issues were' : 'issue was'} raised for the store manager.`
+              ? `${result.issues} ${result.issues > 1 ? 'issues were' : 'issue was'} raised during this audit.`
               : 'No issues were raised.'}
           </div>
           <Button className="mt-5 h-11 w-full" onClick={() => navigate('/audits')}>Back to audits</Button>
@@ -177,12 +177,12 @@ export default function ClassicAuditReview() {
       {raising.length > 0 && (
         <div className="mb-4 overflow-hidden rounded-lg border bg-card shadow-sm">
           <div className="bg-muted px-4 py-2.5 text-[13px] font-bold text-foreground">
-            Critical questions answered No ({raising.length})
+            Critical questions answered No, no issue raised ({raising.length})
           </div>
           <div className="px-4 pb-1 pt-2 text-xs text-muted-foreground">
             {finished || !editable
-              ? 'These raised an issue for the store manager.'
-              : 'Submitting will raise an issue for the store manager for each of these.'}
+              ? 'No issue was raised for these.'
+              : 'Submitting does not raise issues by itself. Open a question and use Raise issue if it needs a follow-up.'}
           </div>
           {raising.map((p) => (
             <Row key={p.id} item={p} onClick={editable ? () => jumpTo(p.index) : undefined} />
@@ -227,7 +227,6 @@ export default function ClassicAuditReview() {
         <ModalTitle>Submit this audit?</ModalTitle>
         <p className="text-sm text-muted-foreground">
           Score {preview != null ? `${fmt(preview)}%` : '--'}.
-          {raising.length > 0 && ` ${raising.length} ${raising.length > 1 ? 'issues' : 'issue'} will be raised for the store manager.`}
           {' '}You will not be able to change it after submitting.
         </p>
         <ModalActions>

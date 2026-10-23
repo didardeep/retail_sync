@@ -1,5 +1,5 @@
 // Pure helpers behind the auditor Dashboard and the Audit page. They take rows
-// in the shape from lib/auditRows.js (mergeRows) and never touch the network.
+// in the shape from lib/auditRows.js (auditRows) and never touch the network.
 import { isOverdue } from './auditRows.js'
 
 const isDone = (r) => r.stage === 'completed' || r.stage === 'approved'
@@ -111,7 +111,7 @@ export function storeSummaries(stores, rows) {
   })
 }
 
-// Pick the row that best describes a tool at a store:
+// Pick the row that best describes a checklist at a store:
 // in progress, else scheduled, else the latest submitted.
 function pickRow(candidates) {
   const inProgress = candidates.filter((r) => r.stage === 'in_progress')
@@ -126,12 +126,10 @@ function pickRow(candidates) {
   return { row: null, state: 'not_started' }
 }
 
-function option(key, kind, name, refId, candidates) {
+function option(key, name, refId, candidates) {
   const { row, state } = pickRow(candidates)
   return {
     key,
-    kind,
-    type_label: kind === 'sop' ? 'Scored' : 'Checklist',
     name,
     ref_id: refId,
     state,
@@ -142,13 +140,9 @@ function option(key, kind, name, refId, candidates) {
   }
 }
 
-export function auditOptions(storeId, rows, templates, checklists) {
+export function auditOptions(storeId, rows, checklists) {
   const mine = rows.filter((r) => r.store_id === storeId)
   const opts = []
-  for (const t of templates || []) {
-    const cands = mine.filter((r) => r.kind === 'sop' && r.tool_code === t.code)
-    opts.push(option(`sop:${t.id}`, 'sop', t.name, t.id, cands))
-  }
   const best = new Map()
   for (const c of checklists || []) {
     if (c.is_active === false) continue
@@ -156,8 +150,8 @@ export function auditOptions(storeId, rows, templates, checklists) {
     if (!prev || (c.version || 1) > (prev.version || 1)) best.set(c.name, c)
   }
   for (const c of best.values()) {
-    const cands = mine.filter((r) => r.kind === 'legacy' && r.checklist_id === c.id)
-    opts.push(option(`legacy:${c.id}`, 'legacy', c.name, c.id, cands))
+    const cands = mine.filter((r) => r.checklist_id === c.id)
+    opts.push(option(c.id, c.name, c.id, cands))
   }
   return opts
 }

@@ -1,9 +1,5 @@
 """The unified PATCH /api/audits/{id} (manager or admin edit) and ADMIN access
-to the SOP endpoints. These cover the places where the assistant/admin work and
-the SOP scheduling work meet."""
-import datetime as dt
-
-from conftest import new_id
+to the manager pages."""
 
 
 def _classic_audit(client, tokens, user_ids, when, store="T001"):
@@ -69,39 +65,6 @@ def test_admin_can_cancel_a_planned_audit(client, tokens, user_ids):
     audit = _classic_audit(client, tokens, user_ids, "2033-02-08T09:00:00")
     r = client.post(f"/api/audits/{audit['id']}/cancel", headers=tokens["admin"])
     assert r.status_code == 200 and r.json()["status"] == "Cancelled"
-
-
-def test_admin_can_schedule_and_cancel_sop_audits(client, tokens, user_ids):
-    r = client.post("/api/sop-schedule", headers=tokens["admin"], json={
-        "template_code": "CASH", "store_id": "T001", "auditor_id": user_ids["auditor2@test"],
-        "scheduled_at": "2033-03-01T09:00:00"})
-    assert r.status_code in (200, 201), r.text
-    audit = r.json()
-    assert audit["status"] == "Planned"
-    # an admin can open any SOP audit
-    assert client.get(f"/api/sop-audits/{audit['id']}", headers=tokens["admin"]).status_code == 200
-    cancelled = client.post(f"/api/sop-schedule/{audit['id']}/cancel", headers=tokens["admin"])
-    assert cancelled.status_code == 200 and cancelled.json()["status"] == "Cancelled"
-
-
-def test_admin_can_use_the_dashboard_and_the_tool_editor(client, tokens):
-    assert client.get("/api/sop-dashboard", headers=tokens["admin"]).status_code == 200
-    tools = client.get("/api/sop-admin/tools", headers=tokens["admin"])
-    assert tools.status_code == 200
-    assert {t["code"] for t in tools.json()} >= {"CASH", "FMCG"}
-    # still closed to everyone else
-    for who in ("auditor1", "sm1"):
-        assert client.get("/api/sop-dashboard", headers=tokens[who]).status_code == 403
-        assert client.get("/api/sop-admin/tools", headers=tokens[who]).status_code == 403
-
-
-def test_admin_cannot_start_an_audit_as_an_auditor(client, tokens, db):
-    """Running an audit stays an auditor job (it is owned by the person doing it)."""
-    from app.models import SopTemplate
-    tpl = db.query(SopTemplate).filter_by(code="CASH", is_current=True).one()
-    r = client.put(f"/api/sop-audits/{new_id()}", headers=tokens["admin"], json={
-        "template_id": tpl.id, "store_id": "T001", "scores": []})
-    assert r.status_code == 403
 
 
 def test_chat_turns_table_is_created_by_the_migrations(db):

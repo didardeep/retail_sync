@@ -6,21 +6,21 @@ import {
   priorityBreakdown, quarterScore, scoreTrend, scoredResults, stageBreakdown, storeKpis,
   topOpenIssues,
 } from '../src/lib/storeStats.js';
-import { mergeRows } from '../src/lib/auditRows.js';
+import { auditRows } from '../src/lib/auditRows.js';
 
-const legacy = [
+const audits = [
   { id: 'L1', store_id: 'S1', scheduled_at: '2031-05-20T10:00:00', status: 'Planned' },
   { id: 'L2', store_id: 'S1', scheduled_at: '2031-04-30T10:00:00', submitted_at: '2031-04-30T18:00:00', status: 'Completed', score: 70 },
   { id: 'L3', store_id: 'S1', scheduled_at: '2031-03-01T10:00:00', status: 'Approved', score: 90 },
   { id: 'L4', store_id: 'S1', scheduled_at: '2031-03-05T10:00:00', status: 'Ongoing' },
   { id: 'L5', store_id: 'S2', scheduled_at: '2031-03-05T10:00:00', status: 'Completed', score: 50 },
 ];
-const sop = [
-  { id: 'a1', store_id: 'S1', scheduled_at: '2031-05-10T09:00:00', submitted_at: '2031-05-10T11:00:00', status: 'Submitted', percent: 85 },
-  { id: 'a2', store_id: 'S1', scheduled_at: '2031-05-11T09:00:00', status: 'Draft', percent: 40 },
+const more = [
+  { id: 'a1', store_id: 'S1', scheduled_at: '2031-05-10T09:00:00', submitted_at: '2031-05-10T11:00:00', status: 'Completed', score: 85 },
+  { id: 'a2', store_id: 'S1', scheduled_at: '2031-05-11T09:00:00', status: 'Ongoing' },
   { id: 'a3', store_id: 'S1', scheduled_at: '2031-05-12T09:00:00', status: 'Cancelled' },
 ];
-const rows = mergeRows(forStore(legacy, 'S1'), forStore(sop, 'S1'));
+const rows = auditRows(forStore([...audits, ...more], 'S1'));
 
 const issues = [
   { id: 'i1', store_id: 'S1', priority: 'Critical', status: 'Open', overdue: true },
@@ -76,8 +76,8 @@ test('scored results are submitted audits with a percent, oldest first', () => {
   assert.deepEqual(scoredResults(rows, 2).map((r) => r.id), ['L2', 'a1']);
 });
 
-test('audit path: scored goes to review, checklist to its page', () => {
-  assert.equal(auditPath(rows.find((r) => r.id === 'a1')), '/sop-audits/a1/review');
+test('audit path is the audit page', () => {
+  assert.equal(auditPath(rows.find((r) => r.id === 'a1')), '/audits/a1');
   assert.equal(auditPath(rows.find((r) => r.id === 'L2')), '/audits/L2');
 });
 

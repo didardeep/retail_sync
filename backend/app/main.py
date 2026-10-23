@@ -7,9 +7,8 @@ from fastapi.responses import JSONResponse
 
 from .db import init_db
 from .routers import (
-    admin, audit_log, audits, auth, availability, checklists, chat, dashboard,
-    data, issues, observations, questions, sop_admin, sop_audits, sop_dashboard,
-    sop_review, sop_schedule, stores, uploads,
+    admin, audit_log, audits, auth, availability, brands, checklists, chat, dashboard,
+    data, issues, observations, questions, stores, uploads,
 )
 
 
@@ -29,12 +28,10 @@ app.add_middleware(
 )
 
 for router in (
-    auth.router, admin.router, stores.router, questions.router, checklists.router,
+    auth.router, admin.router, brands.router, stores.router, questions.router, checklists.router,
     audits.router, availability.router, issues.router, observations.router,
     data.router, dashboard.router, uploads.router, audit_log.router,
     chat.router,
-    sop_audits.router, sop_dashboard.router, sop_schedule.router,
-    sop_admin.router, sop_review.router,
 ):
     app.include_router(router)
 

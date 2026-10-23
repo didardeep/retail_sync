@@ -10,3 +10,4 @@ backend/uploads/sop/
 # Agent scratch worktrees
 .claude/worktrees/
 .demo_baseline.json
+.claude/settings.local.json

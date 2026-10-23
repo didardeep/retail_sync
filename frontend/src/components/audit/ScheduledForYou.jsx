@@ -2,7 +2,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { isOverdue } from '@/lib/auditRows';
-import AuditTypeChip from './AuditTypeChip';
 
 // Scoped to the browser's local zone on purpose: scheduled times carry no zone.
 function whenScheduled(iso) {
@@ -14,7 +13,7 @@ function whenScheduled(iso) {
   });
 }
 
-// Top section: audits a manager scheduled for this auditor (both kinds).
+// Top section: audits a manager scheduled for this auditor.
 export default function ScheduledForYou({ rows, openingKey, onOpen }) {
   return (
     <section className="mb-5" aria-label="Scheduled for you">
@@ -38,16 +37,12 @@ export default function ScheduledForYou({ rows, openingKey, onOpen }) {
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-foreground">{r.store || 'Unknown store'}</div>
-                  <div className="mt-0.5 flex items-center gap-1.5">
-                    <AuditTypeChip label={r.kind === 'sop' ? 'Scored' : 'Checklist'} />
-                    <span className="truncate text-xs text-muted-foreground">{r.tool}</span>
-                  </div>
+                  <div className="mt-0.5 truncate text-xs text-muted-foreground">{r.tool}</div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
                     <span className={overdue ? 'font-semibold text-destructive' : 'text-foreground/80'}>
                       {whenScheduled(r.date)}
                     </span>
                     {overdue && <Badge variant="destructive">Overdue</Badge>}
-                    {r.sync_error && <span className="text-destructive">{r.sync_error}</span>}
                   </div>
                   {r.notes && <div className="mt-0.5 truncate text-xs text-muted-foreground">{r.notes}</div>}
                 </div>

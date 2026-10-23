@@ -5,6 +5,7 @@ import { stageOf } from './statuses.js'
 
 export const RISK_LEVELS = ['Critical', 'High', 'Medium', 'Low', 'Unrated']
 export const UNASSIGNED_REGION = 'Unassigned'
+export const RISK_COLORS = { Critical: '#9b1c1c', High: '#e02424', Medium: '#f59e0b', Low: '#0e9f6e', Unrated: '#9ca3af' }
 
 // Score buckets, evaluated top to bottom: each score lands in exactly one.
 // Lower bound inclusive, upper bound exclusive, except that exactly 90 belongs
@@ -107,12 +108,12 @@ export function rankScored(scored = []) {
   return [...scored].sort((a, b) => b.score - a.score || String(a.store.name).localeCompare(String(b.store.name)))
 }
 
-// Classic (checklist) audit counts per stage, matching the Audit page when it is
-// filtered with kind=legacy and the same stage.
-export function legacyStageCounts(audits = []) {
+// Audit counts per stage, matching the Audit page when it is filtered with the
+// same stage.
+export function auditStageCounts(audits = []) {
   const counts = { scheduled: 0, in_progress: 0, completed: 0, approved: 0 }
   for (const a of audits) {
-    const stage = stageOf('legacy', a.status || 'Planned')
+    const stage = stageOf(a.status || 'Planned')
     counts[stage] = (counts[stage] || 0) + 1
   }
   return counts

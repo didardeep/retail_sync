@@ -5,38 +5,24 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import Disclosure from '@/components/checklist/Disclosure';
-import SopToolCard from '@/components/checklist/SopToolCard';
 import {
-  classicKeys, filterSopTools, groupQuestions, normQuery, sopKeys, visibleQuestions,
+  classicKeys, groupQuestions, normQuery, visibleQuestions,
 } from '@/components/checklist/checklistLogic';
-
-const TABS = [
-  { id: 'sop', label: 'SOP audit tools' },
-  { id: 'classic', label: 'Checklist questions' },
-];
 
 export default function StoreChecklist() {
   const [questions, setQuestions] = useState([]);
-  const [tools, setTools] = useState([]);
-  const [toolsError, setToolsError] = useState(false);
-  const [tab, setTab] = useState('sop');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState({}); // key -> bool, all closed by default
 
   useEffect(() => {
-    const loadTools = api.sopTemplates()
-      .then(list => Promise.all((list || []).map(t => api.sopTemplate(t.id))))
-      .catch(() => { setToolsError(true); return []; });
-    Promise.all([api.questions().catch(() => []), loadTools]).then(([q, t]) => {
+    api.questions().catch(() => []).then(q => {
       setQuestions(visibleQuestions(q));
-      setTools(t);
       setLoading(false);
     });
   }, []);
 
   const searching = normQuery(search) !== '';
-  const shownTools = useMemo(() => filterSopTools(tools, search), [tools, search]);
   const groups = useMemo(() => groupQuestions(questions, search), [questions, search]);
 
   // While searching, everything that matched is shown open.
@@ -44,7 +30,7 @@ export default function StoreChecklist() {
   const toggle = key => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
 
   function setAll(open) {
-    const keys = tab === 'sop' ? sopKeys(shownTools) : classicKeys(groups);
+    const keys = classicKeys(groups);
     setExpanded(prev => {
       const next = { ...prev };
       for (const k of keys) next[k] = open;
@@ -62,24 +48,7 @@ export default function StoreChecklist() {
         This is what your store is audited on. Open a section to see what the auditor looks for.
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div role="tablist" className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5">
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.id}
-              onClick={() => setTab(t.id)}
-              className={cn(
-                'rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors',
-                tab === t.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
         <div className="flex flex-1 items-center justify-end gap-2">
           <button
             type="button"
@@ -98,7 +67,7 @@ export default function StoreChecklist() {
           </button>
           <div className="relative max-w-[280px] flex-1">
             <Input
-              placeholder={tab === 'sop' ? 'Search tools, sections, questions...' : 'Search questions, process...'}
+              placeholder="Search questions, process..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -106,19 +75,7 @@ export default function StoreChecklist() {
         </div>
       </div>
 
-      {tab === 'sop' ? (
-        shownTools.length === 0 ? (
-          <div className="flex h-[40vh] items-center justify-center text-muted-foreground">
-            {searching
-              ? 'No SOP questions match your search.'
-              : toolsError ? 'Could not load the SOP audit tools.' : 'No SOP audit tools are published yet.'}
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {shownTools.map(t => <SopToolCard key={t.id} tool={t} isOpen={isOpen} toggle={toggle} />)}
-          </div>
-        )
-      ) : groups.length === 0 ? (
+      {groups.length === 0 ? (
         <div className="flex h-[40vh] items-center justify-center text-muted-foreground">
           No questions match your search.
         </div>

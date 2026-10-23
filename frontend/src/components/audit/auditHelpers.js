@@ -1,7 +1,7 @@
 // Pure helpers for the auditor's Audit page. No React, no browser APIs, so
 // they can be tested with node:test.
 import { isOverdue } from '../../lib/auditRows.js'
-import { STAGES, isAuditorEditable, stageOf } from '../../lib/statuses.js'
+import { STAGES, stageOf } from '../../lib/statuses.js'
 
 // ---- URL keys -------------------------------------------------------------
 
@@ -20,12 +20,12 @@ export function normalizeView(view) {
 }
 
 // The history status filter works in stages. Old links carry raw statuses
-// (Planned, Draft, Submitted ...); map those onto the stage they belong to.
+// (Planned, Ongoing, Completed ...); map those onto the stage they belong to.
 export function normalizeStatus(status) {
   if (!status) return ''
   if (status === 'overdue') return status
   if (STAGES.some((s) => s.value === status)) return status
-  return stageOf('sop', status)
+  return stageOf(status)
 }
 
 // Rows a status filter keeps. `completed` also keeps approved rows (both are
@@ -80,73 +80,17 @@ export function statusChipLabel({ stage = '', status = '', view = '' } = {}) {
   return found ? found.label : ''
 }
 
-// ---- Wizard link for classic (checklist) audits ---------------------------
+// ---- Wizard link ----------------------------------------------------------
 
-export const classicAuditLink = (id) => `/audits/${encodeURIComponent(id)}`
-
-// ---- Merging SOP sources --------------------------------------------------
-
-// Server SOP audits (API shape) and on-device audits merged by id into the
-// API shape that lib/auditRows normalizeSop expects. The local copy wins for
-// state because it can be ahead of the server while offline. Extra fields
-// (submit_pending, sync_error, progress) ride along for the page to re-attach.
-// localProgress: { [auditId]: { answered, total } }
-export function mergeSopSources(local, remote, localProgress = {}) {
-  const byId = new Map()
-  for (const r of remote || []) byId.set(r.id, { ...r })
-  for (const a of local || []) {
-    const prev = byId.get(a.id) || {}
-    const summary = a.server_summary || null
-    byId.set(a.id, {
-      ...prev,
-      id: a.id,
-      store_id: a.store_id,
-      store: a.store_name || prev.store || null,
-      template: a.template_name || prev.template || null,
-      template_code: a.template_code || prev.template_code || null,
-      template_version: a.template_version || prev.template_version || null,
-      scheduled_at: a.scheduled_at || prev.scheduled_at || null,
-      notes: a.notes || prev.notes || null,
-      status: a.status,
-      auditor_id: a.auditor_id || prev.auditor_id || null,
-      score: summary ? summary.score : prev.score,
-      percent: summary ? summary.percent : prev.percent,
-      submit_pending: a.submit_pending,
-      sync_error: a.sync_error,
-      updated_at: a.updated_at,
-      progress: localProgress[a.id] || prev.progress || null,
-    })
-  }
-  return [...byId.values()]
-}
-
-// Re-attach per-audit extras that the shared row shape does not carry.
-export function attachExtras(rows, sopRaw, legacyRaw) {
-  const sop = new Map((sopRaw || []).map((r) => [r.id, r]))
-  const legacy = new Map((legacyRaw || []).map((r) => [r.id, r]))
-  return rows.map((r) => {
-    const raw = (r.kind === 'sop' ? sop : legacy).get(r.id) || {}
-    return {
-      ...r,
-      progress: r.progress || raw.progress || null,
-      checklist_id: r.checklist_id || raw.checklist_id || null,
-      submit_pending: !!raw.submit_pending,
-      sync_error: raw.sync_error || null,
-    }
-  })
-}
+export const auditLink = (id) => `/audits/${encodeURIComponent(id)}`
 
 export const isMine = (row, userId) => !!userId && row.auditor_id === userId
 
 // What the auditor's action button does for a row: start or resume while it is
-// theirs and still editable (scored: Planned or Draft; checklist: scheduled or
-// in progress), otherwise view.
+// theirs and still editable (scheduled or in progress), otherwise view.
 export function rowAction(row, userId) {
   if (!isMine(row, userId)) return 'view'
-  const editable = row.kind === 'legacy'
-    ? row.stage === 'scheduled' || row.stage === 'in_progress'
-    : isAuditorEditable(row.status)
-  if (!editable) return 'view'
+  if (row.stage !== 'scheduled' && row.stage !== 'in_progress') return 'view'
   return row.stage === 'scheduled' ? 'start' : 'resume'
 }
 

@@ -4,7 +4,7 @@ import { CalendarDays, CheckCircle2, ClipboardList, Eye, Loader2, Pencil, UserX,
 
 import { useToast } from '../components/Toast';
 import { api } from '../api/client';
-import { fetchAuditRows, scheduleApiFor, sopScheduleApi } from '../api/sopSchedule';
+import { scheduleApi } from '../api/scheduleApi';
 import { avC } from '../utils/helpers';
 import { cn, fieldClass, labelClass } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -15,20 +15,19 @@ import { Modal, ModalActions, Drawer } from '../components/Modal';
 import AuditRowStatus from '@/components/AuditRowStatus';
 import Tile from '@/components/Tile';
 import {
-  UNASSIGNED, distinctOptions, filterRows, formatDate, formatTime, kpiCounts,
-  mergeRows, scoreLabel,
+  UNASSIGNED, auditRows, distinctOptions, filterRows, formatDate, formatTime, kpiCounts,
+  scoreLabel,
 } from '@/lib/auditRows';
-import { auditsLink, sopAuditReviewLink } from '@/lib/links';
+import { auditsLink } from '@/lib/links';
 import { STAGES } from '@/lib/statuses';
 import { useUrlFilters } from '@/lib/useUrlFilters';
 
 const PER_PAGE = 8;
-const FILTER_KEYS = ['stage', 'kind', 'auditor', 'store', 'region', 'q', 'id', 'new'];
+const FILTER_KEYS = ['stage', 'auditor', 'store', 'region', 'q', 'id'];
 const AUDIT_TYPES = ['Checklist based Audit', 'Store Visit', 'Structured data analysis', 'Unstructured data analysis'];
-const KIND_LABEL = { legacy: 'Checklist audit', sop: 'SOP tool' };
 
 const EMPTY_FORM = {
-  kind: 'sop', tool: '', checklist_id: '', audit_type: AUDIT_TYPES[0],
+  checklist_id: '', audit_type: AUDIT_TYPES[0],
   store_id: '', auditor_id: '', date: '', time: '10:00', notes: '',
 };
 
@@ -59,11 +58,9 @@ function conflictText(c) {
 export default function Scheduling() {
   const toast = useToast();
   const { filters, setFilter, toggle, clearAll } = useUrlFilters(FILTER_KEYS);
-  const [legacy, setLegacy] = useState([]);
-  const [sop, setSop] = useState([]);
+  const [audits, setAudits] = useState([]);
   const [stores, setStores] = useState([]);
   const [auditors, setAuditors] = useState([]);
-  const [templates, setTemplates] = useState([]);
   const [checklists, setChecklists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -75,45 +72,33 @@ export default function Scheduling() {
   const [conflict, setConflict] = useState(null);
 
   async function reload() {
-    const [l, s] = await fetchAuditRows();
-    setLegacy(l || []);
-    setSop(s || []);
+    setAudits(await api.audits() || []);
   }
 
   useEffect(() => {
     Promise.all([
-      fetchAuditRows().catch(() => [[], []]),
+      api.audits().catch(() => []),
       api.stores().catch(() => []),
       api.users('AUDITOR').catch(() => []),
-      api.sopTemplates().catch(() => []),
       api.checklists().catch(() => []),
-    ]).then(([[l, s], st, us, tp, cl]) => {
-      setLegacy(l || []);
-      setSop(s || []);
+    ]).then(([au, st, us, cl]) => {
+      setAudits(au || []);
       setStores(st || []);
       setAuditors((us || []).filter((u) => u.active !== false));
-      setTemplates(tp || []);
       setChecklists((cl || []).filter((c) => c.is_active !== false));
       setLoading(false);
     });
   }, []);
 
-  // ?new=sop (or legacy) opens the form once the data is in, then leaves the URL clean.
-  useEffect(() => {
-    if (loading || !filters.new) return;
-    openAdd(filters.new === 'sop' ? 'sop' : 'legacy');
-    setFilter('new', '');
-  }, [loading, filters.new]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const rows = useMemo(() => mergeRows(legacy, sop), [legacy, sop]);
+  const rows = useMemo(() => auditRows(audits), [audits]);
   const openId = filters.id;
   // Tiles count everything except the stage filter, so they stay a way to switch stage.
   const forTiles = useMemo(
     () => filterRows(rows, {
-      kind: filters.kind, auditor: filters.auditor, store: filters.store,
+      auditor: filters.auditor, store: filters.store,
       region: filters.region, q: filters.q,
     }),
-    [rows, filters.kind, filters.auditor, filters.store, filters.region, filters.q],
+    [rows, filters.auditor, filters.store, filters.region, filters.q],
   );
   const counts = kpiCounts(forTiles);
   const filtered = useMemo(() => filterRows(forTiles, { stage: filters.stage }), [forTiles, filters.stage]);
@@ -142,22 +127,21 @@ export default function Scheduling() {
     if (!canCheck) { setConflict(null); return undefined; }
     let cancelled = false;
     const timer = setTimeout(() => {
-      sopScheduleApi.conflicts({
+      scheduleApi.conflicts({
         auditorId: form.auditor_id,
         date: form.date,
         storeId: editRow ? editRow.store_id : form.store_id,
         excludeId: editRow?.id,
-        kind: editRow?.kind || form.kind,
       }).then((res) => { if (!cancelled) setConflict(res.conflict); })
         .catch(() => { if (!cancelled) setConflict(null); });
     }, 300);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [canCheck, form.auditor_id, form.date, form.store_id, form.kind, editRow]);
+  }, [canCheck, form.auditor_id, form.date, form.store_id, editRow]);
 
-  function openAdd(kind = 'sop') {
+  function openAdd() {
     setEditRow(null);
     setConflict(null);
-    setForm({ ...EMPTY_FORM, kind });
+    setForm(EMPTY_FORM);
     setModal(true);
   }
 
@@ -165,7 +149,7 @@ export default function Scheduling() {
     setEditRow(r);
     setConflict(null);
     setForm({
-      ...EMPTY_FORM, kind: r.kind, tool: r.tool_code || '', store_id: r.store_id || '',
+      ...EMPTY_FORM, store_id: r.store_id || '',
       auditor_id: r.auditor_id || '', date: (r.date || '').slice(0, 10),
       time: (r.date || '').slice(11, 16) || '10:00', notes: r.notes || '',
     });
@@ -174,27 +158,16 @@ export default function Scheduling() {
   }
 
   async function save() {
-    const isSop = form.kind === 'sop';
     if (!form.store_id && !editRow) { toast.error('Select a store'); return; }
     if (!form.date) { toast.error('Select a date'); return; }
-    if (!editRow && isSop && (!form.tool || !form.auditor_id)) {
-      toast.error('Select the audit tool and the auditor');
-      return;
-    }
     const scheduled_at = `${form.date}T${form.time || '10:00'}:00`;
     setSaving(true);
     try {
       if (editRow) {
         const body = { scheduled_at, notes: form.notes };
         if (form.auditor_id) body.auditor_id = form.auditor_id;
-        await scheduleApiFor(editRow.kind).patch(editRow.id, body);
+        await scheduleApi.patch(editRow.id, body);
         toast.success('Schedule updated');
-      } else if (isSop) {
-        await sopScheduleApi.create({
-          template_code: form.tool, store_id: form.store_id,
-          auditor_id: form.auditor_id, scheduled_at, notes: form.notes || null,
-        });
-        toast.success('SOP audit scheduled');
       } else {
         await api.scheduleAudit({
           store_id: form.store_id, scheduled_at, auditor_id: form.auditor_id || null,
@@ -215,7 +188,7 @@ export default function Scheduling() {
   async function cancelRow(r) {
     if (!window.confirm(`Cancel the ${r.tool} audit at ${r.store}? It stays in the history as Cancelled.`)) return;
     try {
-      await scheduleApiFor(r.kind).cancel(r.id);
+      await scheduleApi.cancel(r.id);
       toast.success('Audit cancelled');
       setFilter('id', '');
       await reload();
@@ -224,7 +197,7 @@ export default function Scheduling() {
     }
   }
 
-  const hasFilters = FILTER_KEYS.some((k) => k !== 'id' && k !== 'new' && filters[k]);
+  const hasFilters = FILTER_KEYS.some((k) => k !== 'id' && filters[k]);
   const canChange = (r) => r.stage === 'scheduled';
 
   if (loading) {
@@ -249,13 +222,8 @@ export default function Scheduling() {
 
       <div className="mb-3.5 flex flex-wrap items-center gap-2">
         <div className="relative min-w-[180px] flex-1">
-          <Input placeholder="Search audit, tool, store or auditor..." value={filters.q} onChange={(e) => applyFilter('q', e.target.value)} />
+          <Input placeholder="Search audit, store or auditor..." value={filters.q} onChange={(e) => applyFilter('q', e.target.value)} />
         </div>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.kind} onChange={(e) => applyFilter('kind', e.target.value)} aria-label="Filter by type">
-          <option value="">All types</option>
-          <option value="legacy">Checklist audit</option>
-          <option value="sop">SOP tool</option>
-        </select>
         <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.stage} onChange={(e) => applyFilter('stage', e.target.value)} aria-label="Filter by status">
           <option value="">Status</option>
           {STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -274,7 +242,7 @@ export default function Scheduling() {
           {auditors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
         {hasFilters && <Button size="sm" variant="outline" onClick={() => { setPage(1); clearAll(); }}>Clear</Button>}
-        <Button size="sm" onClick={() => openAdd('sop')}>+ Schedule Audit</Button>
+        <Button size="sm" onClick={openAdd}>+ Schedule Audit</Button>
       </div>
 
       <div className="overflow-hidden rounded-[10px] border border-border bg-card">
@@ -289,10 +257,8 @@ export default function Scheduling() {
             {paged.map((s) => (
               <TableRow key={s.key}>
                 <TableCell>
-                  <div className="text-[12.5px] font-semibold">
-                    {s.tool}{s.version > 1 ? <span className="ml-1 text-[10px] font-normal text-muted-foreground">v{s.version}</span> : null}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">{KIND_LABEL[s.kind]}</div>
+                  <div className="text-[12.5px] font-semibold">{s.id}</div>
+                  <div className="text-[11px] text-muted-foreground">{s.tool}</div>
                 </TableCell>
                 <TableCell>
                   <div className="text-[12.5px] font-medium">{s.store}</div>
@@ -342,11 +308,11 @@ export default function Scheduling() {
             <button type="button" className="text-[15px] text-muted-foreground" onClick={() => setFilter('id', '')} aria-label="Close">&times;</button>
           </div>
           <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="break-all text-base font-bold text-foreground">{drawerItem.kind === 'legacy' ? drawerItem.id : drawerItem.tool}</div>
+            <div className="break-all text-base font-bold text-foreground">{drawerItem.id}</div>
             <AuditRowStatus row={drawerItem} />
           </div>
           <div className="mb-4 text-[13px] font-semibold text-foreground">
-            {drawerItem.tool}{drawerItem.version ? ` (v${drawerItem.version})` : ''} - {KIND_LABEL[drawerItem.kind]}
+            {drawerItem.tool}
           </div>
 
           <div className="mb-4">
@@ -379,11 +345,8 @@ export default function Scheduling() {
             {canChange(drawerItem) && <Button className="flex-1" onClick={() => openEdit(drawerItem)}>Edit Audit</Button>}
             {canChange(drawerItem) && <Button variant="outline" className="border-red-200 text-destructive" onClick={() => cancelRow(drawerItem)}>Cancel audit</Button>}
           </div>
-          <Link
-            className="text-[12.5px] font-medium text-primary"
-            to={drawerItem.kind === 'sop' ? sopAuditReviewLink(drawerItem.id) : auditsLink({ id: drawerItem.id })}
-          >
-            {drawerItem.kind === 'sop' ? 'Open audit' : 'View in Audit'}
+          <Link className="text-[12.5px] font-medium text-primary" to={auditsLink({ id: drawerItem.id })}>
+            View in Audit
           </Link>
         </>}
       </Drawer>
@@ -392,33 +355,10 @@ export default function Scheduling() {
       <Modal open={modal} onClose={() => setModal(false)} className="w-[620px]">
         <div className="mb-4 text-[15px] font-bold text-foreground">{editRow ? 'Edit Scheduled Audit' : 'Schedule New Audit'}</div>
         <div className="grid gap-3">
-          {!editRow && (
-            <div className="flex gap-1 rounded-lg border border-border p-1" role="group" aria-label="Audit kind">
-              {['sop', 'legacy'].map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setForm({ ...form, kind: k })}
-                  className={cn('flex-1 rounded-md px-3 py-1.5 text-[12.5px] font-medium', form.kind === k ? 'bg-primary text-primary-foreground' : 'text-foreground/80 hover:bg-accent')}
-                >
-                  {KIND_LABEL[k]}
-                </button>
-              ))}
-            </div>
-          )}
-
           {editRow ? (
             <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px]">
-              <div className="font-semibold">{editRow.tool}{editRow.version ? ` (v${editRow.version})` : ''}</div>
-              <div className="text-muted-foreground">{editRow.store} - {KIND_LABEL[editRow.kind]}</div>
-            </div>
-          ) : form.kind === 'sop' ? (
-            <div>
-              <label className={labelClass}>Audit tool <span className="text-destructive">*</span></label>
-              <select className={fieldClass} value={form.tool} onChange={(e) => setForm({ ...form, tool: e.target.value })}>
-                <option value="">Select an audit tool</option>
-                {templates.map((t) => <option key={t.code} value={t.code}>{t.name} - {t.total_marks} marks (v{t.version})</option>)}
-              </select>
+              <div className="font-semibold">{editRow.id}</div>
+              <div className="text-muted-foreground">{editRow.store} - {editRow.tool}</div>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -449,9 +389,9 @@ export default function Scheduling() {
               </div>
             )}
             <div>
-              <label className={labelClass}>Auditor{form.kind === 'sop' && !editRow ? <span className="text-destructive"> *</span> : null}</label>
+              <label className={labelClass}>Auditor</label>
               <select className={fieldClass} value={form.auditor_id} onChange={(e) => setForm({ ...form, auditor_id: e.target.value })}>
-                <option value="">{form.kind === 'sop' ? 'Select auditor' : 'Unassigned'}</option>
+                <option value="">Unassigned</option>
                 {auditors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </div>

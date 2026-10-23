@@ -6,7 +6,9 @@ export const ROLE_PAGES = {
   ADMIN: null,            // sees everything
   AUDIT_MANAGER: null,    // sees everything except the ADMIN-only pages below
   AUDITOR: ['my-dashboard', 'audits', 'email'],
-  STORE_MANAGER: ['my-store', 'checklist', 'compliance', 'issues', 'audits', 'email'],
+  STORE_MANAGER: ['my-store', 'checklist', 'issues', 'audits', 'email'],
+  // An auditee only follows up the issues assigned to them.
+  AUDITEE: ['my-issues', 'email'],
 }
 
 // 'audit-log', 'scheduling', 'stores', 'scores', 'dashboard'
@@ -17,11 +19,14 @@ const ADMIN_ONLY_PAGES = ['user-management']
 const AUDITOR_ONLY_PAGES = ['my-dashboard']
 // My Store is the store manager's own page; admin and manager use the Dashboard store selector.
 const STORE_MANAGER_ONLY_PAGES = ['my-store']
+// My Issues is the auditee's list of issues assigned to them.
+const AUDITEE_ONLY_PAGES = ['my-issues']
 
 export function canAccess(role, page) {
   if (ADMIN_ONLY_PAGES.includes(page)) return role === 'ADMIN'
   if (AUDITOR_ONLY_PAGES.includes(page)) return role === 'AUDITOR'
   if (STORE_MANAGER_ONLY_PAGES.includes(page)) return role === 'STORE_MANAGER'
+  if (AUDITEE_ONLY_PAGES.includes(page)) return role === 'AUDITEE'
   const allowed = ROLE_PAGES[role]
   if (allowed === null) return true
   if (!allowed) return false

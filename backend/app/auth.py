@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .db import get_db
-from .models import User
+from .models import ROLE_AUDITEE, User
 
 SECRET = os.getenv("JWT_SECRET", "dev-secret-change-me")
 ALGO = "HS256"
@@ -63,3 +63,11 @@ def require_roles(*allowed):
             )
         return user
     return dependency
+
+
+def get_staff_user(user: User = Depends(get_current_user)) -> User:
+    """Any signed-in user except an auditee. Auditees only work with the issues
+    assigned to them, so the audit, score and store data stays closed to them."""
+    if user.role == ROLE_AUDITEE:
+        raise HTTPException(status_code=403, detail={"error": "forbidden"})
+    return user

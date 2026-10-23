@@ -1,92 +1,50 @@
-import { useState, useEffect } from 'react';
-import { Line, Bar, Doughnut } from 'react-chartjs-2';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { Doughnut, Bar } from 'react-chartjs-2';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, loadSession } from '../api/client';
 import { Loading } from '@/components/Loader';
-import StorePicker from '@/components/StorePicker';
+import ScopePicker from '@/components/ScopePicker';
+import PowerBiSample from '@/components/PowerBiSample';
+import BrandTrendCard from '@/components/dashboard/BrandTrendCard';
+import ObservationsCard from '@/components/dashboard/ObservationsCard';
 import { StoreView } from '@/components/store-dashboard/StoreView';
 import { avC, sColor, sBadge, pbClass, prC, stC } from '../utils/helpers';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Drawer } from '../components/Modal';
-import { auditsLink, issuesLink, sopDashboardLink, storesLink, storeScorecardLink } from '@/lib/links';
+import { auditsLink, issuesLink, storesLink, storeScorecardLink } from '@/lib/links';
+import { QUARTERS } from '@/lib/storeStats';
 import {
-  UNASSIGNED_REGION, averageScore, bucketScoredStores, formatAverages, groupAuditsByRegion,
-  groupObservationsByRisk, legacyStageCounts, rankScored, scoreFor, scoreStores,
+  RISK_COLORS, UNASSIGNED_REGION, averageScore, bucketScoredStores, formatAverages, groupAuditsByRegion,
+  auditStageCounts, groupObservationsByRisk, rankScored, scoreStores,
 } from '@/lib/overviewStats';
-import SopDashboard from './SopDashboard';
+import {
+  inScope, resolveScope, scopeFromParams, scopeParams, scopeTitle, storesInScope, wording,
+} from '@/lib/dashboardScope';
 
-// `picker` is the store selector rendered by Dashboard; it sits in the header.
-function OverviewDashboard({ picker }) {
+// The sections for all brands or for one brand. Everything passed in is already
+// limited to the stores in scope, so every number here equals the list it opens.
+function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, issues, observations, audits, selectedQ }) {
   const navigate = useNavigate();
   const role = loadSession()?.user?.role;
-  const [obsTab, setObsTab] = useState('top');
+  const words = wording(scope, brandName);
   const [drillOpen, setDrillOpen] = useState(false);
   const [drillTitle, setDrillTitle] = useState('');
   const [drillList, setDrillList] = useState([]);
   const [drillLink, setDrillLink] = useState(null);
-  const [pbiOpen, setPbiOpen] = useState(false);
 
-  // API data
-  const [stores, setStores] = useState([]);
-  const [issues, setIssues] = useState([]);
-  const [observations, setObservations] = useState([]);
-  const [audits, setAudits] = useState([]);
-  const [scoreMap, setScoreMap] = useState({});
-  const [selectedQ, setSelectedQ] = useState('q4');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    Promise.all([
-      api.stores().catch(() => []),
-      api.issues().catch(() => []),
-      api.observations().catch(() => []),
-      api.audits().catch(() => []),
-      api.storeScores().catch(() => []),
-    ]).then(([s, i, o, a, scores]) => {
-      setStores(s || []);
-      setIssues(i || []);
-      setObservations(o || []);
-      setAudits(a || []);
-      const map = {};
-      for (const sc of (scores || [])) map[sc.store_id] = sc;
-      setScoreMap(map);
-      setLoading(false);
-    });
-  }, []);
-
-  // Everything below is derived from live data for the selected quarter, and
-  // every donut slice, legend entry and drill list comes from the same helper
-  // output (lib/overviewStats.js), so a number always equals its clicked list.
   const { scored, unscored } = scoreStores(stores, scoreMap, selectedQ);
   const ranked = rankScored(scored);
   const qLabel = selectedQ.toUpperCase();
 
-  // KPI tiles count classic (checklist) audits only and link to the Audit page
-  // with kind=legacy, so the tile number equals the number of rows shown there.
-  // Approved is its own tile because the Audit page keeps it as its own stage.
-  const stageCounts = legacyStageCounts(audits);
-
-  // Real trend: average of every store quarterly score (stores with no score are skipped).
-  const trendScores = ['q1', 'q2', 'q3', 'q4'].map(q => {
-    const avg = averageScore(Object.keys(scoreMap).map(id => scoreFor(scoreMap, id, q)).filter(v => v !== null));
-    return avg === null ? null : Math.round(avg);
-  });
-
-  const trendData = {
-    labels: ['Q1','Q2','Q3','Q4'],
-    datasets: [
-      { label:'Current', data:trendScores, borderColor:'#00338D', backgroundColor:'rgba(0,51,141,.08)', borderWidth:2.5, tension:.4, pointRadius:3, fill:true },
-      { label:'Benchmark', data:[90,90,90,90], borderColor:'#9ca3af', borderDash:[5,5], borderWidth:1.5, pointRadius:0, fill:false }
-    ]
-  };
-  const trendOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}}, scales:{y:{min:50,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}} };
+  // KPI tiles link to the Audit page filtered by stage, so the tile number
+  // equals the number of rows shown there. Approved is its own tile because
+  // the Audit page keeps it as its own stage.
+  const stageCounts = auditStageCounts(audits);
 
   // Risk distribution: observations grouped by their risk level (four levels
   // plus Unrated for blank/unrecognised text). The drawer lists the same group.
-  const RISK_COLORS = {Critical:'#9b1c1c',High:'#e02424',Medium:'#f59e0b',Low:'#0e9f6e',Unrated:'#9ca3af'};
   const riskD = groupObservationsByRisk(observations).map(g => ({...g, l:g.level, c:RISK_COLORS[g.level]}));
   const riskData = { labels:riskD.map(d=>d.l), datasets:[{data:riskD.map(d=>d.count),backgroundColor:riskD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
   const donutOpts = (cutout, onClick) => ({ responsive:true, maintainAspectRatio:false, cutout, plugins:{legend:{display:false},tooltip:{intersect:true,titleFont:{size:13},bodyFont:{size:13},padding:10,displayColors:true}}, onClick:(evt,els)=>{if(els.length && onClick) onClick(els[0].index);} });
@@ -123,12 +81,8 @@ function OverviewDashboard({ picker }) {
   const t5 = ranked.slice(0,5).map(toRow);
   const b5 = ranked.slice(-5).reverse().map(toRow);
 
-  // Top observations from DB
-  const topObservations = [...new Set(observations.map(o => o.observation))].slice(0,5);
-  const repeatObservations = issues.slice(0,5).map(i => i.title);
-
-  // Recent issues from DB
-  const recentIssues = issues.slice(0,3);
+  // Recent issues for the scope (the API returns them newest first).
+  const recentIssues = issues.slice(0, 5);
 
   // drill handlers
   const BADGE_OPERATING = 'bg-emerald-50 text-emerald-700';
@@ -144,7 +98,7 @@ function OverviewDashboard({ picker }) {
     const g = regD[idx];
     setDrillTitle(`${g.l} Audits (${g.count})`);
     setDrillList(g.items.map(a => ({ title:`${a.store}, ${a.city||''}`, badges:[{text:a.status,cls:sBadge(a.status)}], sub:a.scheduled_at, score:typeof a.score === 'number' ? a.score : null })));
-    setDrillLink(g.l === UNASSIGNED_REGION ? null : auditsLink({ region: g.l, kind: 'legacy' }));
+    setDrillLink(g.l === UNASSIGNED_REGION ? null : auditsLink({ region: g.l }));
     setDrillOpen(true);
   }
   function storeDrillItem(s, score) {
@@ -163,34 +117,9 @@ function OverviewDashboard({ picker }) {
     setDrillLink(storesLink({}));
     setDrillOpen(true);
   }
-
-  // PBI chart data
-  const pbiDonutData = { labels:['Eligible Return','Ineligible SKU','Late Return'], datasets:[{data:[252,138,3],backgroundColor:['#2f4b9e','#0e9f8e','#cbd5e1'],borderWidth:2,borderColor:'#fff'}] };
-  const pbiDonutOpts = { responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{legend:{position:'bottom',labels:{font:{size:9},boxWidth:8,padding:8}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.parsed}K`}}} };
-  const pbiBarData = { labels:['Eligible Return','Ineligible SKU','Late Return','Total'], datasets:[{data:[46.01,18.20,2.38,66.59],backgroundColor:['#0e9f8e','#0e9f8e','#0e9f8e','#1b3a6b'],borderRadius:3}] };
-  const pbiBarOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.y}M`}}}, scales:{y:{ticks:{font:{size:9},callback:v=>v+'M'}},x:{ticks:{font:{size:9}}}} };
-  const pbiHbarData = { labels:['Fresh','Grocery Non Food','BDF','Staples','Grocery Food','Apparels','General Merchandise','Others','CDIT'], datasets:[{data:[65148,53837,17202,3247,1203,153,103,38,1],backgroundColor:'#1b3a6b',borderRadius:2}] };
-  const pbiHbarOpts = { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{font:{size:8}}},y:{ticks:{font:{size:9}}}} };
-
-  if (loading) {
-    return <div className="flex h-[60vh] items-center justify-center text-muted-foreground">Loading dashboard data...</div>;
-  }
-
   return (
     <>
-      {/* Header */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
-        <div><h2 className="text-xl font-bold text-foreground">Audit Operations</h2><p className="mt-0.5 text-xs text-muted-foreground">Consolidated View &bull; {selectedQ.toUpperCase()}</p></div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {picker}
-          {['q1','q2','q3','q4'].map(q => (
-            <Button key={q} size="sm" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
-          ))}
-          <Button size="sm" onClick={() => setPbiOpen(true)}>Power BI (sample preview)</Button>
-        </div>
-      </div>
-
-      {/* KPIs: classic (checklist) audits; same rows as the Audit page with kind=legacy */}
+      {/* KPIs: same rows as the Audit page for the same stage */}
       <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
         {[
           { label: 'Planned', stage: 'scheduled', bg: '#e8eefa', icon: '\u{1F4CB}' },
@@ -198,21 +127,18 @@ function OverviewDashboard({ picker }) {
           { label: 'Completed', stage: 'completed', bg: '#ecfdf5', icon: '\u2705' },
           { label: 'Approved', stage: 'approved', bg: '#ecfdf5', icon: '\u2714' },
         ].map(k => (
-          <div key={k.stage} className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => navigate(auditsLink({ stage: k.stage, kind: 'legacy' }))}>
+          <div key={k.stage} className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => navigate(auditsLink({ stage: k.stage }))}>
             <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:k.bg}}>{k.icon}</div>
-            <div><div className="mb-0.5 text-[11px] text-muted-foreground">{k.label} <span className="text-[10px]">(checklist audits)</span></div><div className="text-2xl font-bold leading-none text-foreground">{stageCounts[k.stage]}</div></div>
+            <div><div className="mb-0.5 text-[11px] text-muted-foreground">{k.label}</div><div className="text-2xl font-bold leading-none text-foreground">{stageCounts[k.stage]}</div></div>
           </div>
         ))}
       </div>
 
       {/* Row 1: Trend + Risk */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
+        <BrandTrendCard title={words.trend} allBrands={allBrands} brands={brands} stores={stores} />
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Average store score by quarter<span className="text-[11px] font-normal text-muted-foreground">Benchmark: 90%</span></div>
-          <div className="relative h-[190px] w-full"><Line data={trendData} options={trendOpts}/></div>
-        </div>
-        <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">All Observations by Risk<span className="ml-2 text-[11px] font-normal text-muted-foreground">{observations.length} total</span></div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.risk}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{observations.length} total</span></div>
           <div className="flex h-[190px] items-center justify-center gap-4">
             <div className="relative h-[155px] w-[155px] shrink-0">
               {riskD.length ? <Doughnut data={riskData} options={donutOpts('62%', openRiskDrill)}/> : null}
@@ -230,13 +156,14 @@ function OverviewDashboard({ picker }) {
       </div>
 
       {/* Row 2: Store bars + Region */}
+      {/* Row 2: Store bars + Region */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">Store-wise Compliance Score (%)<span className="ml-2 text-[11px] font-normal text-muted-foreground">{qLabel}, top 7 of {scored.length} scored</span></div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.storeBars}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{qLabel}, top 7 of {scored.length} scored</span></div>
           {storeBarD.length ? <div className="relative h-[190px] w-full"><Bar data={storeBarData} options={storeBarOpts}/></div> : <div className="flex h-[190px] items-center justify-center text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
         </div>
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">Audit Distribution by Region<span className="ml-2 text-[11px] font-normal text-muted-foreground">{audits.length} checklist audits</span></div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.region}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{audits.length} checklist audits</span></div>
           <div className="flex h-[190px] items-center justify-center gap-3.5">
             <div className="relative h-[150px] w-[150px] shrink-0">
               {regD.length ? <Doughnut data={regData} options={donutOpts('58%', openRegionDrill)}/> : null}
@@ -257,9 +184,10 @@ function OverviewDashboard({ picker }) {
       </div>
 
       {/* Row 3: Format + Distribution */}
+      {/* Row 3: Format + Distribution */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">Store Format Performance (Avg. Score, {qLabel})</div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.format}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
           <div className="flex gap-4.5">
             <div className="flex-1">{fmtScored.length ? <Bar data={fmtData} options={fmtOpts} height={145}/> : <div className="flex h-[145px] items-center justify-center text-xs text-muted-foreground">No scored stores in {qLabel}</div>}</div>
             <div className="min-w-[155px] text-xs">
@@ -276,7 +204,7 @@ function OverviewDashboard({ picker }) {
           </div>
         </div>
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">Store Score Distribution ({qLabel})</div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.distribution}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
           <div className="flex h-[185px] items-center justify-center gap-3">
             <div className="relative h-[145px] w-[145px] shrink-0">
               {scored.length ? <Doughnut data={distData} options={donutOpts('58%', openDistDrill)}/> : null}
@@ -298,7 +226,7 @@ function OverviewDashboard({ picker }) {
       {/* Row 4: Scorecards + Observations */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">Store Scorecards</div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.topBottom}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
           <div className="flex gap-4.5">
             <div className="flex-1">
               <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider" style={{color:'var(--green)'}}>&#x1F3C6; Top 5 Stores</div>
@@ -328,27 +256,14 @@ function OverviewDashboard({ picker }) {
             </div>
           </div>
         </div>
-        <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">Repeat Observations</div>
-          <div className="mb-2 flex gap-1.5">
-            <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', obsTab==='top' && 'border-primary bg-primary text-primary-foreground')} onClick={() => setObsTab('top')}>Top 5 Observations</button>
-            <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', obsTab==='repeat' && 'border-primary bg-primary text-primary-foreground')} onClick={() => setObsTab('repeat')}>Top 5 Repeat</button>
-          </div>
-          {obsTab === 'top' && !topObservations.length && <div className="p-3 text-center text-xs text-muted-foreground">No observations yet</div>}
-          {obsTab === 'repeat' && !repeatObservations.length && <div className="p-3 text-center text-xs text-muted-foreground">No issues yet</div>}
-          {obsTab === 'top' && topObservations.map(o => (
-            <div key={o} className="flex items-start gap-1.5 border-b border-border py-1.5 text-xs text-foreground/80 last:border-0"><div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{background:'var(--orange)'}}/><div>{o}</div></div>
-          ))}
-          {obsTab === 'repeat' && repeatObservations.map(o => (
-            <div key={o} className="flex items-start gap-1.5 border-b border-border py-1.5 text-xs text-foreground/80 last:border-0"><div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{background:'var(--red)'}}/><div>{o}</div></div>
-          ))}
-        </div>
+        <ObservationsCard scope={scope} observations={observations} issues={issues} />
       </div>
 
-      {/* Row 5: Recent Issues */}
+      {/* Row 5: Recent issues */}
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div className="self-start rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">Recent Issues<span className="cursor-pointer text-[11px] font-normal text-muted-foreground" onClick={() => navigate('/issues')}>View all &rarr;</span></div>
+          <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">{words.issues}<span className="cursor-pointer text-[11px] font-normal text-muted-foreground" onClick={() => navigate('/issues')}>View all &rarr;</span></div>
           {recentIssues.length ? recentIssues.map((i, idx) => (
             <div key={i.id} className={cn('flex cursor-pointer items-center justify-between gap-2.5 py-2', idx < recentIssues.length - 1 && 'border-b border-border')} onClick={() => navigate(issuesLink({ id: i.id }))}>
               <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(i.assignee || 'U'))}>{(i.assignee||'U')[0]}</div>
@@ -363,6 +278,7 @@ function OverviewDashboard({ picker }) {
             </div>
           )) : <div className="p-5 text-center text-xs text-muted-foreground">No issues yet</div>}
         </div>
+      </div>
       </div>
 
       {/* Drill Drawer */}
@@ -385,149 +301,101 @@ function OverviewDashboard({ picker }) {
           </div>
         )) : <div className="p-5 text-center text-xs text-muted-foreground">No items in this category</div>}
       </Drawer>
-
-      {/* Power BI Modal */}
-      <div className={cn('fixed inset-0 z-[1000] items-center justify-center bg-black/40', pbiOpen ? 'flex' : 'hidden')} onClick={e => { if(e.target === e.currentTarget) setPbiOpen(false); }}>
-        <div className="w-[1020px] max-w-[96vw] overflow-hidden rounded-xl bg-card p-0 shadow-2xl" style={{height:640,maxHeight:'92vh'}}>
-          <div style={{display:'flex',height:'100%'}}>
-            <div style={{width:46,background:'#7a1f3d',display:'flex',flexDirection:'column',alignItems:'center',padding:'10px 0',flexShrink:0}}>
-              <div style={{color:'#fff',fontSize:16,marginBottom:14}}>&#x1F3E0;</div>
-              <div style={{width:30,height:22,background:'rgba(255,255,255,.15)',color:'#fff',fontSize:'8.5px',fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:4,marginBottom:6}}>KPI 1</div>
-              <div style={{width:30,height:22,background:'#fff',color:'#7a1f3d',fontSize:'8.5px',fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:4}}>KPI 2</div>
-            </div>
-            <div style={{flex:1,minWidth:0,background:'#f4f5f9',display:'flex',flexDirection:'column'}}>
-              <div style={{padding:'6px 14px 0',display:'flex',justifyContent:'flex-end',flexShrink:0}}>
-                <span style={{marginRight:'auto',fontSize:11,fontWeight:600,color:'#b45309'}}>SAMPLE DATA - illustrative preview, not connected to Power BI or your stores</span>
-                <span style={{cursor:'pointer',color:'var(--text3)',fontSize:15}} onClick={() => setPbiOpen(false)}>&#x2715;</span>
-              </div>
-              <div style={{padding:'0 16px 8px',flex:1,minHeight:0,display:'flex',flexDirection:'column'}}>
-                <div style={{background:'linear-gradient(90deg,#5a2a6e,#7d3a8c)',borderRadius:6,padding:'9px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:5,flexShrink:0}}>
-                  <span style={{color:'#fff',fontSize:15,fontWeight:700}}>Sales Return of Ineligible SKUs</span>
-                  <span style={{color:'#fff',fontSize:15}}>&rarr;</span>
-                </div>
-                <div style={{fontSize:10,color:'var(--text3)',padding:'4px 2px 8px',fontStyle:'italic',flexShrink:0}}>Objective: To enforce company return policies and reduce revenue leakage from unauthorized returns.</div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:8,flexShrink:0}}>
-                  {[{v:'393K',l:'Total Returns'},{v:'3009',l:'> 14 Days Returns'},{v:'138.12K',l:'Ineligible Returns'},{v:'141K',l:'Total Exception Returns'},{v:'35.93%',l:'Violation %'}].map(k => (
-                    <div key={k.l} style={{background:'linear-gradient(135deg,#0b6e63,#12a394)',borderRadius:6,padding:'8px 6px',textAlign:'center',color:'#fff'}}>
-                      <div style={{fontSize:16,fontWeight:800}}>{k.v}</div>
-                      <div style={{fontSize:'8.5px',opacity:.9,marginTop:1}}>{k.l}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{display:'grid',gridTemplateColumns:'1.4fr 1fr 1fr 1fr',gap:8,marginBottom:8,flexShrink:0}}>
-                  <div style={{background:'#fff',borderRadius:6,padding:'6px 12px'}}>
-                    <div style={{fontSize:10,fontWeight:600,color:'var(--text2)',marginBottom:4}}>Date Range</div>
-                    <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                      <span style={{background:'#00338D',color:'#fff',fontSize:'9.5px',padding:'3px 7px',borderRadius:4}}>4/1/2024 &#x1F4C5;</span>
-                      <span style={{background:'#00338D',color:'#fff',fontSize:'9.5px',padding:'3px 7px',borderRadius:4}}>12/31/2024 &#x1F4C5;</span>
-                    </div>
-                  </div>
-                  {['Division','Department','City'].map(f => (
-                    <div key={f} style={{background:'#fff',borderRadius:6,padding:'6px 12px'}}>
-                      <div style={{fontSize:10,fontWeight:600,color:'var(--text2)',marginBottom:4}}>{f}</div>
-                      <div style={{background:'#00338D',color:'#fff',fontSize:10,padding:'4px 9px',borderRadius:4,display:'flex',justifyContent:'space-between'}}>All <span>&#x2304;</span></div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1.3fr',gap:8,flex:1,minHeight:0}}>
-                  <div style={{background:'#fff',borderRadius:6,overflow:'hidden',display:'flex',flexDirection:'column'}}>
-                    <div style={{background:'linear-gradient(90deg,#5a2a6e,#7d3a8c)',color:'#fff',fontSize:11,fontWeight:700,textAlign:'center',padding:5,flexShrink:0}}>Distribution of Returns</div>
-                    <div style={{padding:6,flex:1,minHeight:0}}><div className="relative h-full w-full"><Doughnut data={pbiDonutData} options={pbiDonutOpts}/></div></div>
-                  </div>
-                  <div style={{background:'#fff',borderRadius:6,overflow:'hidden',display:'flex',flexDirection:'column'}}>
-                    <div style={{background:'linear-gradient(90deg,#5a2a6e,#7d3a8c)',color:'#fff',fontSize:11,fontWeight:700,textAlign:'center',padding:5,flexShrink:0}}>Distribution of Return Value</div>
-                    <div style={{padding:6,flex:1,minHeight:0}}><div className="relative h-full w-full"><Bar data={pbiBarData} options={pbiBarOpts}/></div></div>
-                  </div>
-                  <div style={{background:'#fff',borderRadius:6,overflow:'hidden',display:'flex',flexDirection:'column'}}>
-                    <div style={{background:'linear-gradient(90deg,#5a2a6e,#7d3a8c)',color:'#fff',fontSize:11,fontWeight:700,textAlign:'center',padding:5,flexShrink:0}}>Violations by Division</div>
-                    <div style={{padding:6,flex:1,minHeight:0}}><div className="relative h-full w-full"><Bar data={pbiHbarData} options={pbiHbarOpts}/></div></div>
-                  </div>
-                </div>
-              </div>
-              <div style={{display:'flex',gap:2,background:'#e5e2ea',padding:'4px 10px',fontSize:9,color:'var(--text3)',overflowX:'auto',whiteSpace:'nowrap',flexShrink:0}}>
-                <span style={{padding:'3px 7px'}}>&#x25A4; KPI 1 Drill-through</span>
-                <span style={{padding:'3px 7px'}}>KPI 2</span>
-                <span style={{padding:'3px 7px',borderBottom:'2px solid #0e9f6e',color:'#0e9f6e',fontWeight:700}}>KPI 2 - Summary</span>
-                <span style={{padding:'3px 7px'}}>KPI 2 Drill-through</span>
-                <span style={{padding:'3px 7px'}}>KPI 3</span>
-                <span style={{padding:'3px 7px'}}>Preview: KPI 3</span>
-                <span style={{padding:'3px 7px'}}>KPI 1 Summary</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </>
   );
 }
 
-const TABS = [
-  { value: 'overview', label: 'Overview' },
-  { value: 'sop', label: 'SOP Audits' },
-];
-
-// Dashboard & Analytics: the original overview plus the SOP audit scores.
-// The tab lives in the URL (?tab=sop) so links and the back button work.
-// The store selector (?store=<id>) swaps the chain-wide Overview for one
-// store's view; with ?tab=sop the SOP tab keeps its own store filter instead.
+// Dashboard & Analytics: one outline for every scope. The heading names what is
+// shown and the selector beside it picks all brands, one brand or one store
+// (?brand=<id> or ?store=<id>); the sections below follow the selection.
 export default function Dashboard() {
   const [params, setParams] = useSearchParams();
   const role = loadSession()?.user?.role;
-  const requested = params.get('tab');
-  const tab = TABS.some((t) => t.value === requested) ? requested : 'overview';
-  const storeId = params.get('store') || '';
-  const [stores, setStores] = useState(null);
+  const [data, setData] = useState(null);
+  const [selectedQ, setSelectedQ] = useState('q4');
+  const [pbiOpen, setPbiOpen] = useState(false);
 
   useEffect(() => {
-    api.stores().catch(() => []).then((s) => setStores(s || []));
+    Promise.all([
+      api.stores().catch(() => []),
+      api.brands().catch(() => []),
+      api.issues().catch(() => []),
+      api.observations().catch(() => []),
+      api.audits().catch(() => []),
+      api.storeScores().catch(() => []),
+    ]).then(([stores, brands, issues, observations, audits, scores]) => {
+      const scoreMap = {};
+      for (const sc of (scores || [])) scoreMap[sc.store_id] = sc;
+      setData({
+        stores: stores || [], brands: brands || [], issues: issues || [],
+        observations: observations || [], audits: audits || [], scoreMap,
+      });
+    });
   }, []);
 
-  function changeTab(value) {
-    // Filters belong to a tab, so switching tabs starts clean.
-    setParams(value === 'overview' ? {} : { tab: value }, { replace: true });
-  }
-
-  function changeStore(value) {
-    setParams(value ? { store: value } : {}, { replace: true });
-  }
-
-  const picker = (
-    <StorePicker stores={stores || []} value={storeId} onChange={changeStore} allowAll />
+  const stores = data?.stores;
+  const brands = data?.brands;
+  const scope = useMemo(
+    () => (data ? resolveScope(scopeFromParams(params), stores, brands) : { kind: 'all', id: '' }),
+    [data, params, stores, brands],
   );
+  const scoped = useMemo(() => (data ? storesInScope(stores, scope) : []), [data, stores, scope]);
 
-  if (tab === 'overview' && storeId) {
-    if (stores === null) return <Loading what="store" />;
-    const store = stores.find((s) => s.id === storeId);
-    if (store) {
-      return (
-        <div>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
-            <div>
-              <h2 className="text-xl font-bold text-foreground">Audit Operations</h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {store.name}{store.city ? `, ${store.city}` : ''}{store.region ? ` - ${store.region}` : ''}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link to={sopDashboardLink({ store: store.id })} className="text-xs text-primary hover:underline">
-                Open SOP scores for this store
-              </Link>
-              {picker}
-            </div>
-          </div>
-          <StoreView key={store.id} store={store} role={role} />
-        </div>
-      );
-    }
-  }
+  if (!data) return <Loading what="dashboard" />;
+
+  const brandName = brands.find((b) => b.id === scope.id)?.name || '';
+  const shownBrands = brands.filter((b) => scoped.some((s) => s.brand_id === b.id));
+  const store = scope.kind === 'store' ? scoped[0] : null;
 
   return (
-    <Tabs value={tab} onValueChange={changeTab} className="space-y-4">
-      <TabsList>
-        {TABS.map((t) => <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>)}
-      </TabsList>
-      <TabsContent value="overview" className="mt-0"><OverviewDashboard picker={picker} /></TabsContent>
-      <TabsContent value="sop" className="mt-0"><SopDashboard /></TabsContent>
-    </Tabs>
+    <div>
+      <div className="mb-4 rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-foreground">{scopeTitle(scope, stores, brands)}</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {store
+                ? `${store.brand || 'No brand'}${store.format ? ` - format ${store.format}` : ''}`
+                : `${scoped.length} ${scoped.length === 1 ? 'store' : 'stores'}${scope.kind === 'all' ? ` in ${shownBrands.length} ${shownBrands.length === 1 ? 'brand' : 'brands'}` : ''}`}
+              {' - '}{selectedQ.toUpperCase()}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <ScopePicker
+              brands={brands}
+              stores={stores}
+              scope={scope}
+              onChange={(next) => setParams(scopeParams(next), { replace: true })}
+            />
+            <div className="flex gap-1.5">
+              {QUARTERS.map((q) => (
+                <Button key={q} size="sm" className="h-11" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
+              ))}
+            </div>
+            <Button size="sm" className="h-11" variant="outline" onClick={() => setPbiOpen(true)}>Power BI (sample preview)</Button>
+          </div>
+        </div>
+      </div>
+
+      {store ? (
+        <StoreView key={store.id} store={store} role={role} quarter={selectedQ} />
+      ) : (
+        <OverviewBody
+          key={scope.kind + scope.id}
+          scope={scope}
+          brandName={brandName}
+          brands={shownBrands}
+          allBrands={brands}
+          stores={scoped}
+          scoreMap={data.scoreMap}
+          issues={inScope(data.issues, scoped)}
+          observations={inScope(data.observations, scoped)}
+          audits={inScope(data.audits, scoped)}
+          selectedQ={selectedQ}
+        />
+      )}
+
+      <PowerBiSample open={pbiOpen} onClose={() => setPbiOpen(false)} />
+    </div>
   );
 }

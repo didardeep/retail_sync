@@ -6,7 +6,6 @@ leave the rest of the app untouched.
 
     python seed.py            # create + seed
     python seed.py --reset    # drop everything first
-    python seed.py --no-sop-demo   # skip the demo SOP audits
 """
 import datetime as dt
 import json
@@ -14,19 +13,25 @@ import random
 import sys
 from pathlib import Path
 
-from import_sop import import_sop
-from seed_sop_demo import seed_sop_demo
 from app.auth import hash_password
 from app.db import SessionLocal, init_db, reset_db
 from app.models import (
-    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_STORE_MANAGER,
     Audit, AuditResponse, AuditorAvailability, CashReconciliation,
     CashDepositPickup, Checklist, ChecklistItem, DataImport,
-    ExpiredInventory, Issue, Observation, Question, Store, StoreScore, User,
+    ExpiredInventory, Issue, Observation, Question, Store, StoreScore, User, UserStore,
 )
+from app.services import get_or_create_brand
 
 SEED_FILE = Path(__file__).parent / "seed_data.json"
 DEFAULT_PASSWORD = "password123"
+
+# Placeholder auditees (people who follow up issues) and the stores they are linked to.
+AUDITEES = {
+    "Neha Kapoor": ["ST001", "ST002"],
+    "Karan Bedi": ["ST001", "ST003"],
+    "Divya Nair": ["ST004", "ST005"],
+}
 
 STATUS_MAP = {"Completed": "Completed", "In Progress": "Ongoing",
               "Scheduled": "Planned", "Assigned": "Planned"}
@@ -73,7 +78,7 @@ def seed():
     def add_user(name, role, designation=None, region=None):
         if (role, name) in users:
             return users[(role, name)]
-        prefix = {"AUDITOR": "aud", "STORE_MANAGER": "sm"}.get(role, "user")
+        prefix = {"AUDITOR": "aud", "STORE_MANAGER": "sm", "AUDITEE": "ae"}.get(role, "user")
         u = User(name=name, email=f"{prefix}.{slug(name)}@retail-chain.com", role=role,
                  password_hash=hash_password(DEFAULT_PASSWORD),
                  designation=designation, region=region)
@@ -97,12 +102,15 @@ def seed():
         add_user(n, ROLE_AUDITOR, "Field Auditor")
     for n in manager_names:
         add_user(n, ROLE_STORE_MANAGER, "Store Manager")
+    for n in AUDITEES:
+        add_user(n, ROLE_AUDITEE, "Store Auditee")
 
     # ---- stores ----------------------------------------------------------
     for st in data["stores"]:
         mgr = users.get((ROLE_STORE_MANAGER, st.get("manager")))
         s.add(Store(
-            id=st["id"], name=st["name"], city=st.get("city"),
+            id=st["id"], brand_id=get_or_create_brand(s, st.get("brand")).id,
+            name=st["name"], city=st.get("city"),
             region=st.get("region"), store_format=st.get("format"),
             store_type=st.get("type"), status=st.get("status", "Operating"),
             manager_id=mgr.id if mgr else None,
@@ -117,6 +125,14 @@ def seed():
             store_category=st.get("store_category"),
             meta={k: st[k] for k in ("s22", "s23", "s24", "s25", "s26") if k in st},
         ))
+    s.flush()
+
+    # ---- auditees linked to stores (many auditees per store) -------------
+    store_auditee = {}
+    for name, store_ids in AUDITEES.items():
+        for sid in store_ids:
+            s.add(UserStore(user_id=users[(ROLE_AUDITEE, name)].id, store_id=sid))
+            store_auditee.setdefault(sid, users[(ROLE_AUDITEE, name)])
     s.flush()
 
     # ---- question bank ---------------------------------------------------
@@ -275,10 +291,10 @@ def seed():
         for q in sample:
             answer = None
             if status == "Completed":
-                answer = random.choices(["Yes", "No", "Partial", "NA"],
-                                        weights=[70, 10, 15, 5])[0]
+                answer = random.choices(["Yes", "No", "NA"],
+                                        weights=[80, 15, 5])[0]
             elif status == "Ongoing":
-                answer = random.choice(["Yes", "Partial", None])
+                answer = random.choice(["Yes", "No", None])
             s.add(AuditResponse(audit_id=audit.id, question_id=q.id, answer=answer))
     s.flush()
 
@@ -318,7 +334,9 @@ def seed():
             title=iss["title"], description=iss.get("desc"),
             process=iss.get("proc"), sub_process=iss.get("sp"),
             priority=iss.get("pri", "Medium"), status=iss.get("status", "Open"),
-            assignee_id=store.manager_id if store else None,
+            # Issues at a store with an auditee go to that auditee.
+            assignee_id=(store_auditee[store.id].id if store and store.id in store_auditee
+                         else store.manager_id if store else None),
             raised_by_id=admin.id,
             due_date=(parse_dt(iss.get("due")) or dt.datetime.now()).date(),
             meta={"tags": iss.get("tags", []), "store_label": iss.get("store")},
@@ -348,12 +366,13 @@ def seed():
           f"{len(users) + 1} users")
     print(f"  Data: {cr_count} cash reconciliations, {cd_count} cash deposits, "
           f"{ei_count} expired inventory, {ss_count} store scores, {ob_count} observations")
-    print(f"  Issues: {len(data.get('issues', []))}")
+    print(f"  Issues: {len(data.get('issues', []))}, brands: {len({st.get('brand') for st in data['stores']})}")
     print(f"\nLogins (password: {DEFAULT_PASSWORD})")
     print("  Admin         : admin@retail-chain.com")
     print("  Audit Manager : am@retail-chain.com")
     for role, label in ((ROLE_AUDITOR, "Auditor      "),
-                        (ROLE_STORE_MANAGER, "Store Manager")):
+                        (ROLE_STORE_MANAGER, "Store Manager"),
+                        (ROLE_AUDITEE, "Auditee      ")):
         for u in users.values():
             if u.role == role:
                 print(f"  {label} : {u.email}")
@@ -371,6 +390,3 @@ if __name__ == "__main__":
         seed_from_excel()
     else:
         seed()
-    import_sop()
-    if "--no-sop-demo" not in sys.argv:
-        seed_sop_demo()

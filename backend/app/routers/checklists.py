@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user, require_roles
+from ..auth import get_staff_user, require_roles
 from ..db import get_db
 from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, Checklist, ChecklistItem, User
 from ..schemas import ChecklistCreate
@@ -11,13 +11,13 @@ router = APIRouter(prefix="/api/checklists", tags=["checklists"])
 
 
 @router.get("")
-def list_checklists(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_checklists(db: Session = Depends(get_db), user: User = Depends(get_staff_user)):
     rows = db.query(Checklist).order_by(Checklist.name, Checklist.version).all()
     return [c.to_dict() for c in rows]
 
 
 @router.get("/{cid}")
-def get_checklist(cid: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def get_checklist(cid: str, db: Session = Depends(get_db), user: User = Depends(get_staff_user)):
     c = db.get(Checklist, cid)
     if not c:
         raise HTTPException(status_code=404, detail={"error": "not found"})

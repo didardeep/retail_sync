@@ -1,70 +1,34 @@
-// One row shape for both kinds of audit (classic checklist audits from
-// /api/audits and SOP audits from /api/sop-audits), so Scheduling and Audit
-// Status can list, count and filter them together. Pure functions, no React.
+// One row shape for checklist audits from /api/audits, so Scheduling and the
+// Audit page can list, count and filter them. Pure functions, no React.
 //
-// Row: { key, kind, id, store_id, store, city, region, tool, tool_code,
-//        auditor, auditor_id, date, submitted_at, status, stage, score,
-//        percent, version, notes }
-// score/percent are null unless the audit really has one: a classic audit
-// carries a 0-100 score once completed; an SOP audit has a percent once it is
-// submitted. Nothing is ever estimated.
+// Row: { key, id, store_id, store, city, region, tool, auditor, auditor_id,
+//        date, submitted_at, status, stage, score, percent, notes }
+// score/percent are null unless the audit really has one: an audit carries a
+// 0-100 score once completed. Nothing is ever estimated.
 import { STAGES, stageOf } from './statuses.js'
 
 export const UNASSIGNED = 'unassigned'
 
-export function normalizeLegacy(audit) {
+export function normalizeAudit(audit) {
   const status = audit.status || 'Planned'
   const score = typeof audit.score === 'number' ? audit.score : null
   return {
-    key: `legacy:${audit.id}`,
+    key: audit.id,
     checklist_id: audit.checklist_id || null,
-    kind: 'legacy',
     id: audit.id,
     store_id: audit.store_id || null,
     store: audit.store || null,
     city: audit.city || null,
     region: audit.region || null,
     tool: audit.audit_type || 'Checklist based Audit',
-    tool_code: null,
     auditor: audit.auditor || null,
     auditor_id: audit.auditor_id || null,
     date: audit.scheduled_at || audit.submitted_at || null,
     submitted_at: audit.submitted_at || null,
     status,
-    stage: stageOf('legacy', status),
+    stage: stageOf(status),
     score,
     percent: score,
-    version: null,
-    notes: audit.notes || null,
-    progress: audit.progress || null,
-  }
-}
-
-export function normalizeSop(audit) {
-  const status = audit.status || 'Draft'
-  const stage = stageOf('sop', status)
-  // A Draft's percent is only a running total, so it is not shown as a score.
-  const final = stage === 'completed' || stage === 'approved'
-  const percent = final && typeof audit.percent === 'number' ? audit.percent : null
-  return {
-    key: `sop:${audit.id}`,
-    kind: 'sop',
-    id: audit.id,
-    store_id: audit.store_id || null,
-    store: audit.store || null,
-    city: audit.city || null,
-    region: audit.region || null,
-    tool: audit.template || audit.template_code || 'SOP audit',
-    tool_code: audit.template_code || null,
-    auditor: audit.auditor || null,
-    auditor_id: audit.auditor_id || null,
-    date: audit.scheduled_at || audit.submitted_at || null,
-    submitted_at: audit.submitted_at || null,
-    status,
-    stage,
-    score: final && typeof audit.score === 'number' ? audit.score : null,
-    percent,
-    version: audit.template_version || null,
     notes: audit.notes || null,
     progress: audit.progress || null,
   }
@@ -76,8 +40,8 @@ function time(row) {
 }
 
 // Newest first; rows without a date go last. Ties keep a stable order by key.
-export function mergeRows(legacy = [], sop = []) {
-  const rows = [...legacy.map(normalizeLegacy), ...sop.map(normalizeSop)]
+export function auditRows(audits = []) {
+  const rows = audits.map(normalizeAudit)
   return rows.sort((a, b) => {
     const ta = time(a)
     const tb = time(b)
@@ -111,12 +75,11 @@ export function isOverdue(row, now = new Date()) {
 
 // Filters are all optional; empty means "any". `auditor` may be the special
 // value 'unassigned'. `store` and `auditor` are ids; `region` is the name.
-export function filterRows(rows, { stage, kind, store, region, auditor, q, id } = {}) {
+export function filterRows(rows, { stage, store, region, auditor, q, id } = {}) {
   const needle = (q || '').trim().toLowerCase()
   return rows.filter((r) => {
     if (id && r.id !== id) return false
     if (stage && r.stage !== stage) return false
-    if (kind && r.kind !== kind) return false
     if (store && r.store_id !== store) return false
     if (region && r.region !== region) return false
     if (auditor === UNASSIGNED) {

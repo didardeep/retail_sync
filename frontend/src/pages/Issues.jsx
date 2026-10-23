@@ -43,7 +43,40 @@ function normalizeIssue(iss) {
     due: iss.due_date || '',
     ov: iss.overdue || false,
     actionTaken: iss.action_taken || '',
+    history: iss.meta?.history || [],
   };
+}
+
+// Where an issue came from: the question, the answer given and the audit.
+// Shown to everyone who opens an issue raised from an audit question.
+function IssueContext({ issue, showAudit }) {
+  if (!issue.question && !issue.history.length) return null;
+  return (
+    <div className="grid gap-2 rounded-lg border border-border bg-muted/30 p-3 text-[12px]">
+      {issue.question && (
+        <>
+          <div><span className="text-muted-foreground">Question: </span><span className="font-medium text-foreground">{issue.question}</span></div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span><span className="text-muted-foreground">Answer: </span><b>{issue.answer}</b></span>
+            {issue.remarks && <span><span className="text-muted-foreground">Auditor note: </span>{issue.remarks}</span>}
+            {showAudit && issue.aid && <span><span className="text-muted-foreground">Audit: </span><b>{issue.aid}</b>{issue.audit_date ? `, ${issue.audit_date.substring(0, 10)}` : ''}</span>}
+            {issue.raised_by && <span><span className="text-muted-foreground">Raised by: </span>{issue.raised_by}</span>}
+          </div>
+        </>
+      )}
+      {issue.history.length > 0 && (
+        <div>
+          <div className="mb-1 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Activity</div>
+          {issue.history.map((h, idx) => (
+            <div key={idx} className="border-t border-border py-1 first:border-0">
+              <b>{h.by}</b> set <b>{h.status}</b> <span className="text-muted-foreground">{(h.at || '').substring(0, 16).replace('T', ' ')}</span>
+              {h.reply ? <div className="text-foreground/80">{h.reply}</div> : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function Issues() {
@@ -66,18 +99,24 @@ export default function Issues() {
   });
   const [users, setUsers] = useState([]);
   const [saving, setSaving] = useState(false);
+  const editIssue = editId ? issues.find(x => x.id === editId) : null;
   // Store managers may only change status and action taken, so the form shows just those.
   const role = loadSession()?.user?.role;
   const isStoreManager = role === 'STORE_MANAGER';
+  // An auditee sees only the issues assigned to them and can reply and set the status,
+  // like a store manager, except that closing an issue stays with the audit manager.
+  const isAuditee = role === 'AUDITEE';
+  const isLimited = isStoreManager || isAuditee;
   const canDelete = role === 'ADMIN' || role === 'AUDIT_MANAGER';
-  const canCreate = role !== 'STORE_MANAGER';
+  const canCreate = !isLimited;
+  const statusChoices = isAuditee ? ['Open', 'In Progress', 'On Hold', 'Resolved'] : ['Open', 'In Progress', 'On Hold', 'Resolved', 'Closed'];
 
   useEffect(() => {
     Promise.all([
       api.issues().catch(() => []),
       api.stores().catch(() => []),
       // The users list is manager/admin only; store managers never pick an assignee.
-      isStoreManager ? Promise.resolve([]) : api.users().catch(() => []),
+      isLimited ? Promise.resolve([]) : api.users().catch(() => []),
     ]).then(([i, s, u]) => {
       const normalized = (i || []).map(normalizeIssue);
       setIssues(normalized);
@@ -162,7 +201,7 @@ export default function Issues() {
 
   async function saveIssue() {
     if (saving) return;
-    const body = isStoreManager
+    const body = isLimited
       ? { status: form.status, action_taken: form.actionTaken }
       : {
           title: form.title.trim(),
@@ -173,7 +212,7 @@ export default function Issues() {
           assignee_id: form.assigneeId || null,
           due_date: form.due || null,
         };
-    if (!isStoreManager) {
+    if (!isLimited) {
       if (!body.title) { toast.error('Please enter a title'); return; }
       if (!body.store_id) { toast.error('Please select a store'); return; }
     }
@@ -229,8 +268,8 @@ export default function Issues() {
       {/* Header */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Action Taken Tracking</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">Monitor, prioritise and resolve issues across stores</p>
+          <h2 className="text-xl font-bold text-foreground">{isAuditee ? 'My Issues' : 'Action Taken Tracking'}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">{isAuditee ? 'Issues assigned to you: reply with what you did and update the status' : 'Monitor, prioritise and resolve issues across stores'}</p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <Button size="sm" variant={view === 'table' ? 'default' : 'outline'} onClick={() => setIssueView('table')}>&#x1F4CB; Table</Button>
@@ -299,7 +338,9 @@ export default function Issues() {
               <div key={i.id} className="rounded-[10px] border border-border bg-card p-3.5" style={{ borderLeft: `4px solid ${stBorder(i.status)}` }}>
                 {/* top row: audit id + overdue + actions */}
                 <div className="mb-1.5 flex items-center justify-between">
-                  {i.aid ? (
+                  {i.aid && isAuditee ? (
+                    <span className="text-[11.5px] font-semibold text-muted-foreground">{i.aid}</span>
+                  ) : i.aid ? (
                     <button className="text-[11.5px] font-semibold text-primary hover:underline" onClick={e => { e.stopPropagation(); navigate(auditsLink({ id: i.aid })); }}>{i.aid}</button>
                   ) : <span />}
                   <div className="flex items-center gap-1.5">
@@ -390,23 +431,26 @@ export default function Issues() {
           <Button size="sm" onClick={saveIssue} disabled={saving}>{editId ? 'Save Changes' : 'Save'}</Button>
         </div>
 
-        {isStoreManager ? (
+        {isLimited ? (
           <div className="grid gap-3">
             <div className="text-[13px] font-semibold text-foreground">{form.title}</div>
             <div className="text-[11.5px] text-muted-foreground">{form.desc}</div>
+            {editIssue && <IssueContext issue={editIssue} showAudit />}
             <div>
               <label className={labelClass}>Status</label>
               <select className={fieldClass} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                <option>Open</option><option>In Progress</option><option>On Hold</option><option>Resolved</option><option>Closed</option>
+                {statusChoices.map(s => <option key={s}>{s}</option>)}
+                {!statusChoices.includes(form.status) && <option disabled>{form.status}</option>}
               </select>
             </div>
             <div>
-              <label className={labelClass}>Action taken</label>
-              <textarea className={cn(fieldClass, 'min-h-[72px] resize-y')} placeholder="What was done about this issue" value={form.actionTaken} onChange={e => setForm(f => ({ ...f, actionTaken: e.target.value }))} />
+              <label className={labelClass}>{isAuditee ? 'Your reply' : 'Action taken'}</label>
+              <textarea className={cn(fieldClass, 'min-h-[72px] resize-y')} placeholder={isAuditee ? 'What you did about this issue' : 'What was done about this issue'} value={form.actionTaken} onChange={e => setForm(f => ({ ...f, actionTaken: e.target.value }))} />
             </div>
           </div>
         ) : (
           <div className="grid gap-3">
+            {editIssue && <IssueContext issue={editIssue} showAudit />}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>Title <span className="text-destructive">*</span></label>

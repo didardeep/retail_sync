@@ -6,33 +6,31 @@ import {
   nextUp, progressPercent, statusBreakdown, storeLatestScores,
   recentSubmitted, storeSummaries,
 } from '../src/lib/auditorStats.js';
-import { mergeRows } from '../src/lib/auditRows.js';
+import { auditRows } from '../src/lib/auditRows.js';
 
 const NOW = new Date(2031, 4, 15, 12, 0, 0); // 15 May 2031, local
 
-const legacy = [
-  { id: 'L1', store_id: 'S1', store: 'Alpha', checklist_id: 'CL1', audit_type: 'Surprise',
+const audits = [
+  { id: 'L1', store_id: 'S1', store: 'Alpha', checklist_id: 'CL9', audit_type: 'Surprise',
     scheduled_at: '2031-05-20T10:00:00', status: 'Planned' },
-  { id: 'L2', store_id: 'S1', store: 'Alpha', checklist_id: 'CL1', audit_type: 'Surprise',
+  { id: 'L2', store_id: 'S1', store: 'Alpha', checklist_id: 'CL9', audit_type: 'Surprise',
     scheduled_at: '2031-04-30T10:00:00', submitted_at: '2031-04-30T18:00:00',
     status: 'Completed', score: 70 },
   { id: 'L3', store_id: 'S2', store: 'Beta', checklist_id: 'CL2',
     scheduled_at: '2031-05-01T10:00:00', status: 'Cancelled' },
-];
-const sop = [
-  { id: 'a1', store_id: 'S1', store: 'Alpha', template: 'Cash', template_code: 'CASH',
+  { id: 'L4', store_id: 'S1', store: 'Alpha', checklist_id: 'CL9',
     scheduled_at: '2031-05-10T09:00:00', status: 'Planned' },
-  { id: 'a2', store_id: 'S2', store: 'Beta', template: 'Cash', template_code: 'CASH',
-    scheduled_at: '2031-05-12T09:00:00', status: 'Draft', progress: { answered: 3, total: 4 } },
-  { id: 'a3', store_id: 'S2', store: 'Beta', template: 'FMCG', template_code: 'FMCG',
+  { id: 'L5', store_id: 'S2', store: 'Beta', checklist_id: 'CL9',
+    scheduled_at: '2031-05-12T09:00:00', status: 'Ongoing', progress: { answered: 3, total: 4 } },
+  { id: 'L6', store_id: 'S2', store: 'Beta', checklist_id: 'CL3',
     scheduled_at: '2031-05-02T09:00:00', submitted_at: '2031-05-01T23:59:59',
-    status: 'Submitted', percent: 90, score: 9 },
-  { id: 'a4', store_id: 'S1', store: 'Alpha', template: 'FMCG', template_code: 'FMCG',
-    submitted_at: '2031-06-01T00:00:00', status: 'Approved', percent: 81, score: 8 },
-  { id: 'a5', store_id: 'S3', store: 'Gamma', template: 'Cash', template_code: 'CASH',
+    status: 'Completed', score: 90 },
+  { id: 'L7', store_id: 'S1', store: 'Alpha', checklist_id: 'CL9',
+    submitted_at: '2031-06-01T00:00:00', status: 'Approved', score: 81 },
+  { id: 'L8', store_id: 'S3', store: 'Gamma', checklist_id: 'CL3',
     scheduled_at: '2031-05-15T08:00:00', status: 'Planned' },
 ];
-const rows = mergeRows(legacy, sop);
+const rows = auditRows(audits);
 
 test('progressPercent', () => {
   assert.equal(progressPercent({ progress: { answered: 1, total: 3 } }), 33);
@@ -46,13 +44,13 @@ test('progressPercent', () => {
 test('auditorKpis counts stages, overdue, average and month', () => {
   const k = auditorKpis(rows, NOW);
   assert.equal(k.total, 8);
-  assert.equal(k.scheduled, 3); // L1, a1, a5
+  assert.equal(k.scheduled, 3); // L1, L4, L8
   assert.equal(k.in_progress, 1);
-  assert.equal(k.completed, 3); // L2, a3, a4
-  assert.equal(k.cancelled, 1); // classic Cancelled
-  assert.equal(k.overdue, 1); // a1 only; a5 is today
+  assert.equal(k.completed, 3); // L2, L6, L7
+  assert.equal(k.cancelled, 1); // L3
+  assert.equal(k.overdue, 1); // L4 only; L8 is today
   assert.equal(k.avg_percent, 80.3); // (70 + 90 + 81) / 3
-  assert.equal(k.audits_this_month, 1); // a3 on 1 May; L2 is April, a4 is June
+  assert.equal(k.audits_this_month, 1); // L6 on 1 May; L2 is April, L7 is June
   assert.equal(k.stores_this_month, 1);
 });
 
@@ -64,20 +62,20 @@ test('auditorKpis with no rows', () => {
 });
 
 test('nextUp is the earliest scheduled row, overdue first', () => {
-  assert.equal(nextUp(rows, NOW).id, 'a1');
-  assert.equal(nextUp(rows.filter((r) => r.id !== 'a1'), NOW).id, 'a5');
+  assert.equal(nextUp(rows, NOW).id, 'L4');
+  assert.equal(nextUp(rows.filter((r) => r.id !== 'L4'), NOW).id, 'L8');
   assert.equal(nextUp([], NOW), null);
   assert.equal(nextUp(rows.filter((r) => r.stage !== 'scheduled'), NOW), null);
 });
 
 test('finishList returns in-progress rows', () => {
-  assert.deepEqual(finishList(rows).map((r) => r.id), ['a2']);
+  assert.deepEqual(finishList(rows).map((r) => r.id), ['L5']);
   assert.equal(finishList(rows)[0].progress.answered, 3);
 });
 
 test('recentSubmitted sorts by submitted_at and honours the limit', () => {
-  assert.deepEqual(recentSubmitted(rows).map((r) => r.id), ['a4', 'a3', 'L2']);
-  assert.deepEqual(recentSubmitted(rows, 2).map((r) => r.id), ['a4', 'a3']);
+  assert.deepEqual(recentSubmitted(rows).map((r) => r.id), ['L7', 'L6', 'L2']);
+  assert.deepEqual(recentSubmitted(rows, 2).map((r) => r.id), ['L7', 'L6']);
 });
 
 test('storeSummaries orders scheduled, then in progress, then by name', () => {
@@ -101,37 +99,30 @@ test('storeSummaries orders scheduled, then in progress, then by name', () => {
   assert.equal(out[3].next_date, null);
 });
 
-test('auditOptions builds one option per tool and active latest checklist', () => {
-  const templates = [
-    { id: 't1', code: 'CASH', name: 'Cash', version: 1 },
-    { id: 't2', code: 'FMCG', name: 'FMCG', version: 1 },
-  ];
+test('auditOptions builds one option per active latest checklist', () => {
   const checklists = [
     { id: 'CL1', name: 'Store visit', version: 1, is_active: true },
     { id: 'CL9', name: 'Store visit', version: 2, is_active: true },
     { id: 'CL2', name: 'Old', version: 1, is_active: false },
+    { id: 'CL3', name: 'Cash', version: 1, is_active: true },
   ];
-  const s2 = auditOptions('S2', rows, templates, checklists);
-  assert.deepEqual(s2.map((o) => o.key), ['sop:t1', 'sop:t2', 'legacy:CL9']);
+  const s2 = auditOptions('S2', rows, checklists);
+  assert.deepEqual(s2.map((o) => o.key), ['CL9', 'CL3']);
   assert.equal(s2[0].state, 'in_progress');
   assert.equal(s2[0].action, 'resume');
   assert.equal(s2[0].progress, 75);
   assert.equal(s2[1].state, 'submitted');
   assert.equal(s2[1].action, 'start');
   assert.equal(s2[1].score_percent, 90);
-  assert.equal(s2[1].row.id, 'a3');
-  assert.equal(s2[2].state, 'not_started');
-  assert.equal(s2[2].row, null);
-  assert.equal(s2[2].type_label, 'Checklist');
+  assert.equal(s2[1].row.id, 'L6');
 
-  const s1 = auditOptions('S1', rows, templates, [checklists[0]]);
-  assert.equal(s1[0].state, 'scheduled');
+  const s1 = auditOptions('S1', rows, checklists);
+  assert.equal(s1[0].state, 'scheduled'); // L4 planned beats the submitted L2 and L7
   assert.equal(s1[0].action, 'start');
-  assert.equal(s1[0].ref_id, 't1');
-  assert.equal(s1[0].type_label, 'Scored');
-  assert.equal(s1[1].row.id, 'a4');
-  assert.equal(s1[2].state, 'scheduled'); // L1 planned beats L2 submitted
-  assert.equal(s1[2].row.id, 'L1');
+  assert.equal(s1[0].ref_id, 'CL9');
+  assert.equal(s1[0].row.id, 'L4');
+  assert.equal(s1[1].state, 'not_started');
+  assert.equal(s1[1].row, null);
 });
 
 test('statusBreakdown counts equal rows and completed includes approved', () => {

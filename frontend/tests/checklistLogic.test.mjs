@@ -2,36 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  filterSopTools, groupQuestions, sopKeys, visibleQuestions,
+  groupQuestions, visibleQuestions,
 } from '../src/components/checklist/checklistLogic.js';
-
-const tools = [{
-  id: 't1', name: 'Cash Audit', code: 'CASH',
-  sections: [
-    { id: 's1', name: 'Till', criteria: [
-      { id: 'c1', title: 'Count the float', max_text: 'Exact match' },
-      { id: 'c2', title: 'Seal bags', min_text: 'Unsealed' },
-    ] },
-    { id: 's2', name: 'Safe', criteria: [{ id: 'c3', title: 'Key custody' }] },
-  ],
-}];
-
-test('empty search returns everything', () => {
-  assert.equal(filterSopTools(tools, ''), tools);
-  assert.equal(sopKeys(tools).length, 1 + 2 + 3);
-});
-
-test('search matches rubric text and keeps only matching criteria', () => {
-  const r = filterSopTools(tools, 'unsealed');
-  assert.equal(r.length, 1);
-  assert.deepEqual(r[0].sections.map(s => s.id), ['s1']);
-  assert.deepEqual(r[0].sections[0].criteria.map(c => c.id), ['c2']);
-});
-
-test('a matching section name keeps all its criteria; no match drops the tool', () => {
-  assert.equal(filterSopTools(tools, 'till')[0].sections[0].criteria.length, 2);
-  assert.equal(filterSopTools(tools, 'zzz').length, 0);
-});
 
 test('visibleQuestions hides pending, rejected and inactive', () => {
   const q = [

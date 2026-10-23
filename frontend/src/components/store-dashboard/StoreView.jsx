@@ -5,16 +5,19 @@ import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardCheck, Clock } fro
 
 import { api } from '@/api/client';
 import { Loading } from '@/components/Loader';
+import ObservationsCard from '@/components/dashboard/ObservationsCard';
 import Tile from '@/components/Tile';
-import { BRAND, bandColors, clickableBar } from '@/components/sop-dashboard/chartKit';
+import { BRAND, bandColors, clickableBar } from '@/components/charts/chartKit';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatDate, mergeRows, scoreLabel } from '@/lib/auditRows';
-import { auditsLink, issuesLink, sopDashboardLink, storeScorecardLink } from '@/lib/links';
+import { auditRows, formatDate, scoreLabel } from '@/lib/auditRows';
+import { wording } from '@/lib/dashboardScope';
+import { RISK_COLORS, groupObservationsByRisk } from '@/lib/overviewStats';
+import { auditsLink, issuesLink } from '@/lib/links';
 import { canAccess } from '@/lib/rolesMap';
 import { stageBadgeClass } from '@/lib/statuses';
 import {
-  BENCHMARK, QUARTERS, auditPath, forStore, latestScoredQuarter, priorityBreakdown,
+  BENCHMARK, QUARTERS, auditPath, forStore, latestScoredQuarter,
   recentRows, scoreTrend, scoredResults, stageBreakdown, storeKpis, topOpenIssues,
 } from '@/lib/storeStats';
 import { cn } from '@/lib/utils';
@@ -89,48 +92,50 @@ function DonutCard({ title, note, slices, total, empty, cutout = '62%', onPick }
 
 // The store content shared by the Dashboard (admin / manager, ?store=<id>) and
 // My Store (store manager). It loads its own data and filters it to `store`.
-export function StoreView({ store, role }) {
+// With a `quarter` the caller owns the quarter buttons (the Dashboard header);
+// without one the view shows its own.
+export function StoreView({ store, role, quarter: controlledQuarter }) {
   const navigate = useNavigate();
   const canOpenAudits = canAccess(role, 'audits');
-  const isManager = role === 'ADMIN' || role === 'AUDIT_MANAGER';
   const [state, setState] = useState({ status: 'loading', error: null });
-  const [data, setData] = useState({ audits: [], sop: [], issues: [], scores: [] });
+  const [data, setData] = useState({ audits: [], issues: [], scores: [], observations: [] });
   const [pickedQ, setPickedQ] = useState(null);
   const [drill, setDrill] = useState(null);
 
   const load = useCallback(async () => {
     setState({ status: 'loading', error: null });
     try {
-      const [audits, sop, issues, scores] = await Promise.all([
-        api.audits(), api.sopAudits(), api.issues(), api.storeScores(),
+      const [audits, issues, scores, observations] = await Promise.all([
+        api.audits(), api.issues(), api.storeScores(), api.observations().catch(() => []),
       ]);
       setData({
-        audits: audits || [], sop: sop || [], issues: issues || [], scores: scores || [],
+        audits: audits || [], issues: issues || [], scores: scores || [],
+        observations: forStore(observations || [], store.id),
       });
       setState({ status: 'ready', error: null });
     } catch (e) {
       setState({ status: 'error', error: e });
     }
-  }, []);
+  }, [store.id]);
 
   useEffect(() => { load(); }, [load]);
 
   const storeId = store.id;
 
   const rows = useMemo(
-    () => mergeRows(forStore(data.audits, storeId), forStore(data.sop, storeId)),
-    [data.audits, data.sop, storeId],
+    () => auditRows(forStore(data.audits, storeId)),
+    [data.audits, storeId],
   );
   const issues = useMemo(() => forStore(data.issues, storeId), [data.issues, storeId]);
 
   const latestQ = useMemo(() => latestScoredQuarter(data.scores, storeId), [data.scores, storeId]);
-  const quarter = pickedQ || latestQ || QUARTERS[QUARTERS.length - 1];
+  const quarter = controlledQuarter || pickedQ || latestQ || QUARTERS[QUARTERS.length - 1];
   const kpis = useMemo(
     () => storeKpis({ rows, issues, scores: data.scores, storeId, quarter }),
     [rows, issues, data.scores, storeId, quarter],
   );
   const trend = useMemo(() => scoreTrend(data.scores, storeId), [data.scores, storeId]);
-  const priorities = useMemo(() => priorityBreakdown(issues), [issues]);
+  const risks = useMemo(() => groupObservationsByRisk(data.observations), [data.observations]);
   const stages = useMemo(() => stageBreakdown(rows), [rows]);
   const results = useMemo(() => scoredResults(rows), [rows]);
   const recent = useMemo(() => recentRows(rows, RECENT_LIMIT), [rows]);
@@ -152,8 +157,6 @@ export function StoreView({ store, role }) {
 
   const qLabel = quarter.toUpperCase();
   const storeAuditsLink = auditsLink({ store: store.id });
-  // Managers drill from the score tile into this store's SOP scores.
-  const scoreLink = isManager ? sopDashboardLink({ store: store.id }) : storeScorecardLink(store.id, role);
 
   // ---- Drawer lists: the same arrays the numbers come from -----------------
   const showAudits = (title, list) => setDrill({
@@ -170,9 +173,14 @@ export function StoreView({ store, role }) {
   });
   const closeDrill = () => setDrill(null);
 
-  const openPriority = (idx) => {
-    const g = priorities[idx];
-    showIssues(`${g.level} priority open issues`, g.items);
+  const openRisk = (idx) => {
+    const g = risks[idx];
+    setDrill({
+      title: `${g.level} risk observations (${g.count})`,
+      kind: 'observations',
+      observations: g.items,
+      link: null,
+    });
   };
   const openStage = (idx) => {
     const sl = stages[idx];
@@ -200,20 +208,22 @@ export function StoreView({ store, role }) {
   });
   const latestResult = results.length ? results[results.length - 1] : null;
 
-  const priorityTotal = open.length;
-  const prioritySlices = priorities.map((g) => ({ key: g.level, label: g.level, color: g.color, count: g.count, pct: g.pct }));
+  const riskSlices = risks.map((g) => ({ key: g.level, label: g.level, color: RISK_COLORS[g.level], count: g.count, pct: g.pct }));
+  const words = wording({ kind: 'store', id: store.id });
 
   const scoreText = kpis.score === null ? '--' : `${kpis.score}%`;
 
   return (
     <div>
-      <div className="mb-2 flex flex-wrap items-center justify-end gap-1.5">
-        {QUARTERS.map((q) => (
-          <Button key={q} size="sm" variant={quarter === q ? 'default' : 'outline'} onClick={() => setPickedQ(q)}>
-            {q.toUpperCase()}
-          </Button>
-        ))}
-      </div>
+      {!controlledQuarter && (
+        <div className="mb-2 flex flex-wrap items-center justify-end gap-1.5">
+          {QUARTERS.map((q) => (
+            <Button key={q} size="sm" variant={quarter === q ? 'default' : 'outline'} onClick={() => setPickedQ(q)}>
+              {q.toUpperCase()}
+            </Button>
+          ))}
+        </div>
+      )}
 
       <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-5">
         <Tile
@@ -221,7 +231,7 @@ export function StoreView({ store, role }) {
           tint="#e8eefa"
           label={`${qLabel} score`}
           value={scoreText}
-          onClick={() => navigate(scoreLink)}
+          onClick={() => navigate(storeAuditsLink)}
         />
         <Tile
           icon={CheckCircle2}
@@ -254,18 +264,18 @@ export function StoreView({ store, role }) {
       </div>
 
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
-        <Card title="Score trend" note={`Benchmark: ${BENCHMARK}%`}>
+        <Card title={words.trend} note={`Benchmark: ${BENCHMARK}%`}>
           {hasTrend ? (
             <div className="relative h-[190px] w-full"><Line data={trendData} options={trendOpts} /></div>
           ) : <ChartEmpty>No quarterly score is stored for this store yet</ChartEmpty>}
         </Card>
         <DonutCard
-          title="Issues by priority"
-          note={`${priorityTotal} open`}
-          slices={prioritySlices}
-          total={priorityTotal}
-          empty="No open issues"
-          onPick={openPriority}
+          title={words.risk}
+          note={`${data.observations.length} total`}
+          slices={riskSlices}
+          total={data.observations.length}
+          empty="No observations yet"
+          onPick={openRisk}
         />
       </div>
 
@@ -323,7 +333,7 @@ export function StoreView({ store, role }) {
         </Card>
 
         <Card
-          title="Open issues"
+          title={words.issues}
           note={open.length ? `${open.length} open` : null}
           action={open.length > 0 ? (
             <Link to={issuesLink({ store: store.name })} className="text-[11px] font-normal text-primary hover:underline">View all</Link>
@@ -348,6 +358,10 @@ export function StoreView({ store, role }) {
         </Card>
       </div>
 
+      <div className="mt-3">
+        <ObservationsCard scope={{ kind: 'store', id: store.id }} observations={data.observations} issues={issues} />
+      </div>
+
       <DrillDrawer
         open={drill !== null}
         onClose={closeDrill}
@@ -356,6 +370,11 @@ export function StoreView({ store, role }) {
         empty="Nothing in this list."
       >
         {drill && drill.kind === 'audits' && drill.rows.length > 0 && <AuditList rows={drill.rows} onNavigate={closeDrill} />}
+        {drill && drill.kind === 'observations' && drill.observations.length > 0 && (
+          <div className="divide-y divide-border text-sm">
+            {drill.observations.map((o) => <div key={o.id} className="py-2">{o.observation}</div>)}
+          </div>
+        )}
         {drill && drill.kind === 'issues' && drill.issues.length > 0 && <IssueList issues={drill.issues} onNavigate={closeDrill} />}
       </DrillDrawer>
     </div>

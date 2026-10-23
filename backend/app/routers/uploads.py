@@ -11,7 +11,7 @@ from ..models import (
     ROLE_ADMIN, ROLE_AUDIT_MANAGER, CashDepositPickup, CashReconciliation, DataImport,
     ExpiredInventory, Observation, Store, StoreScore, User,
 )
-from ..services import log_action
+from ..services import get_or_create_brand, log_action
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
@@ -19,6 +19,7 @@ UPLOAD_FOLDER = Path(__file__).parent.parent.parent / "uploads"
 UPLOAD_FOLDER.mkdir(exist_ok=True)
 
 SECTION_MAP = {
+    "stores": "stores",
     "cash_reconciliation": "cash_reconciliation",
     "cash_reconciliation_statement": "cash_reconciliation_statement",
     "cash_deposit_pickups": "cash_deposit_pickups",
@@ -163,10 +164,48 @@ def _resolve_store_id(session, row):
         return raw
 
 
+# Store sheet column -> Store attribute (blank cells leave an existing value alone).
+_STORE_COLUMNS = {
+    "Name": "name", "State": "state", "City": "city", "Region": "region",
+    "District": "district", "Postal Address": "postal_code",
+    "Store code": "store_code", "Store Code": "store_code",
+    "Format": "store_format", "Type": "store_type",
+    "Deputy Manager": "deputy_manager", "Operation Manager": "operations_manager",
+    "StoreCatg_main": "store_category",
+}
+
+
+def _import_store(session, row):
+    """Create or update one store from a sheet row. A Brand column puts the
+    store under that brand (created if new); a blank or missing Brand puts a
+    new store under 'Unassigned' and leaves an existing store's brand alone."""
+    sid = str(row.get("Store ID") or "").strip()
+    if not sid:
+        return False
+    store = session.get(Store, sid)
+    brand_name = str(row.get("Brand") or "").strip()
+    if not store:
+        name = str(row.get("Name") or "").strip()
+        if not name:
+            return False
+        store = Store(id=sid, name=name, brand_id=get_or_create_brand(session, brand_name).id)
+        session.add(store)
+    elif brand_name:
+        store.brand_id = get_or_create_brand(session, brand_name).id
+    for column, attr in _STORE_COLUMNS.items():
+        value = str(row.get(column) or "").strip()
+        if value:
+            setattr(store, attr, value)
+    return True
+
+
 def _import_rows(session, di, section, data_rows):
     count = 0
     safe = _json_safe_row
     for idx, row in enumerate(data_rows, 1):
+        if section == "stores":
+            count += 1 if _import_store(session, row) else 0
+            continue
         store_id = _resolve_store_id(session, row)
         if section == "cash_reconciliation":
             session.add(CashReconciliation(

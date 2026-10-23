@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 
 import {
   averageScore, bucketScoredStores, formatAverages, groupAuditsByRegion,
-  groupObservationsByRisk, legacyStageCounts, rankScored, scoreStores,
+  groupObservationsByRisk, auditStageCounts, rankScored, scoreStores,
 } from '../src/lib/overviewStats.js';
-import { filterRows, mergeRows } from '../src/lib/auditRows.js';
+import { auditRows, filterRows } from '../src/lib/auditRows.js';
 
 const obs = [
   { id: 1, risk: 'Critical' }, { id: 2, risk: 'high' }, { id: 3, risk: 'High' },
@@ -91,21 +91,21 @@ test('ranking is descending over scored stores only', () => {
   assert.equal(r[r.length - 1].store.id, 'S6');
 });
 
-test('dashboard stage counts equal Audit Status rows filtered by kind=legacy', () => {
+test('dashboard stage counts equal Audit page rows for the same stage', () => {
   const raw = audits.map((a) => ({ ...a, store_id: 'S1' }));
-  const counts = legacyStageCounts(raw);
-  const rows = mergeRows(raw, [{ id: 'sop-1', status: 'Planned' }]);
+  const counts = auditStageCounts(raw);
+  const rows = auditRows(raw);
   for (const stage of ['scheduled', 'in_progress', 'completed', 'approved']) {
-    assert.equal(counts[stage], filterRows(rows, { stage, kind: 'legacy' }).length, stage);
+    assert.equal(counts[stage], filterRows(rows, { stage }).length, stage);
   }
   assert.equal(counts.completed, 2);
   assert.equal(counts.approved, 1);
 });
 
-test('region drill list equals Audit Status rows for that region (kind=legacy)', () => {
-  const rows = mergeRows(audits, []);
+test('region drill list equals Audit page rows for that region', () => {
+  const rows = auditRows(audits);
   for (const g of groupAuditsByRegion(audits)) {
     if (g.region === 'Unassigned') continue;
-    assert.equal(filterRows(rows, { region: g.region, kind: 'legacy' }).length, g.count);
+    assert.equal(filterRows(rows, { region: g.region }).length, g.count);
   }
 });
