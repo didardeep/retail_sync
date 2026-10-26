@@ -52,7 +52,7 @@ export default function AuditReport({ auditId }) {
         <div>
           <div className="text-[11px] text-muted-foreground">Score</div>
           {typeof audit.score === 'number'
-            ? <b className="text-lg" style={{ color: sColor(audit.score) }}>{audit.score}%</b>
+            ? <b className="text-lg tabular-nums" style={{ color: sColor(audit.score) }}>{audit.score.toFixed(2)}%</b>
             : <b className="text-muted-foreground">--</b>}
         </div>
         <div><div className="text-[11px] text-muted-foreground">Status</div><b>{audit.status}</b></div>

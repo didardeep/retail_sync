@@ -13,14 +13,22 @@ import { storeScorecardLink } from '@/lib/links'
 import AuditReport from '@/components/audit/AuditReport'
 
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4']
-const SCORE_GRID = 'grid-cols-[2fr_100px_1fr_1fr_1fr_1fr_44px]'
+const SCORE_GRID = 'grid-cols-[minmax(180px,2fr)_110px_repeat(4,minmax(140px,1fr))_56px]'
 
+// Scores are shown with two decimals; a missing score is '--', never 0.
+function fmtScore(v) {
+  return typeof v === 'number' ? v.toFixed(2) : '--'
+}
+
+// Change from the previous quarter. Always rendered in a fixed-width slot (empty
+// when there is nothing to compare) so the bars line up in every column and row.
 function deltaDisplay(curr, prev) {
-  if (prev === undefined || prev === null || prev === 0) return ''
-  const d = curr - prev
-  if (d > 0) return <span className="rounded-[5px] bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">+{d}</span>
-  if (d < 0) return <span className="rounded-[5px] bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">{d}</span>
-  return <span className="rounded-[5px] bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500">0</span>
+  if (typeof curr !== 'number' || typeof prev !== 'number') return null
+  const d = Math.round((curr - prev) * 100) / 100
+  const base = 'rounded-[5px] px-1.5 py-0.5 text-[10px] font-bold tabular-nums'
+  if (d > 0) return <span className={cn(base, 'bg-emerald-100 text-emerald-700')}>+{d.toFixed(2)}</span>
+  if (d < 0) return <span className={cn(base, 'bg-red-100 text-red-700')}>{d.toFixed(2)}</span>
+  return <span className={cn(base, 'bg-gray-100 text-gray-500')}>0.00</span>
 }
 
 export default function StoreAuditScores() {
@@ -62,9 +70,8 @@ export default function StoreAuditScores() {
   }, [])
 
   function getScore(store, quarter) {
-    const rec = scoreMap[store.id]
-    if (!rec) return 0
-    return rec[quarter.toLowerCase()] ?? 0
+    const v = scoreMap[store.id]?.[quarter.toLowerCase()]
+    return typeof v === 'number' && v > 0 ? v : null
   }
 
   /* ── filtering ── */
@@ -81,7 +88,10 @@ export default function StoreAuditScores() {
   /* ── handlers ── */
   function handleExport() {
     const headers = ['ID', 'Store', 'City', 'Status', ...QUARTERS]
-    const rows = filtered.map(s => [s.id, s.name, s.city, s.status, ...QUARTERS.map(q => getScore(s, q))])
+    const rows = filtered.map(s => [s.id, s.name, s.city, s.status, ...QUARTERS.map(q => {
+      const v = getScore(s, q)
+      return v === null ? '' : v.toFixed(2)
+    })])
     exportCSV(rows, headers, 'store_audit_scores.csv')
   }
 
@@ -110,7 +120,7 @@ export default function StoreAuditScores() {
   const chartOpts = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `Score ${fmtScore(ctx.parsed.y)}` } } },
     scales: {
       y: { min: 0, max: 100, ticks: { font: { size: 10 } } },
       x: { ticks: { font: { size: 10 } } }
@@ -165,7 +175,7 @@ export default function StoreAuditScores() {
           {QUARTERS.map(q => (
             <span key={q} className="text-center text-[11.5px] font-semibold text-muted-foreground">&#x1F4C5; {q} Score</span>
           ))}
-          <span className="text-center text-[11.5px] font-semibold text-muted-foreground">Actions</span>
+          <span className="text-center text-[11.5px] font-semibold text-muted-foreground">View</span>
         </div>
 
         {/* Data rows */}
@@ -209,15 +219,19 @@ export default function StoreAuditScores() {
                 const score = getScore(s, q)
                 const prevScore = idx > 0 ? getScore(s, QUARTERS[idx - 1]) : null
                 return (
-                  <div key={q} className="flex flex-col items-center">
-                    <div className="mb-1">
-                      <span className="text-base font-bold" style={{ color: sColor(score) }}>{score}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-1.5 w-[80px] overflow-hidden rounded-[3px] bg-gray-200">
-                        <div className={cn('h-full rounded-[3px]', pbClass(score))} style={{ width: `${score}%` }} />
+                  <div key={q} className="flex justify-center">
+                    <div className="grid w-[128px] grid-cols-[72px_52px] items-center gap-x-1 gap-y-1">
+                      <span
+                        className="text-base font-bold tabular-nums"
+                        style={{ color: score === null ? 'var(--text3)' : sColor(score) }}
+                      >
+                        {fmtScore(score)}
+                      </span>
+                      <span />
+                      <div className="h-1.5 w-[72px] overflow-hidden rounded-[3px] bg-gray-200">
+                        {score !== null && <div className={cn('h-full rounded-[3px]', pbClass(score))} style={{ width: `${score}%` }} />}
                       </div>
-                      {deltaDisplay(score, prevScore)}
+                      <div className="flex justify-start">{deltaDisplay(score, prevScore)}</div>
                     </div>
                   </div>
                 )
@@ -293,7 +307,7 @@ export default function StoreAuditScores() {
                   <TableRow>
                     <TableHead>Audit ID</TableHead>
                     <TableHead>Date</TableHead>
-                    <TableHead>Score</TableHead>
+                    <TableHead className="text-right">Score</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -301,15 +315,15 @@ export default function StoreAuditScores() {
                   {storeAudits(detailStore.name).map(a => (
                     <TableRow key={a.id}>
                       <TableCell className="font-semibold">{a.id}</TableCell>
-                      <TableCell>{a.scheduled_at?.substring(0,10) || a.sched}</TableCell>
-                      <TableCell>
+                      <TableCell className="tabular-nums">{a.scheduled_at?.substring(0,10) || a.sched}</TableCell>
+                      <TableCell className="text-right">
                         {a.score !== null && a.score !== undefined ? (
-                          <span className="font-bold" style={{ color: sColor(a.score) }}>{a.score}%</span>
+                          <span className="font-bold tabular-nums" style={{ color: sColor(a.score) }}>{fmtScore(a.score)}%</span>
                         ) : (
                           <span className="text-muted-foreground">&mdash;</span>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-right">
                         <Button size="sm" variant="outline" onClick={() => setReportId(a.id)}>View Report</Button>
                       </TableCell>
                     </TableRow>
