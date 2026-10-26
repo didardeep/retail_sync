@@ -35,6 +35,7 @@ function SidebarContent({ user, onLogout, nav, onNavigate }) {
           <NavLink
             key={path}
             to={path}
+            state={{ fromSidebar: true }}
             onClick={onNavigate}
             className={({ isActive }) =>
               cn(
@@ -63,10 +64,11 @@ function SidebarContent({ user, onLogout, nav, onNavigate }) {
 export default function Layout({ user, onLogout, children }) {
   const loc = useLocation();
   const navigate = useNavigate();
-  // React Router numbers its history entries; above 0 there is an earlier page
-  // in this session to go back to. Filters replace the URL, so this only
-  // counts real page-to-page moves.
-  const canGoBack = (window.history.state?.idx ?? 0) > 0;
+  // Back shows only on a page reached through a link on another page (a tile,
+  // an audit id, a store name). Pages opened from the sidebar, and the page you
+  // land on, are top-level and have none. React Router numbers its history
+  // entries; above 0 there is an earlier page to go back to.
+  const canGoBack = (window.history.state?.idx ?? 0) > 0 && !loc.state?.fromSidebar;
   const scrollRef = useRef(null);
   // A new page starts at the top (the scroll container is shared by every page).
   useEffect(() => { scrollRef.current?.scrollTo(0, 0); }, [loc.pathname]);
