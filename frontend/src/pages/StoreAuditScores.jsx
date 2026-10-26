@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Modal, ModalActions } from '../components/Modal'
 import { storeScorecardLink } from '@/lib/links'
+import AuditReport from '@/components/audit/AuditReport'
 
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4']
 const SCORE_GRID = 'grid-cols-[2fr_100px_1fr_1fr_1fr_1fr_44px]'
@@ -29,6 +30,8 @@ export default function StoreAuditScores() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [detailStore, setDetailStore] = useState(null)
+  // The audit whose report is open; the store pop-up hides behind it and comes back on Back.
+  const [reportId, setReportId] = useState(null)
   const [stores, setStores] = useState([])
   const [audits, setAudits] = useState([])
   const [scoreMap, setScoreMap] = useState({})
@@ -240,7 +243,7 @@ export default function StoreAuditScores() {
 
       {/* ── Store Detail Modal ── */}
       {detailStore && (
-        <Modal open={!!detailStore} onClose={() => setDetailStore(null)} className="w-[540px] p-0" >
+        <Modal open={!!detailStore && !reportId} onClose={() => setDetailStore(null)} className="w-[540px] p-0" >
           {/* Modal header */}
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <span className="text-[15px] font-bold text-foreground">{detailStore.name}, {detailStore.city}</span>
@@ -307,7 +310,7 @@ export default function StoreAuditScores() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button size="sm" variant="outline" onClick={() => navigate(`/audits/${a.id}`)}>View Report</Button>
+                        <Button size="sm" variant="outline" onClick={() => setReportId(a.id)}>View Report</Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -324,6 +327,20 @@ export default function StoreAuditScores() {
           </ModalActions>
         </Modal>
       )}
+
+      {/* ── Audit report (opened from Recent Audits) ── */}
+      <Modal open={!!reportId} onClose={() => setReportId(null)} className="w-[640px] max-w-[95vw]">
+        <div className="mb-3.5 flex items-center justify-between">
+          <span className="text-[15px] font-bold text-foreground">
+            Audit report {reportId}{detailStore ? ` - ${detailStore.name}` : ''}
+          </span>
+          <button className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-[13px]" onClick={() => setReportId(null)} aria-label="Close">&times;</button>
+        </div>
+        {reportId && <AuditReport auditId={reportId} />}
+        <ModalActions>
+          <Button size="sm" variant="outline" onClick={() => setReportId(null)}>Back to store</Button>
+        </ModalActions>
+      </Modal>
     </>
   )
 }

@@ -6,12 +6,12 @@ export const ROLE_PAGES = {
   ADMIN: null,            // sees everything
   AUDIT_MANAGER: null,    // sees everything except the ADMIN-only pages below
   AUDITOR: ['my-dashboard', 'audits', 'email'],
-  STORE_MANAGER: ['my-store', 'checklist', 'issues', 'audits', 'email'],
+  STORE_MANAGER: ['my-store', 'issues', 'audits', 'email'],
   // An auditee only follows up the issues assigned to them.
   AUDITEE: ['my-issues', 'email'],
 }
 
-// 'audit-log', 'scheduling', 'stores', 'scores', 'dashboard'
+// 'audit-log', 'stores', 'scores', 'dashboard'
 // are ADMIN/AUDIT_MANAGER-only (null catches them all).
 // The user API is ADMIN-only, so these pages are ADMIN-only too.
 const ADMIN_ONLY_PAGES = ['user-management']

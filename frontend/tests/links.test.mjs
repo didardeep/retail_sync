@@ -20,7 +20,8 @@ test('named builders', () => {
   assert.equal(auditsLink({ stage: 'scheduled', status: 'Planned', store: 's1', region: 'N', id: 'a1' }),
     '/audits?stage=scheduled&status=Planned&store=s1&region=N&id=a1');
   assert.equal(schedulingLink({ stage: 'scheduled', auditor: 'u1', id: 'a1' }),
-    '/scheduling?stage=scheduled&auditor=u1&id=a1');
+    '/audits?stage=scheduled&auditor=u1&id=a1');
+  assert.equal(schedulingLink({ open: true }), '/audits?new=1');
   assert.equal(issuesLink({ status: 'Open', priority: 'High', store: 's1', audit: 'a', id: 'i' }),
     '/issues?status=Open&priority=High&store=s1&audit=a&id=i');
   assert.equal(storesLink({ region: 'N', format: 'Mall', id: 's1' }), '/stores?region=N&format=Mall&id=s1');
