@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -61,6 +62,11 @@ function SidebarContent({ user, onLogout, nav, onNavigate }) {
 
 export default function Layout({ user, onLogout, children }) {
   const loc = useLocation();
+  const navigate = useNavigate();
+  // React Router numbers its history entries; above 0 there is an earlier page
+  // in this session to go back to. Filters replace the URL, so this only
+  // counts real page-to-page moves.
+  const canGoBack = (window.history.state?.idx ?? 0) > 0;
   const scrollRef = useRef(null);
   // A new page starts at the top (the scroll container is shared by every page).
   useEffect(() => { scrollRef.current?.scrollTo(0, 0); }, [loc.pathname]);
@@ -98,6 +104,18 @@ export default function Layout({ user, onLogout, children }) {
             >
               &#9776;
             </button>
+            {canGoBack && (
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="flex h-8 items-center gap-1 rounded-md border border-border bg-card px-2 text-xs font-medium text-foreground/80 hover:bg-accent"
+                aria-label="Go back to the previous page"
+                title="Back to the previous page"
+              >
+                <ArrowLeft className="size-3.5" />
+                Back
+              </button>
+            )}
             <div className="text-sm font-semibold text-foreground">{title}</div>
           </div>
           <div className="flex items-center gap-2.5">
