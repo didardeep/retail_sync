@@ -142,9 +142,9 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
       {/* Row 1: Trend + Risk */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <BrandTrendCard title={words.trend} allBrands={allBrands} brands={brands} stores={stores} />
-        <div className="flex flex-col rounded-[10px] border border-border bg-card p-4">
+        <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 text-[13px] font-semibold text-foreground">{words.risk}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{observations.length} total</span></div>
-          <div className="flex h-[200px] items-center justify-center gap-4">
+          <div className="flex h-[190px] items-center justify-center gap-4">
             <div className="relative h-[155px] w-[155px] shrink-0">
               {riskD.length ? <Doughnut data={riskData} options={donutOpts('62%', openRiskDrill)}/> : null}
             </div>
@@ -161,14 +161,15 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
       </div>
 
       {/* Row 2: Store bars + Region */}
+      {/* Row 2: Store bars + Region */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
-        <div className="flex flex-col rounded-[10px] border border-border bg-card p-4">
+        <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 text-[13px] font-semibold text-foreground">{words.storeBars}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{storeBarNote}</span></div>
-          {storeBarD.length ? <div className="relative h-[200px] w-full"><Bar data={storeBarData} options={storeBarOpts}/></div> : <div className="flex h-[200px] items-center justify-center text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
+          {storeBarD.length ? <div className="relative h-[190px] w-full"><Bar data={storeBarData} options={storeBarOpts}/></div> : <div className="flex h-[190px] items-center justify-center text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
         </div>
-        <div className="flex flex-col rounded-[10px] border border-border bg-card p-4">
+        <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 text-[13px] font-semibold text-foreground">{words.region}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{audits.length} checklist audits</span></div>
-          <div className="flex h-[200px] items-center justify-center gap-3.5">
+          <div className="flex h-[190px] items-center justify-center gap-3.5">
             <div className="relative h-[150px] w-[150px] shrink-0">
               {regD.length ? <Doughnut data={regData} options={donutOpts('58%', openRegionDrill)}/> : null}
             </div>
@@ -188,11 +189,12 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
       </div>
 
       {/* Row 3: Format + Distribution */}
+      {/* Row 3: Format + Distribution */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
-        <div className="flex flex-col rounded-[10px] border border-border bg-card p-4">
+        <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 flex items-center gap-1 text-[13px] font-semibold text-foreground">{words.format}<FormatLegend /><span className="ml-1 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
-          <div className="flex gap-5">
-            <div className="relative h-[200px] min-w-0 flex-1">{fmtScored.length ? <Bar data={fmtData} options={fmtOpts}/> : <div className="flex h-[200px] items-center justify-center text-xs text-muted-foreground">No scored stores in {qLabel}</div>}</div>
+          <div className="flex gap-4.5">
+            <div className="flex-1">{fmtScored.length ? <Bar data={fmtData} options={fmtOpts} height={145}/> : <div className="flex h-[145px] items-center justify-center text-xs text-muted-foreground">No scored stores in {qLabel}</div>}</div>
             <div className="min-w-[155px] text-xs">
               <div className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Format Summary</div>
               {fmtD.map(d => (
@@ -206,9 +208,9 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
             </div>
           </div>
         </div>
-        <div className="flex flex-col rounded-[10px] border border-border bg-card p-4">
+        <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 text-[13px] font-semibold text-foreground">{words.distribution}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
-          <div className="flex h-[200px] items-center justify-center gap-3">
+          <div className="flex h-[185px] items-center justify-center gap-3">
             <div className="relative h-[145px] w-[145px] shrink-0">
               {scored.length ? <Doughnut data={distData} options={donutOpts('58%', openDistDrill)}/> : null}
             </div>
@@ -228,9 +230,9 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
 
       {/* Row 4: Scorecards + Observations */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="flex flex-col rounded-[10px] border border-border bg-card p-4">
+        <div className="rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 text-[13px] font-semibold text-foreground">{words.topBottom}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
-          <div className="flex gap-5">
+          <div className="flex gap-4.5">
             <div className="flex-1">
               <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider" style={{color:'var(--green)'}}>&#x1F3C6; Top 5 Stores</div>
               {!t5.length && <div className="py-2 text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
@@ -263,8 +265,9 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
       </div>
 
       {/* Row 5: Recent issues */}
-      <div className="mb-3">
-        <div className="flex flex-col rounded-[10px] border border-border bg-card p-4">
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="self-start rounded-[10px] border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">{words.issues}<span className="cursor-pointer text-[11px] font-normal text-muted-foreground" onClick={() => navigate('/issues')}>View all &rarr;</span></div>
           {recentIssues.length ? recentIssues.map((i, idx) => (
             <div key={i.id} className={cn('flex cursor-pointer items-center justify-between gap-2.5 py-2', idx < recentIssues.length - 1 && 'border-b border-border')} onClick={() => navigate(issuesLink({ id: i.id }))}>
@@ -280,6 +283,7 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
             </div>
           )) : <div className="p-5 text-center text-xs text-muted-foreground">No issues yet</div>}
         </div>
+      </div>
       </div>
 
       {/* Drill Drawer */}
@@ -351,10 +355,9 @@ export default function Dashboard() {
   return (
     <div>
       <div className="mb-4 rounded-xl border border-border bg-card p-4">
-        {/* Title on the left, quarter and Power BI buttons on the right, on one line */}
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-lg font-bold leading-tight text-foreground">{scopeTitle(scope, stores, brands)}</h2>
+            <h2 className="text-lg font-bold text-foreground">{scopeTitle(scope, stores, brands)}</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {store
                 ? `${store.brand || 'No brand'}${store.format ? ` - format ${store.format}` : ''}`
@@ -362,24 +365,23 @@ export default function Dashboard() {
               {' - '}{selectedQ.toUpperCase()}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {QUARTERS.map((q) => (
-              <Button key={q} size="sm" className="h-8 min-w-[44px]" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
-            ))}
-            <Button size="sm" className="h-8" variant="outline" onClick={() => setPbiOpen(true)}>Power BI (sample preview)</Button>
+          <div className="flex flex-wrap items-end gap-2">
+            <ScopePicker
+              brands={brands}
+              stores={stores}
+              brandId={params.get('brand') || ''}
+              storeId={scope.kind === 'store' ? scope.id : ''}
+              onChange={(change) => setParams(pickerParams(stores, {
+                brand: params.get('brand') || '', store: scope.kind === 'store' ? scope.id : '',
+              }, change), { replace: true })}
+            />
+            <div className="flex gap-1.5">
+              {QUARTERS.map((q) => (
+                <Button key={q} size="sm" className="h-11" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
+              ))}
+            </div>
+            <Button size="sm" className="h-11" variant="outline" onClick={() => setPbiOpen(true)}>Power BI (sample preview)</Button>
           </div>
-        </div>
-        {/* Brand and store filters on their own row */}
-        <div className="mt-3 border-t border-border pt-3">
-          <ScopePicker
-            brands={brands}
-            stores={stores}
-            brandId={params.get('brand') || ''}
-            storeId={scope.kind === 'store' ? scope.id : ''}
-            onChange={(change) => setParams(pickerParams(stores, {
-              brand: params.get('brand') || '', store: scope.kind === 'store' ? scope.id : '',
-            }, change), { replace: true })}
-          />
         </div>
       </div>
 
