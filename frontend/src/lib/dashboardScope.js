@@ -7,19 +7,21 @@ export const ALL = 'all'
 export const BRAND = 'brand'
 export const STORE = 'store'
 
-// The selector value is "all", "brand:<id>" or "store:<id>".
-export function scopeValue(scope) {
-  return scope.kind === ALL ? ALL : `${scope.kind}:${scope.id}`
+// The two header dropdowns, brand and store, can be used together or alone.
+// `current` and `change` hold { brand, store } ids ('' for all); the result is
+// the new URL query. Picking a brand drops a store that is not in it.
+export function pickerParams(stores = [], current = {}, change = {}) {
+  const next = { brand: '', store: '', ...current, ...change }
+  const store = stores.find((s) => s.id === next.store)
+  if ('brand' in change && next.brand && store && store.brand_id !== next.brand) next.store = ''
+  const out = {}
+  if (next.brand) out.brand = next.brand
+  if (next.store) out.store = next.store
+  return out
 }
 
-export function parseScopeValue(value) {
-  const [kind, ...rest] = String(value || '').split(':')
-  const id = rest.join(':')
-  if ((kind === BRAND || kind === STORE) && id) return { kind, id }
-  return { kind: ALL, id: '' }
-}
-
-// The scope in the URL: ?store=<id> or ?brand=<id>, otherwise everything.
+// The scope in the URL: ?store=<id> (with or without ?brand) or ?brand=<id>,
+// otherwise everything.
 export function scopeFromParams(params) {
   const store = params.get('store')
   if (store) return { kind: STORE, id: store }
@@ -28,9 +30,6 @@ export function scopeFromParams(params) {
   return { kind: ALL, id: '' }
 }
 
-export function scopeParams(scope) {
-  return scope.kind === ALL ? {} : { [scope.kind]: scope.id }
-}
 
 // A scope that points at a store or brand that no longer exists falls back to all.
 export function resolveScope(scope, stores = [], brands = []) {
@@ -73,7 +72,7 @@ export function wording(scope, brandName = '') {
   const where = one ? 'this store' : scope.kind === BRAND ? brandName : 'all stores'
   return {
     trend: one ? 'Audit score by quarter' : 'Average audit score by quarter, per brand',
-    storeBars: 'Top stores by audit score',
+    storeBars: 'Audit score by outlet / mall',
     format: 'Average audit score by store format',
     distribution: 'Stores by score range',
     risk: `Observations by risk level, ${where}`,

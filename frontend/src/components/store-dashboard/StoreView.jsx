@@ -12,13 +12,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { auditRows, formatDate, scoreLabel } from '@/lib/auditRows';
 import { wording } from '@/lib/dashboardScope';
-import { RISK_COLORS, groupObservationsByRisk } from '@/lib/overviewStats';
+import { RISK_COLORS, averageScore, groupObservationsByRisk } from '@/lib/overviewStats';
 import { auditsLink, issuesLink } from '@/lib/links';
 import { canAccess } from '@/lib/rolesMap';
 import { stageBadgeClass } from '@/lib/statuses';
 import {
   BENCHMARK, QUARTERS, auditPath, forStore, latestScoredQuarter,
-  recentRows, scoreTrend, scoredResults, stageBreakdown, storeKpis, topOpenIssues,
+  recentRows, resultsInQuarter, scoreTrend, scoredResults, stageBreakdown, storeKpis, topOpenIssues,
 } from '@/lib/storeStats';
 import { cn } from '@/lib/utils';
 import { prC, sColor, stC } from '@/utils/helpers';
@@ -137,7 +137,13 @@ export function StoreView({ store, role, quarter: controlledQuarter }) {
   const trend = useMemo(() => scoreTrend(data.scores, storeId), [data.scores, storeId]);
   const risks = useMemo(() => groupObservationsByRisk(data.observations), [data.observations]);
   const stages = useMemo(() => stageBreakdown(rows), [rows]);
-  const results = useMemo(() => scoredResults(rows), [rows]);
+  // The audit results shown are the ones of the selected quarter (this year),
+  // the same audits the quarter score is averaged from.
+  const year = new Date().getFullYear();
+  const results = useMemo(
+    () => resultsInQuarter(scoredResults(rows, Infinity), quarter, year),
+    [rows, quarter, year],
+  );
   const recent = useMemo(() => recentRows(rows, RECENT_LIMIT), [rows]);
   const topIssues = useMemo(() => topOpenIssues(issues, TOP_ISSUES), [issues]);
   const open = kpis.open;
@@ -206,7 +212,9 @@ export function StoreView({ store, role, quarter: controlledQuarter }) {
     percentAxis: true,
     onPick: (i) => navigate(auditPath(results[i])),
   });
-  const latestResult = results.length ? results[results.length - 1] : null;
+  const resultsAvg = averageScore(results.map((r) => r.percent));
+  // A quarter score with no audit behind it came from the imported score sheet.
+  const importedScore = kpis.score !== null && results.length === 0;
 
   const riskSlices = risks.map((g) => ({ key: g.level, label: g.level, color: RISK_COLORS[g.level], count: g.count, pct: g.pct }));
   const words = wording({ kind: 'store', id: store.id });
@@ -229,7 +237,7 @@ export function StoreView({ store, role, quarter: controlledQuarter }) {
         <Tile
           icon={ClipboardCheck}
           tint="#e8eefa"
-          label={`${qLabel} score`}
+          label={importedScore ? `${qLabel} score (imported)` : `${qLabel} score`}
           value={scoreText}
           onClick={() => navigate(storeAuditsLink)}
         />
@@ -281,12 +289,18 @@ export function StoreView({ store, role, quarter: controlledQuarter }) {
 
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <Card
-          title="Audit results"
-          note={latestResult ? `Latest: ${scoreLabel(latestResult)} on ${formatDate(latestResult.submitted_at || latestResult.date)}` : null}
+          title={`Audit results, ${qLabel} ${year}`}
+          note={results.length ? `average ${resultsAvg}% over ${results.length} ${results.length === 1 ? 'audit' : 'audits'}` : null}
         >
           {results.length ? (
             <div className="relative h-[190px] w-full"><Bar data={resultsData} options={resultsOpts} /></div>
-          ) : <ChartEmpty>No scored audits yet</ChartEmpty>}
+          ) : (
+            <ChartEmpty>
+              {importedScore
+                ? `No scored audit in ${qLabel}. The ${qLabel} score of ${scoreText} comes from the imported score sheet, not from an audit.`
+                : `No scored audits in ${qLabel}`}
+            </ChartEmpty>
+          )}
         </Card>
         <DonutCard
           title="Audits by status"

@@ -398,6 +398,8 @@ class Audit(Base):
             "store": self.store.name if self.store else None,
             "city": self.store.city if self.store else None,
             "region": self.store.region if self.store else None,
+            "brand_id": self.store.brand_id if self.store else None,
+            "brand": self.store.brand.name if self.store and self.store.brand else None,
             "checklist_id": self.checklist_id,
             "auditor_id": self.auditor_id,
             "auditor": self.auditor.name if self.auditor else None,

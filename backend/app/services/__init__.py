@@ -1,10 +1,11 @@
 """Scoring, brand lookup, and audit-logging logic, kept out of the route layer."""
+import datetime as dt
 
 from sqlalchemy import func
 
 from ..models import (
     ROLE_AUDITEE, UNASSIGNED_BRAND, Audit, AuditLog, AuditorAvailability, Brand,
-    User, UserStore,
+    Store, StoreScore, User, UserStore,
 )
 
 # How each answer contributes to the weighted score.
@@ -26,6 +27,38 @@ def compute_audit_score(audit: Audit) -> float:
     if possible == 0:
         return 0.0
     return round(earned / possible * 100, 2)
+
+
+SCORED_STATUSES = ("Completed", "Approved")
+
+
+def quarter_of(when) -> int:
+    """Calendar quarter, 1 to 4."""
+    return (when.month - 1) // 3 + 1
+
+
+def sync_store_score(session, store_id, when):
+    """Set the store's score for the quarter of `when` to the average of its
+    scored audits submitted in that quarter, so the dashboards move when an
+    audit score does. A quarter with no scored audit keeps its imported value."""
+    if not store_id or not when:
+        return
+    session.flush()
+    q = quarter_of(when)
+    start = dt.datetime(when.year, 3 * (q - 1) + 1, 1)
+    end = dt.datetime(when.year + 1, 1, 1) if q == 4 else dt.datetime(when.year, 3 * q + 1, 1)
+    scores = [s for (s,) in session.query(Audit.score).filter(
+        Audit.store_id == store_id, Audit.status.in_(SCORED_STATUSES),
+        Audit.score.isnot(None), Audit.submitted_at >= start, Audit.submitted_at < end)]
+    if not scores:
+        return
+    row = session.query(StoreScore).filter(StoreScore.store_id == store_id).first()
+    if row is None:
+        store = session.get(Store, store_id)
+        row = StoreScore(store_id=store_id, store_code=store.store_code if store else None,
+                         status=store.status if store else None)
+        session.add(row)
+    setattr(row, f"q{q}", round(sum(scores) / len(scores), 1))
 
 
 def next_audit_id(session) -> str:

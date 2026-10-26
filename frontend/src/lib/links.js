@@ -1,7 +1,7 @@
 // URL contract: every cross-page link in the app is built here so pages agree
 // on paths and query keys. See docs/URL_Contract.md for who reads each key.
 //
-//   /audits?stage&status&view&store&region&auditor&q&id   (the Audit page)
+//   /audits?stage&status&view&brand&store&region&auditor&q&id   (the Audit page)
 //   /audits/:id                  (run or view one audit)
 //   /audits/:id/review           (review screen)
 //   /audits?stage&auditor&id&new=1   (/scheduling redirects here; new opens the schedule form)
@@ -21,8 +21,8 @@ function buildLink(path, params = {}) {
   return parts.length ? `${path}?${parts.join('&')}` : path
 }
 
-export function auditsLink({ stage, status, store, region, id } = {}) {
-  return buildLink('/audits', { stage, status, store, region, id })
+export function auditsLink({ stage, status, brand, store, region, id } = {}) {
+  return buildLink('/audits', { stage, status, brand, store, region, id })
 }
 
 // Scheduling lives on the Audit page; `open` opens the schedule form.

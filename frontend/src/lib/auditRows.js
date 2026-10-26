@@ -1,7 +1,7 @@
 // One row shape for checklist audits from /api/audits, so the Audit page and
 // the dashboards can list, count and filter them. Pure functions, no React.
 //
-// Row: { key, id, store_id, store, city, region, tool, auditor, auditor_id,
+// Row: { key, id, store_id, store, city, region, brand_id, brand, tool, auditor, auditor_id,
 //        date, start, due_at, scheduled_on, submitted_at, status, stage,
 //        score, percent, notes }
 // start is the planned start (scheduled_at), due_at the planned end and
@@ -23,6 +23,8 @@ export function normalizeAudit(audit) {
     store: audit.store || null,
     city: audit.city || null,
     region: audit.region || null,
+    brand_id: audit.brand_id || null,
+    brand: audit.brand || null,
     tool: audit.audit_type || 'Checklist based Audit',
     auditor: audit.auditor || null,
     auditor_id: audit.auditor_id || null,
@@ -87,19 +89,20 @@ export function isOverdue(row, now = new Date()) {
 }
 
 // Filters are all optional; empty means "any". `auditor` may be the special
-// value 'unassigned'. `store` and `auditor` are ids; `region` is the name.
-export function filterRows(rows, { stage, store, region, auditor, q, id } = {}) {
+// value 'unassigned'. `brand`, `store` and `auditor` are ids; `region` is the name.
+export function filterRows(rows, { stage, brand, store, region, auditor, q, id } = {}) {
   const needle = (q || '').trim().toLowerCase()
   return rows.filter((r) => {
     if (id && r.id !== id) return false
     if (stage && r.stage !== stage) return false
+    if (brand && r.brand_id !== brand) return false
     if (store && r.store_id !== store) return false
     if (region && r.region !== region) return false
     if (auditor === UNASSIGNED) {
       if (r.auditor_id) return false
     } else if (auditor && r.auditor_id !== auditor) return false
     if (needle) {
-      const hay = [r.id, r.store, r.city, r.tool, r.auditor, r.status]
+      const hay = [r.id, r.store, r.city, r.brand, r.tool, r.auditor, r.status]
         .filter(Boolean).join(' ').toLowerCase()
       if (!hay.includes(needle)) return false
     }

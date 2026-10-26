@@ -190,3 +190,41 @@ def test_auditor_only_sees_issues_from_their_own_audits(client, tokens, db, user
     assert loose["id"] not in ids
     manager_ids = {i["id"] for i in client.get("/api/issues", headers=tokens["manager"]).json()}
     assert loose["id"] in manager_ids
+
+
+def test_submitting_moves_the_store_quarter_score(client, tokens, db):
+    """The dashboards read the quarter score; it follows the audits scored in that quarter."""
+    import datetime as dt
+    from app.models import StoreScore
+
+    cl = _checklist(db, [(1, False), (1, False)])
+    a = _start(client, tokens, cl, who="auditor2", store="T002").json()
+    _answer(client, tokens, a, 0, "Yes", who="auditor2")
+    _answer(client, tokens, a, 1, "Yes", who="auditor2")
+    r = client.post(f"/api/audits/{a['id']}/submit", headers=tokens["auditor2"])
+    assert r.status_code == 200, r.text
+
+    q = (dt.datetime.utcnow().month - 1) // 3 + 1
+    scored = [x["score"] for x in client.get("/api/audits?store_id=T002", headers=tokens["manager"]).json()
+              if x["store_id"] == "T002" and x["status"] in ("Completed", "Approved")
+              and x["score"] is not None and x["submitted_at"]
+              and (int(x["submitted_at"][5:7]) - 1) // 3 + 1 == q
+              and x["submitted_at"][:4] == str(dt.datetime.utcnow().year)]
+    db.expire_all()
+    row = db.query(StoreScore).filter(StoreScore.store_id == "T002").one()
+    assert getattr(row, f"q{q}") == round(sum(scored) / len(scored), 1)
+
+
+def test_marking_completed_needs_every_answer(client, tokens, db):
+    cl = _checklist(db, [(1, False), (1, False)])
+    a = _start(client, tokens, cl).json()
+    _answer(client, tokens, a, 0, "Yes")
+    url = f"/api/audits/{a['id']}"
+    for status in ("Completed", "Approved"):
+        r = client.patch(url, headers=tokens["manager"], json={"status": status})
+        assert r.status_code == 409, r.text
+        assert r.json()["count"] == 1
+    _answer(client, tokens, a, 1, "No")
+    r = client.patch(url, headers=tokens["manager"], json={"status": "Approved"})
+    assert r.status_code == 200, r.text
+    assert r.json()["score"] == 50.0 and r.json()["submitted_at"]

@@ -21,7 +21,10 @@ from app.models import (
     CashDepositPickup, Checklist, ChecklistItem, DataImport,
     ExpiredInventory, Issue, Observation, Question, Store, StoreScore, User, UserStore,
 )
-from app.services import get_or_create_brand
+from app.services import (
+    SCORED_STATUSES, compute_audit_score, get_or_create_brand, next_audit_id, quarter_of,
+    sync_store_score,
+)
 
 SEED_FILE = Path(__file__).parent / "seed_data.json"
 DEFAULT_PASSWORD = "password123"
@@ -267,35 +270,92 @@ def seed():
     s.flush()
 
     # ---- audits ----------------------------------------------------------
+    random.seed(2026)  # the same demo data on every run
+    all_questions = list(questions.values())
+
+    def answer_audit(audit, yes_rate):
+        """Every question answered once the checklist is filled (Completed /
+        Approved), about half while Ongoing; the score comes from the answers."""
+        for q in all_questions:
+            answer = None
+            if audit.status in SCORED_STATUSES or (audit.status == "Ongoing" and random.random() < 0.5):
+                answer = "NA" if random.random() < 0.04 else ("Yes" if random.random() < yes_rate else "No")
+            audit.responses.append(AuditResponse(question_id=q.id, answer=answer))
+        s.flush()
+        if audit.status in SCORED_STATUSES:
+            audit.score = compute_audit_score(audit)
+
     stores_by_name = {st["name"]: st["id"] for st in data["stores"]}
     audit_objs = {}
     for a in data["audits"]:
         auditor = users.get((ROLE_AUDITOR, a.get("auditor")))
         status = STATUS_MAP.get(a.get("status"), "Planned")
+        start = parse_dt(a.get("sched"))
         audit = Audit(
             id=a["id"], store_id=stores_by_name.get(a.get("store")),
             checklist_id=full.id,
             auditor_id=auditor.id if auditor else None,
             created_by_id=admin.id,
-            scheduled_at=parse_dt(a.get("sched")),
+            created_at=start - dt.timedelta(days=7) if start else None,
+            scheduled_at=start,
+            due_at=start + dt.timedelta(hours=8) if start else None,
             status=status,
-            score=a.get("score") if status in ("Completed", "Approved") else None,
-            submitted_at=parse_dt(a.get("sched")) if status == "Completed" else None,
+            submitted_at=start if status == "Completed" else None,
         )
         s.add(audit)
         s.flush()
         audit_objs[a["id"]] = audit
+        # The prototype's score is the target; the answers are drawn to land near it.
+        answer_audit(audit, (a.get("score") or 80) / 100)
+    s.flush()
 
-        # Give completed audits plausible answers so screens aren't empty.
-        sample = list(questions.values())
-        for q in sample:
-            answer = None
-            if status == "Completed":
-                answer = random.choices(["Yes", "No", "NA"],
-                                        weights=[80, 15, 5])[0]
-            elif status == "Ongoing":
-                answer = random.choice(["Yes", "No", None])
-            s.add(AuditResponse(audit_id=audit.id, question_id=q.id, answer=answer))
+    # ---- audits across the year, so every page and chart has data ---------
+    now = dt.datetime.now().replace(minute=0, second=0, microsecond=0)
+    current_q = quarter_of(now)
+    auditor_users = sorted((u for u in users.values() if u.role == ROLE_AUDITOR), key=lambda u: u.name)
+    # How well each store does (share of Yes answers), so the scores spread out.
+    yes_rate = {st["id"]: 0.55 + 0.4 * random.random() for st in data["stores"]}
+
+    def add_audit(store_id, start, status, n, unassigned=False, notes=None):
+        audit = Audit(
+            id=next_audit_id(s), store_id=store_id, checklist_id=full.id,
+            auditor_id=None if unassigned else auditor_users[n % len(auditor_users)].id,
+            created_by_id=admin.id, created_at=start - dt.timedelta(days=7),
+            scheduled_at=start, due_at=start + dt.timedelta(hours=8),
+            status=status, notes=notes,
+        )
+        if status in SCORED_STATUSES:
+            audit.submitted_at = start + dt.timedelta(hours=7)
+            if status == "Approved":
+                audit.approved_by_id = admin.id
+        s.add(audit)
+        s.flush()
+        answer_audit(audit, yes_rate[store_id])
+        audit_objs[audit.id] = audit
+        return audit
+
+    store_ids = [st["id"] for st in data["stores"]]
+    for n, sid in enumerate(store_ids):
+        # One filled-in audit per store in each earlier quarter of this year.
+        for q in range(1, current_q):
+            start = dt.datetime(now.year, 3 * (q - 1) + 1, 5 + (n * 2) % 20, 10)
+            add_audit(sid, start, "Approved" if q < current_q - 1 or n % 2 else "Completed", n + q)
+        # This quarter: a mix of every status the pages show.
+        if sid == "ST003":
+            pass  # Ub City: no scored audit this quarter, so its score stays the imported one
+        elif n % 5 == 4:
+            add_audit(sid, now - dt.timedelta(days=3), "Ongoing", n,
+                      notes="Started but not finished by the end: shows as overdue.")
+        elif n % 5 == 2:
+            add_audit(sid, now - dt.timedelta(days=4), "Planned", n,
+                      notes="Not started by its end date: shows as overdue.")
+        else:
+            add_audit(sid, now - dt.timedelta(days=n + 2), "Completed", n)
+        if n % 4 == 1:
+            add_audit(sid, now - dt.timedelta(days=10), "Cancelled", n, notes="Store closed for renovation that day.")
+        # Something coming up for every store, a few not yet assigned.
+        add_audit(sid, now + dt.timedelta(days=n + 1), "Planned", n, unassigned=n % 4 == 3,
+                  notes="Quarterly checklist audit.")
     s.flush()
 
     # ---- scheduled audits that have no audit record yet ------------------
@@ -342,6 +402,40 @@ def seed():
             meta={"tags": iss.get("tags", []), "store_label": iss.get("store")},
         ))
 
+    # ---- issues raised from "No" answers on the generated audits -----------
+    s.flush()
+    issue_no = len(data.get("issues", []))
+    statuses = ["Open", "In Progress", "Resolved", "Open", "Closed", "On Hold"]
+    seeded_ids = {a["id"] for a in data["audits"]}
+    for n, audit in enumerate(a for a in audit_objs.values()
+                              if a.id not in seeded_ids and a.status in SCORED_STATUSES):
+        if n % 3:
+            continue
+        failed = next((r for r in audit.responses if r.answer == "No"), None)
+        if failed is None:
+            continue
+        q = failed.question
+        status = statuses[(n // 3) % len(statuses)]
+        issue_no += 1
+        s.add(Issue(
+            id=f"ISS-{issue_no:03d}", audit_id=audit.id, store_id=audit.store_id,
+            response_id=failed.id, title=f"Not met: {q.text}"[:240],
+            description=f"Answered No during audit {audit.id}.",
+            process=q.process, sub_process=q.sub_process,
+            priority="Critical" if q.is_critical else "Medium", status=status,
+            assignee_id=(store_auditee[audit.store_id].id if audit.store_id in store_auditee
+                         else s.get(Store, audit.store_id).manager_id),
+            raised_by_id=audit.auditor_id or admin.id,
+            due_date=(audit.submitted_at + dt.timedelta(days=14)).date(),
+            closed_at=audit.submitted_at + dt.timedelta(days=10) if status in ("Resolved", "Closed") else None,
+            created_at=audit.submitted_at,
+        ))
+
+    # ---- quarter scores follow the audits scored in each quarter ----------
+    for audit in audit_objs.values():
+        if audit.status in SCORED_STATUSES:
+            sync_store_score(s, audit.store_id, audit.submitted_at)
+
     # ---- a couple of availability blocks ---------------------------------
     auditors = [u for u in users.values() if u.role == ROLE_AUDITOR]
     if auditors:
@@ -366,7 +460,7 @@ def seed():
           f"{len(users) + 1} users")
     print(f"  Data: {cr_count} cash reconciliations, {cd_count} cash deposits, "
           f"{ei_count} expired inventory, {ss_count} store scores, {ob_count} observations")
-    print(f"  Issues: {len(data.get('issues', []))}, brands: {len({st.get('brand') for st in data['stores']})}")
+    print(f"  Issues: {issue_no}, brands: {len({st.get('brand') for st in data['stores']})}")
     print(f"\nLogins (password: {DEFAULT_PASSWORD})")
     print("  Admin         : admin@retail-chain.com")
     print("  Audit Manager : am@retail-chain.com")

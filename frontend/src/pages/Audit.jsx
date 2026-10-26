@@ -34,7 +34,7 @@ import { useUrlFilters } from '@/lib/useUrlFilters';
 // stage / status / view all filter by status (see components/audit/auditHelpers
 // rowMatchesStatusFilter); id opens the detail; new opens the schedule form
 // (old /scheduling links land here).
-const FILTER_KEYS = ['stage', 'status', 'view', 'store', 'region', 'auditor', 'q', 'id', 'new'];
+const FILTER_KEYS = ['stage', 'status', 'view', 'brand', 'store', 'region', 'auditor', 'q', 'id', 'new'];
 const STATUS_OPTIONS = [...STAGES, { value: 'overdue', label: 'Overdue' }];
 // Statuses a manager or admin may set by hand on a checklist audit (same list as the API).
 const EDIT_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Approved', 'Cancelled'];
@@ -173,7 +173,12 @@ export default function Audit() {
   }, [audits, isAuditor, ws.userId]);
   const scheduled = useMemo(() => scheduledForYou(rows), [rows]);
   const regionOptions = useMemo(() => distinctOptions(rows, 'region', 'region'), [rows]);
-  const storeOptions = useMemo(() => distinctOptions(rows, 'store_id', 'store'), [rows]);
+  const brandOptions = useMemo(() => distinctOptions(rows, 'brand_id', 'brand'), [rows]);
+  // Brand and store are separate filters; with a brand picked the store list only has its stores.
+  const storeOptions = useMemo(
+    () => distinctOptions(filters.brand ? rows.filter((r) => r.brand_id === filters.brand) : rows, 'store_id', 'store'),
+    [rows, filters.brand],
+  );
   const auditorOptions = useMemo(() => distinctOptions(rows, 'auditor_id', 'auditor'), [rows]);
 
   // Tiles count everything except the status filter, so they stay a way to switch status.
@@ -181,7 +186,7 @@ export default function Audit() {
     const from = startDate ? new Date(`${startDate}T00:00:00`) : null;
     const to = endDate ? new Date(`${endDate}T23:59:59`) : null;
     return filterRows(rows, {
-      store: filters.store,
+      brand: filters.brand, store: filters.store,
       region: filters.region, auditor: filters.auditor, q: filters.q,
     }).filter((r) => {
       if (!from && !to) return true;
@@ -189,7 +194,7 @@ export default function Audit() {
       if (!d || Number.isNaN(d.getTime())) return false;
       return !(from && d < from) && !(to && d > to);
     });
-  }, [rows, filters.store, filters.region, filters.auditor, filters.q, startDate, endDate]);
+  }, [rows, filters.brand, filters.store, filters.region, filters.auditor, filters.q, startDate, endDate]);
   const counts = kpiCounts(forTiles);
   const overdueCount = forTiles.filter((r) => isOverdue(r)).length;
   const statusKeys = { stage: filters.stage, status: filters.status, view: filters.view };
@@ -325,6 +330,20 @@ export default function Audit() {
         <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.region} onChange={(e) => applyFilter('region', e.target.value)} aria-label="Filter by region">
           <option value="">Region</option>
           {regionOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <select
+          className={cn(fieldClass, 'w-auto cursor-pointer')}
+          value={filters.brand}
+          onChange={(e) => {
+            const brand = e.target.value;
+            const keepStore = !brand || rows.some((r) => r.store_id === filters.store && r.brand_id === brand);
+            setPage(1);
+            setMany({ brand, store: keepStore ? filters.store : '' });
+          }}
+          aria-label="Filter by brand"
+        >
+          <option value="">Brand</option>
+          {brandOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.store} onChange={(e) => applyFilter('store', e.target.value)} aria-label="Filter by store">
           <option value="">Store</option>

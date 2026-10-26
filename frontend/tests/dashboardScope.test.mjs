@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  brandStyles, inScope, parseScopeValue, recentObservations, repeatIssues, resolveScope,
-  scopeFromParams, scopeTitle, scopeValue, storesInScope, topObservations, trendQuery, wording,
+  brandStyles, inScope, pickerParams, recentObservations, repeatIssues, resolveScope,
+  scopeFromParams, scopeTitle, storesInScope, topObservations, trendQuery, wording,
 } from '../src/lib/dashboardScope.js';
 
 const brands = [{ id: 'b1', name: 'FreshMart' }, { id: 'b2', name: 'Urban Basket' }];
@@ -19,10 +19,19 @@ test('heading names the scope', () => {
   assert.equal(scopeTitle({ kind: 'store', id: 'S1' }, stores, brands), 'Phoenix Mall - Mumbai, West India');
 });
 
-test('scope round-trips through the selector value and the URL', () => {
-  for (const s of [{ kind: 'all', id: '' }, { kind: 'brand', id: 'b1' }, { kind: 'store', id: 'S1' }]) {
-    assert.deepEqual(parseScopeValue(scopeValue(s)), s);
-  }
+test('brand and store dropdowns work together or alone', () => {
+  assert.deepEqual(pickerParams(stores, {}, { brand: 'b1' }), { brand: 'b1' });
+  assert.deepEqual(pickerParams(stores, {}, { store: 'S2' }), { store: 'S2' });
+  assert.deepEqual(pickerParams(stores, { brand: 'b1' }, { store: 'S3' }), { brand: 'b1', store: 'S3' });
+  // a brand that does not own the picked store drops the store; one that does keeps it
+  assert.deepEqual(pickerParams(stores, { store: 'S2' }, { brand: 'b1' }), { brand: 'b1' });
+  assert.deepEqual(pickerParams(stores, { store: 'S3' }, { brand: 'b1' }), { brand: 'b1', store: 'S3' });
+  // back to all brands keeps the store; clearing the store keeps the brand
+  assert.deepEqual(pickerParams(stores, { brand: 'b1', store: 'S3' }, { brand: '' }), { store: 'S3' });
+  assert.deepEqual(pickerParams(stores, { brand: 'b1', store: 'S3' }, { store: '' }), { brand: 'b1' });
+});
+
+test('scope comes from the URL', () => {
   assert.deepEqual(scopeFromParams(new URLSearchParams('store=S1&brand=b1')), { kind: 'store', id: 'S1' });
   assert.deepEqual(scopeFromParams(new URLSearchParams('brand=b1')), { kind: 'brand', id: 'b1' });
   assert.deepEqual(scopeFromParams(new URLSearchParams('')), { kind: 'all', id: '' });
