@@ -7,13 +7,15 @@ export const ALL = 'all'
 export const BRAND = 'brand'
 export const STORE = 'store'
 
-// The two header dropdowns, brand and store, can be used together or alone.
-// `current` and `change` hold { brand, store } ids ('' for all); the result is
-// the new URL query. Picking a brand drops a store that is not in it.
+// The two header dropdowns, brand and store, are linked. `current` and `change`
+// hold { brand, store } ids ('' for all); the result is the new URL query.
+// Picking a store also picks its brand; picking a brand keeps the store only
+// when it belongs to that brand, so "All brands" clears the store too.
 export function pickerParams(stores = [], current = {}, change = {}) {
   const next = { brand: '', store: '', ...current, ...change }
   const store = stores.find((s) => s.id === next.store)
-  if ('brand' in change && next.brand && store && store.brand_id !== next.brand) next.store = ''
+  if ('store' in change && store?.brand_id) next.brand = store.brand_id
+  if ('brand' in change && store && store.brand_id !== next.brand) next.store = ''
   const out = {}
   if (next.brand) out.brand = next.brand
   if (next.store) out.store = next.store

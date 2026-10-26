@@ -336,7 +336,8 @@ export default function Audit() {
           value={filters.brand}
           onChange={(e) => {
             const brand = e.target.value;
-            const keepStore = !brand || rows.some((r) => r.store_id === filters.store && r.brand_id === brand);
+            // Keep the store only when it belongs to the new brand ("Brand" = all clears it).
+            const keepStore = !!brand && rows.some((r) => r.store_id === filters.store && r.brand_id === brand);
             setPage(1);
             setMany({ brand, store: keepStore ? filters.store : '' });
           }}
@@ -345,7 +346,18 @@ export default function Audit() {
           <option value="">Brand</option>
           {brandOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.store} onChange={(e) => applyFilter('store', e.target.value)} aria-label="Filter by store">
+        <select
+          className={cn(fieldClass, 'w-auto cursor-pointer')}
+          value={filters.store}
+          onChange={(e) => {
+            // Picking a store also picks its brand, so the two filters always agree.
+            const store = e.target.value;
+            const brand = rows.find((r) => r.store_id === store)?.brand_id;
+            setPage(1);
+            setMany(store && brand ? { store, brand } : { store });
+          }}
+          aria-label="Filter by store"
+        >
           <option value="">Store</option>
           {storeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>

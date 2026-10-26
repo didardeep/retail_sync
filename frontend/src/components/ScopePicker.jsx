@@ -2,11 +2,11 @@ import { Building2, ChevronDown, Store } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
-const selectClass = 'h-11 w-full cursor-pointer appearance-none rounded-lg border-2 border-primary/50 bg-card pl-10 pr-9 text-sm font-semibold text-foreground shadow-sm hover:border-primary focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+const selectClass = 'h-9 w-full cursor-pointer appearance-none rounded-lg border border-primary/50 bg-card pl-10 pr-9 text-sm font-semibold text-foreground shadow-sm hover:border-primary focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 function Picker({ id, label, icon: Icon, value, onChange, children }) {
   return (
-    <div className="min-w-[200px]">
+    <div className="w-full sm:w-[240px]">
       <label htmlFor={id} className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </label>
