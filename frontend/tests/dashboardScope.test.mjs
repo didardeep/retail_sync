@@ -19,15 +19,16 @@ test('heading names the scope', () => {
   assert.equal(scopeTitle({ kind: 'store', id: 'S1' }, stores, brands), 'Phoenix Mall - Mumbai, West India');
 });
 
-test('brand and store dropdowns work together or alone', () => {
+test('brand and store dropdowns are linked', () => {
   assert.deepEqual(pickerParams(stores, {}, { brand: 'b1' }), { brand: 'b1' });
-  assert.deepEqual(pickerParams(stores, {}, { store: 'S2' }), { store: 'S2' });
+  // picking a store picks its brand too
+  assert.deepEqual(pickerParams(stores, {}, { store: 'S2' }), { brand: 'b2', store: 'S2' });
   assert.deepEqual(pickerParams(stores, { brand: 'b1' }, { store: 'S3' }), { brand: 'b1', store: 'S3' });
   // a brand that does not own the picked store drops the store; one that does keeps it
-  assert.deepEqual(pickerParams(stores, { store: 'S2' }, { brand: 'b1' }), { brand: 'b1' });
-  assert.deepEqual(pickerParams(stores, { store: 'S3' }, { brand: 'b1' }), { brand: 'b1', store: 'S3' });
-  // back to all brands keeps the store; clearing the store keeps the brand
-  assert.deepEqual(pickerParams(stores, { brand: 'b1', store: 'S3' }, { brand: '' }), { store: 'S3' });
+  assert.deepEqual(pickerParams(stores, { brand: 'b2', store: 'S2' }, { brand: 'b1' }), { brand: 'b1' });
+  assert.deepEqual(pickerParams(stores, { brand: 'b1', store: 'S3' }, { brand: 'b1' }), { brand: 'b1', store: 'S3' });
+  // all brands clears the store; clearing the store keeps the brand
+  assert.deepEqual(pickerParams(stores, { brand: 'b1', store: 'S3' }, { brand: '' }), {});
   assert.deepEqual(pickerParams(stores, { brand: 'b1', store: 'S3' }, { store: '' }), { brand: 'b1' });
 });
 
