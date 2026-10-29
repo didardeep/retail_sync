@@ -375,7 +375,9 @@ class Audit(Base):
     created_by_id = Column(String(12), ForeignKey("users.id"))
 
     audit_type = Column(String(60), default="Checklist based Audit")
-    scheduled_at = Column(DateTime)
+    scheduled_at = Column(DateTime)                      # planned start
+    due_at = Column(DateTime)                            # planned end; overdue after it
+    created_at = Column(DateTime, default=dt.datetime.utcnow)  # when it was scheduled
     submitted_at = Column(DateTime)
     status = Column(String(20), default="Planned")      # Planned/Ongoing/Completed/Approved
     score = Column(Float)
@@ -396,11 +398,15 @@ class Audit(Base):
             "store": self.store.name if self.store else None,
             "city": self.store.city if self.store else None,
             "region": self.store.region if self.store else None,
+            "brand_id": self.store.brand_id if self.store else None,
+            "brand": self.store.brand.name if self.store and self.store.brand else None,
             "checklist_id": self.checklist_id,
             "auditor_id": self.auditor_id,
             "auditor": self.auditor.name if self.auditor else None,
             "audit_type": self.audit_type,
             "scheduled_at": self.scheduled_at.isoformat() if self.scheduled_at else None,
+            "due_at": self.due_at.isoformat() if self.due_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
             "submitted_at": self.submitted_at.isoformat() if self.submitted_at else None,
             "status": self.status, "score": self.score,
             "sm_rating": self.sm_rating, "sm_comment": self.sm_comment,

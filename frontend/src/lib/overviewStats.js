@@ -109,12 +109,14 @@ export function rankScored(scored = []) {
 }
 
 // Audit counts per stage, matching the Audit page when it is filtered with the
-// same stage.
+// same stage. `done` is completed plus approved: every audit whose checklist is
+// filled in (the Audit page's ?status=completed). `total` is every audit.
 export function auditStageCounts(audits = []) {
-  const counts = { scheduled: 0, in_progress: 0, completed: 0, approved: 0 }
+  const counts = { total: audits.length, scheduled: 0, in_progress: 0, completed: 0, approved: 0, cancelled: 0 }
   for (const a of audits) {
     const stage = stageOf(a.status || 'Planned')
     counts[stage] = (counts[stage] || 0) + 1
   }
+  counts.done = counts.completed + counts.approved
   return counts
 }

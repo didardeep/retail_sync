@@ -139,6 +139,22 @@ export function scoredResults(rows, limit = 12) {
     .slice(-limit)
 }
 
+// Calendar quarter key ('q1'..'q4') of a date-time, or null.
+export function quarterOf(iso) {
+  const t = ms(iso)
+  return t === null ? null : QUARTERS[Math.floor(new Date(t).getMonth() / 3)]
+}
+
+// Scored results submitted in `quarter` of `year`. The server keeps the stored
+// quarter score at their average (backend sync_store_score), so the score tile
+// and these results agree whenever there are any.
+export function resultsInQuarter(results, quarter, year) {
+  return (results || []).filter((r) => {
+    const when = r.submitted_at || r.date
+    return quarterOf(when) === quarter && new Date(when).getFullYear() === year
+  })
+}
+
 export function recentRows(rows, limit = 8) {
   return rows.slice(0, limit)
 }

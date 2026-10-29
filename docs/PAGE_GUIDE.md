@@ -23,7 +23,7 @@ only the admin can really use. The admin cannot fill in audits (that is the audi
 | ADMIN | all 12 (My Store and the auditor Dashboard are not shown) |
 | AUDIT_MANAGER | 11 (as admin, without User Management, which only the admin can open) |
 | AUDITOR | Dashboard, Audit, Email |
-| STORE_MANAGER | My Store, Audit Checklist, Compliance Metrics, Action Taken Tracking, Audit, Email |
+| STORE_MANAGER | My Store, Action Taken Tracking, Audit, Email |
 
 Two kinds of audit exist side by side:
 
@@ -52,8 +52,6 @@ Two kinds of audit exist side by side:
 | Action Taken Tracking (`/issues`) | Issues from audits through to resolution | Admin, Audit Manager, Store Manager | Reads real; most edits not saved |
 | Store Management (`/stores`) | Store master list | Admin, Audit Manager | Reads real; add/delete not saved |
 | My Store (`/my-store`) | A store manager's own store (admin and manager use the Dashboard store selector) | Store Manager | Real |
-| Audit Checklist (`/checklist`) | Read-only list of what stores are audited on | Store Manager | Real |
-| Compliance Metrics (`/compliance`) | Cash and expiry records | Store Manager | Real data, but display is broken |
 | Email Communications (`/email`) | Mailbox | nobody yet | All sample |
 | Audit Log (`/audit-log`) | Who did what | Admin, Audit Manager | Real |
 | User Management (`/user-management`) | Create and manage accounts | Admin only | Real |
@@ -147,13 +145,6 @@ Built to let an auditor answer Yes/No/Partial/NA and submit, but the route is mo
 - **Do.** Click Q1-Q4 only.
 - **Limits.** Store managers only: the page always shows their own store and has no store picker. Admin and Audit Manager no longer get this page in the sidebar; they pick a store on Dashboard and Analytics instead, and a visit to `/my-store` (with or without `?store=`) redirects them to `/dashboard` (keeping `?store`).
 
-### Audit Checklist (`/checklist`)
-- **Purpose.** Read-only list of the questions stores are audited on, grouped by process; search and collapse.
-- **Limits.** Shows the whole bank, not a given audit; may include unapproved questions; guidance text never appears.
-
-### Compliance Metrics (`/compliance`)
-- **Purpose.** Cash reconciliation, deposit pickups, expired inventory imported from Excel.
-- **Limits (bug, [verified]).** The data is in the database (8 cash records, 28 deposit pickups, 18 expired items) but the page reads different field names than the server sends, so most cells show a dash, Total Deposits shows 0, and Store is blank. Only counts, remarks, quantity and expiry date show. A fix is a small mapping change in `StoreCompliance.jsx`.
 - **Excel import.** The server can import Excel files (`POST /api/upload`, admin/audit manager) for cash, deposits, expired stock, store scores and observations, but **no page exposes it**.
 
 ---
@@ -183,7 +174,6 @@ Email and password. No forgot-password, sign-up, or password change; the admin r
 
 | Gap | What changed |
 |---|---|
-| Compliance Metrics showed dashes | Rewritten to the real fields: store name, rupee amounts, Matched / Mismatch, delayed pickups, stock value; store picker. [verified live] |
 | My Store and Compliance mixed stores for admin / manager | Compliance has a store picker (`?store=ST003`). My Store is now store managers only; admin and manager use the store selector on Dashboard and Analytics (`/dashboard?store=`). |
 | Issues: new, delete, assignee, due date did not save | Create, edit, delete now saved on the server (delete: admin and audit manager only, logged); real users as assignees; failures show an error instead of success; fields with no database column (tags, attachments, comments) removed from the form; the overdue badge now works. Store managers see only status and action taken. [verified: create, persist, delete, 403 for store manager] |
 | Stores: add and delete did not save | Add and edit saved; delete replaced by "Dehire" (soft); fake manager field and dead "Full History" button removed; region and format filters added; duplicate id returns 409. [verified] |

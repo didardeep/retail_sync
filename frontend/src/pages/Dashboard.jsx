@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { CalendarDays, CheckCircle2, ClipboardList, Loader2, XCircle } from 'lucide-react';
 import { api, loadSession } from '../api/client';
 import { Loading } from '@/components/Loader';
+import FormatLegend from '@/components/FormatLegend';
 import ScopePicker from '@/components/ScopePicker';
+import Tile from '@/components/Tile';
 import PowerBiSample from '@/components/PowerBiSample';
 import BrandTrendCard from '@/components/dashboard/BrandTrendCard';
 import ObservationsCard from '@/components/dashboard/ObservationsCard';
@@ -20,7 +23,7 @@ import {
   auditStageCounts, groupObservationsByRisk, rankScored, scoreStores,
 } from '@/lib/overviewStats';
 import {
-  inScope, resolveScope, scopeFromParams, scopeParams, scopeTitle, storesInScope, wording,
+  inScope, pickerParams, resolveScope, scopeFromParams, scopeTitle, storesInScope, wording,
 } from '@/lib/dashboardScope';
 
 // The sections for all brands or for one brand. Everything passed in is already
@@ -38,10 +41,18 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
   const ranked = rankScored(scored);
   const qLabel = selectedQ.toUpperCase();
 
-  // KPI tiles link to the Audit page filtered by stage, so the tile number
-  // equals the number of rows shown there. Approved is its own tile because
-  // the Audit page keeps it as its own stage.
+  // KPI tiles link to the Audit page filtered by the same brand and stage, so
+  // the tile number equals the number of rows shown there. Completed counts
+  // every audit whose checklist is filled in (completed or approved).
   const stageCounts = auditStageCounts(audits);
+  const brandKey = scope.kind === 'brand' ? scope.id : undefined;
+  const kpiTiles = [
+    { label: 'Total audits', value: stageCounts.total, link: { brand: brandKey }, icon: ClipboardList, tint: '#f3f4f6' },
+    { label: 'Planned', value: stageCounts.scheduled, link: { stage: 'scheduled', brand: brandKey }, icon: CalendarDays, tint: '#e8eefa' },
+    { label: 'Ongoing', value: stageCounts.in_progress, link: { stage: 'in_progress', brand: brandKey }, icon: Loader2, tint: '#fffbeb' },
+    { label: 'Completed', value: stageCounts.done, link: { status: 'completed', brand: brandKey }, icon: CheckCircle2, tint: '#ecfdf5' },
+    { label: 'Cancelled', value: stageCounts.cancelled, link: { stage: 'cancelled', brand: brandKey }, icon: XCircle, tint: '#fde8e8' },
+  ];
 
   // Risk distribution: observations grouped by their risk level (four levels
   // plus Unrated for blank/unrecognised text). The drawer lists the same group.
@@ -49,8 +60,10 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
   const riskData = { labels:riskD.map(d=>d.l), datasets:[{data:riskD.map(d=>d.count),backgroundColor:riskD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
   const donutOpts = (cutout, onClick) => ({ responsive:true, maintainAspectRatio:false, cutout, plugins:{legend:{display:false},tooltip:{intersect:true,titleFont:{size:13},bodyFont:{size:13},padding:10,displayColors:true}}, onClick:(evt,els)=>{if(els.length && onClick) onClick(els[0].index);} });
 
-  // Store bar chart: top 7 scored stores for the selected quarter.
-  const storeBarD = ranked.slice(0,7).map(e => ({l: e.store.name?.substring(0,12) || e.store.id, v: e.score, id: e.store.id}));
+  // Store bar chart: for one brand every scored outlet, otherwise the top 7.
+  const barStores = scope.kind === 'brand' ? ranked : ranked.slice(0,7);
+  const storeBarD = barStores.map(e => ({l: e.store.name?.substring(0,12) || e.store.id, v: e.score, id: e.store.id}));
+  const storeBarNote = scope.kind === 'brand' ? `${qLabel}, ${scored.length} of ${stores.length} outlets scored` : `${qLabel}, top ${storeBarD.length} of ${scored.length} scored`;
   const storeBarData = { labels:storeBarD.map(d=>d.l), datasets:[{data:storeBarD.map(d=>d.v),backgroundColor:storeBarD.map(d=>d.v>=77?'#0e9f6e':'#f59e0b'),borderRadius:4}] };
   const storeBarOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{min:50,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}, onClick:(evt,els)=>{ if(els.length){ const d=storeBarD[els[0].index]; if(d?.id) navigate(storeScorecardLink(d.id, role)); } } };
 
@@ -119,18 +132,10 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
   }
   return (
     <>
-      {/* KPIs: same rows as the Audit page for the same stage */}
-      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
-        {[
-          { label: 'Planned', stage: 'scheduled', bg: '#e8eefa', icon: '\u{1F4CB}' },
-          { label: 'Ongoing', stage: 'in_progress', bg: '#fffbeb', icon: '\u23F3' },
-          { label: 'Completed', stage: 'completed', bg: '#ecfdf5', icon: '\u2705' },
-          { label: 'Approved', stage: 'approved', bg: '#ecfdf5', icon: '\u2714' },
-        ].map(k => (
-          <div key={k.stage} className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 hover:bg-accent/40" onClick={() => navigate(auditsLink({ stage: k.stage }))}>
-            <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-base" style={{background:k.bg}}>{k.icon}</div>
-            <div><div className="mb-0.5 text-[11px] text-muted-foreground">{k.label}</div><div className="text-2xl font-bold leading-none text-foreground">{stageCounts[k.stage]}</div></div>
-          </div>
+      {/* KPIs: each opens the Audit page with the same brand and status, so it shows the same rows */}
+      <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {kpiTiles.map(k => (
+          <Tile key={k.label} icon={k.icon} tint={k.tint} label={k.label} value={k.value} onClick={() => navigate(auditsLink(k.link))} />
         ))}
       </div>
 
@@ -159,7 +164,7 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
       {/* Row 2: Store bars + Region */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.storeBars}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{qLabel}, top 7 of {scored.length} scored</span></div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.storeBars}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{storeBarNote}</span></div>
           {storeBarD.length ? <div className="relative h-[190px] w-full"><Bar data={storeBarData} options={storeBarOpts}/></div> : <div className="flex h-[190px] items-center justify-center text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
         </div>
         <div className="rounded-[10px] border border-border bg-card p-4">
@@ -187,7 +192,7 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
       {/* Row 3: Format + Distribution */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.format}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
+          <div className="mb-3 flex items-center gap-1 text-[13px] font-semibold text-foreground">{words.format}<FormatLegend /><span className="ml-1 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
           <div className="flex gap-4.5">
             <div className="flex-1">{fmtScored.length ? <Bar data={fmtData} options={fmtOpts} height={145}/> : <div className="flex h-[145px] items-center justify-center text-xs text-muted-foreground">No scored stores in {qLabel}</div>}</div>
             <div className="min-w-[155px] text-xs">
@@ -364,8 +369,11 @@ export default function Dashboard() {
             <ScopePicker
               brands={brands}
               stores={stores}
-              scope={scope}
-              onChange={(next) => setParams(scopeParams(next), { replace: true })}
+              brandId={params.get('brand') || ''}
+              storeId={scope.kind === 'store' ? scope.id : ''}
+              onChange={(change) => setParams(pickerParams(stores, {
+                brand: params.get('brand') || '', store: scope.kind === 'store' ? scope.id : '',
+              }, change), { replace: true })}
             />
             <div className="flex gap-1.5">
               {QUARTERS.map((q) => (

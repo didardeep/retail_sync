@@ -13,13 +13,11 @@ import AuditorDashboard from './pages/AuditorDashboard'
 import StoreAuditScores from './pages/StoreAuditScores'
 import Issues from './pages/Issues'
 import Audit from './pages/Audit'
-import Scheduling from './pages/Scheduling'
 import Questions from './pages/Questions'
 import Stores from './pages/Stores'
 import Email from './pages/Email'
 import AuditLog from './pages/AuditLog'
 import StoreDashboard from './pages/StoreDashboard'
-import StoreChecklist from './pages/StoreChecklist'
 import UserManagement from './pages/UserManagement'
 import AuditRoute from './components/classic/AuditRoute'
 import ClassicAuditReview from './pages/ClassicAuditReview'
@@ -30,6 +28,13 @@ function MyStoreRedirect() {
   const { search } = useLocation()
   const store = new URLSearchParams(search).get('store')
   return <Navigate to={store ? `/dashboard?store=${encodeURIComponent(store)}` : '/dashboard'} replace />
+}
+
+// Scheduling is part of the Audit page now; old /scheduling links keep their
+// query (stage, auditor, id; new=1 opens the schedule form).
+function SchedulingRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={`/audits${search}`} replace />
 }
 
 export default function App() {
@@ -72,7 +77,7 @@ export default function App() {
             <Route path="/audits" element={guarded('audits', <Audit />)} />
             <Route path="/audits/:id" element={guarded('audits', <AuditRoute />)} />
             <Route path="/audits/:id/review" element={guarded('audits', <ClassicAuditReview />)} />
-            <Route path="/scheduling" element={guarded('scheduling', <Scheduling />)} />
+            <Route path="/scheduling" element={<SchedulingRedirect />} />
             <Route path="/questions" element={guarded('questions', <Questions />)} />
             <Route path="/stores"element={guarded('stores', <Stores />)} />
             <Route path="/email" element={guarded('email', <Email />)} />
@@ -81,7 +86,6 @@ export default function App() {
               path="/my-store"
               element={isManager ? <MyStoreRedirect /> : guarded('my-store', <StoreDashboard />)}
             />
-            <Route path="/checklist" element={guarded('checklist', <StoreChecklist />)} />
             <Route path="/user-management" element={guarded('user-management', <UserManagement />)} />
             <Route path="*" element={<Navigate to={`/${firstAllowedPage(role)}`} replace />} />
           </Routes>

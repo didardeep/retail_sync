@@ -4,15 +4,15 @@ Every cross-page link is built in `frontend/src/lib/links.js`. Pages read their 
 
 | Route | Query keys | Read by | Builder |
 |---|---|---|---|
-| `/audits` | `stage` (exact stage or `overdue`), `status` (`scheduled`, `in_progress`, `completed` which includes approved, `cancelled`, `overdue`, or old raw statuses `Planned`, `Draft`, `Submitted`), `view` (`assigned`/`scheduled`, `in_progress`), `tool` (SOP tool code), `kind`, `store`, `region`, `auditor`, `q`, `id` | Audit page (the one page for every role) | `auditsLink`, `sopAuditsLink` |
-| `/scheduling` | `stage`, `auditor`, `id`, `new` (e.g. `sop`) | Audit Scheduling page | `schedulingLink` |
+| `/audits` | `stage` (exact stage or `overdue`), `status` (`scheduled`, `in_progress`, `completed` which includes approved, `cancelled`, `overdue`, or old raw statuses `Planned`, `Draft`, `Submitted`), `view` (`assigned`/`scheduled`, `in_progress`), `brand`, `store`, `region`, `auditor`, `q`, `id`, `new` (opens the schedule form) | Audit page (the one page for every role; scheduling lives here) | `auditsLink`, `schedulingLink` |
+| `/scheduling` | any | Redirects to `/audits` keeping the query | none |
 | `/issues` | `status`, `priority`, `store`, `audit`, `sop_audit`, `id` | Action Taken Tracking page | `issuesLink` |
 | `/stores` | `region`, `format`, `id` | Store Management page | `storesLink` |
 | `/sop-audits` | any | Redirects to `/audits` keeping the query (old bookmarks, bell, dashboard links) | `auditListRedirectTarget` |
 | `/sop-audits/:id` | none | SOP audit wizard (guarded by the `audits` page key) | `sopAuditRunLink` |
 | `/sop-audits/:id/review` | none | SOP audit review page | `sopAuditReviewLink` |
 | `/dashboard` | `tab=sop`, `store`, `tool`, `section`, `criterion` (SOP tab also uses `region`, `q`) | Dashboard page (`tab`) and SOP dashboard (filters) | `sopDashboardLink` |
-| `/dashboard` | `store` (without `tab=sop`) | Dashboard store view (store selector; "All stores" when absent). With `tab=sop` the `store` key is the SOP tab's own filter | `storeScorecardLink` |
+| `/dashboard` | `brand`, `store` | Dashboard: the Brand and Store dropdowns, used together or alone. With a `store` it shows that store's view; with only a `brand`, that brand's overview | `storeScorecardLink` |
 | `/my-store` | `store` | Store managers: own store page (ignores `store`). ADMIN and AUDIT_MANAGER are redirected to `/dashboard` keeping `?store` | none |
 | `/questions` | `tab` (e.g. `sop-tools`) | Audit Questions page | `questionsLink` |
 | `/questions/sop-tools/:code` | none | SOP tool editor (manager only) | `sopToolEditorLink` |

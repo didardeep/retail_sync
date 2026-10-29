@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   activeRows, auditPath, doneRows, forStore, latestScoredQuarter, openIssues, overdueIssues,
-  priorityBreakdown, quarterScore, scoreTrend, scoredResults, stageBreakdown, storeKpis,
-  topOpenIssues,
+  priorityBreakdown, quarterOf, quarterScore, resultsInQuarter, scoreTrend, scoredResults,
+  stageBreakdown, storeKpis, topOpenIssues,
 } from '../src/lib/storeStats.js';
 import { auditRows } from '../src/lib/auditRows.js';
 
@@ -101,4 +101,20 @@ test('kpis pair each number with its list', () => {
   assert.equal(k.open.length, 3);
   assert.equal(k.overdue.length, 1);
   assert.equal(storeKpis({ rows, issues: [], scores, storeId: 'S1', quarter: null }).score, null);
+});
+
+test('quarterOf and resultsInQuarter pick the audits behind a quarter score', () => {
+  assert.equal(quarterOf('2026-02-10T10:00:00'), 'q1');
+  assert.equal(quarterOf('2026-06-30T23:00:00'), 'q2');
+  assert.equal(quarterOf('2026-10-01T00:00:00'), 'q4');
+  assert.equal(quarterOf(null), null);
+  const results = [
+    { id: 'a', submitted_at: '2026-10-02T10:00:00', percent: 80 },
+    { id: 'b', submitted_at: '2026-11-20T10:00:00', percent: 90 },
+    { id: 'c', submitted_at: '2026-05-02T10:00:00', percent: 70 },
+    { id: 'd', submitted_at: '2025-11-02T10:00:00', percent: 60 },
+  ];
+  assert.deepEqual(resultsInQuarter(results, 'q4', 2026).map((r) => r.id), ['a', 'b']);
+  assert.deepEqual(resultsInQuarter(results, 'q2', 2026).map((r) => r.id), ['c']);
+  assert.deepEqual(resultsInQuarter(results, 'q1', 2026), []);
 });

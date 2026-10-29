@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Modal, ModalTitle, ModalActions } from '../components/Modal'
+import FormatLegend from '@/components/FormatLegend'
 import { storeScorecardLink } from '@/lib/links'
 import { storesApi } from '../api/storesApi'
 
@@ -277,6 +278,7 @@ export default function Stores() {
             <option value="">All formats</option>
             {formatOptions.map(f => <option key={f} value={f}>{f}</option>)}
           </select>
+          <FormatLegend />
           <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === '' && 'border-primary bg-primary text-primary-foreground')} onClick={() => handleTabFilter('')}>All</button>
           <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === 'Operating' && 'border-primary bg-primary text-primary-foreground')} onClick={() => handleTabFilter('Operating')}>Operating</button>
           <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === 'Dehired' && 'border-primary bg-primary text-primary-foreground')} onClick={() => handleTabFilter('Dehired')}>Dehired</button>

@@ -6,6 +6,7 @@ import {
   groupObservationsByRisk, auditStageCounts, rankScored, scoreStores,
 } from '../src/lib/overviewStats.js';
 import { auditRows, filterRows } from '../src/lib/auditRows.js';
+import { statusMatches } from '../src/components/audit/auditHelpers.js';
 
 const obs = [
   { id: 1, risk: 'Critical' }, { id: 2, risk: 'high' }, { id: 3, risk: 'High' },
@@ -95,11 +96,15 @@ test('dashboard stage counts equal Audit page rows for the same stage', () => {
   const raw = audits.map((a) => ({ ...a, store_id: 'S1' }));
   const counts = auditStageCounts(raw);
   const rows = auditRows(raw);
-  for (const stage of ['scheduled', 'in_progress', 'completed', 'approved']) {
+  for (const stage of ['scheduled', 'in_progress', 'completed', 'approved', 'cancelled']) {
     assert.equal(counts[stage], filterRows(rows, { stage }).length, stage);
   }
   assert.equal(counts.completed, 2);
   assert.equal(counts.approved, 1);
+  assert.equal(counts.done, 3);
+  assert.equal(counts.total, rows.length);
+  // the Completed tile links to ?status=completed, which keeps completed and approved rows
+  assert.equal(counts.done, rows.filter((r) => statusMatches(r, 'completed')).length);
 });
 
 test('region drill list equals Audit page rows for that region', () => {

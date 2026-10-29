@@ -101,3 +101,21 @@ def test_admin_can_use_the_original_manager_pages(client, tokens, user_ids):
 def test_the_audit_log_stays_closed_to_other_roles(client, tokens):
     for who in ("auditor1", "sm1"):
         assert client.get("/api/audit-logs", headers=tokens[who]).status_code == 403
+
+
+def test_end_date_and_booking_time(client, tokens, user_ids):
+    """An audit can have an end (due_at) that is never before its start."""
+    r = client.post("/api/audits", headers=tokens["manager"], json={
+        "store_id": "T001", "scheduled_at": "2033-03-01T10:00:00", "due_at": "2033-03-01T17:00:00",
+        "auditor_id": user_ids["auditor1@test"]})
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["due_at"] == "2033-03-01T17:00:00" and body["created_at"]
+    url = f"/api/audits/{body['id']}"
+    assert client.patch(url, headers=tokens["manager"],
+                        json={"due_at": "2033-03-01T09:00:00"}).status_code == 422
+    r2 = client.patch(url, headers=tokens["manager"], json={"due_at": "2033-03-02T12:00:00"})
+    assert r2.status_code == 200 and r2.json()["due_at"].startswith("2033-03-02")
+    bad = client.post("/api/audits", headers=tokens["manager"], json={
+        "store_id": "T001", "scheduled_at": "2033-03-05T10:00:00", "due_at": "2033-03-04T10:00:00"})
+    assert bad.status_code == 422
