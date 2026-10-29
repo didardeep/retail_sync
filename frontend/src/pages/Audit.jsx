@@ -23,8 +23,10 @@ import {
   auditRows, distinctOptions, filterRows, formatDate, formatTime, scoreLabel,
 } from '@/lib/auditRows';
 import { progressPercent } from '@/lib/auditorStats';
+import { prefetchAudits } from '@/lib/offlineSync';
+import { listCachedAudits } from '@/lib/offlineStore';
 import { auditsLink, schedulingLink } from '@/lib/links';
-import { STAGES } from '@/lib/statuses';
+import { STAGES, isAuditorEditable } from '@/lib/statuses';
 import { useUrlFilters } from '@/lib/useUrlFilters';
 
 // stage / status / view all filter by status (see components/audit/auditHelpers
@@ -107,15 +109,36 @@ export default function Audit() {
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
+  const [offlineIds, setOfflineIds] = useState(() => new Set());
+
+  // Audits stored on this device, so an auditor can open them with no network.
+  const loadOffline = useCallback(async () => {
+    try {
+      const cached = await listCachedAudits(me?.id);
+      setOfflineIds(new Set(cached.map((a) => a.id)));
+      return cached;
+    } catch {
+      return [];
+    }
+  }, [me?.id]);
 
   const loadRemote = useCallback(async () => {
     try {
-      setAudits(await api.audits());
+      const list = await api.audits();
+      setAudits(list);
       setRemoteError(null);
+      if (isAuditor) {
+        // Keep the auditor's open audits on the device for offline use.
+        prefetchAudits(list.filter((a) => a.auditor_id === me?.id && isAuditorEditable(a.status))).then(loadOffline);
+      }
     } catch (e) {
       setRemoteError(e);
+      if (isAuditor) {
+        const cached = await loadOffline();
+        if (cached.length) setAudits(cached);
+      }
     }
-  }, []);
+  }, [isAuditor, me?.id, loadOffline]);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,6 +153,7 @@ export default function Audit() {
             : Promise.resolve(),
         ]);
       }
+      else if (isAuditor) await loadRemote();
       if (!cancelled) setLoading(false);
     }
     init();
@@ -248,12 +272,14 @@ export default function Audit() {
         <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           {ws.online
             ? `Some audits could not be loaded: ${remoteError.message}`
-            : 'You are offline. Connect to see audits.'}
+            : offlineIds.size > 0
+              ? 'You are offline. Showing the audits saved on this device.'
+              : 'You are offline. Connect to see audits.'}
         </div>
       )}
       {!remoteError && !ws.online && (
         <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          You are offline. Connect to see audits.
+          You are offline. {offlineIds.size > 0 ? 'Showing the audits saved on this device.' : 'Connect to see audits.'}
         </div>
       )}
 
@@ -351,6 +377,9 @@ export default function Audit() {
                 <TableCell>
                   <AuditRowStatus row={a} />
                   <RowProgress row={a} />
+                  {isAuditor && offlineIds.has(a.id) && (
+                    <div className="mt-0.5 text-[10px] font-medium text-emerald-700">Available offline</div>
+                  )}
                 </TableCell>
                 <TableCell><ScoreCircle row={a} /></TableCell>
                 <TableCell className="font-medium">

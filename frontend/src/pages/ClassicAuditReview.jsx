@@ -11,6 +11,13 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/Toast';
 import { ErrorNote, Loading } from '@/components/Loader';
 import { Modal, ModalActions, ModalTitle } from '@/components/Modal';
+import ConflictPanel from '@/components/classic/ConflictPanel';
+import SyncChip from '@/components/SyncChip';
+import { useOnline } from '@/lib/useOnline';
+import {
+  dismissConflict, flushAudit, forgetAudit, loadAudit, useSyncState,
+} from '@/lib/offlineSync';
+import { submitBlock } from '@/lib/offlineQueue';
 
 const fmt = (n) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100));
 
@@ -37,6 +44,8 @@ export default function ClassicAuditReview() {
   const navigate = useNavigate();
   const toast = useToast();
   const user = loadSession()?.user;
+  const online = useOnline();
+  const sync = useSyncState();
 
   const [audit, setAudit] = useState(null);
   const [error, setError] = useState(null);
@@ -47,14 +56,24 @@ export default function ClassicAuditReview() {
 
   useEffect(() => {
     let cancelled = false;
-    api.audit(id)
-      .then((a) => { if (!cancelled) setAudit(a); })
+    loadAudit(id)
+      .then((r) => { if (!cancelled) setAudit(r.audit); })
       .catch((e) => { if (!cancelled) setError(e); });
     return () => { cancelled = true; };
   }, [id]);
 
+  const conflict = sync.conflicts[id];
+  const blocked = submitBlock({ online, pending: sync.pending, conflict: !!conflict });
+
   if (error) return <ErrorNote error={error} />;
   if (!audit) return <Loading what="review" />;
+  if (conflict) {
+    const dismiss = async () => {
+      await dismissConflict(id);
+      navigate(0);
+    };
+    return <ConflictPanel audit={audit} message={conflict} onDismiss={dismiss} />;
+  }
 
   const editable = isAuditorEditable(audit, user) && !result;
   const found = problems(audit);
@@ -73,7 +92,16 @@ export default function ClassicAuditReview() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      // Never submit with answers that are still only on this device.
+      const left = await flushAudit(id);
+      const why = submitBlock({ online: navigator.onLine, ...left });
+      if (why) {
+        setConfirmOpen(false);
+        setSubmitError(why);
+        return;
+      }
       const res = await api.submitAudit(id);
+      await forgetAudit(id);
       setAudit(res.audit ? { ...audit, ...res.audit, responses: audit.responses } : audit);
       setResult({ score: res.audit?.score, issues: res.issues_raised ?? 0 });
       setConfirmOpen(false);
@@ -135,9 +163,12 @@ export default function ClassicAuditReview() {
           <div className="truncate text-base font-bold text-foreground">{audit.store}</div>
           <div className="truncate text-xs text-muted-foreground">{audit.id} - Checklist audit</div>
         </div>
-        <span className="shrink-0 rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
-          {audit.status}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+            {audit.status}
+          </span>
+          {editable && <SyncChip auditId={id} />}
+        </div>
       </div>
 
       <div className="mb-4 rounded-lg border bg-card p-4 shadow-sm">
@@ -162,6 +193,9 @@ export default function ClassicAuditReview() {
       </div>
 
       {submitError && <div className="mb-3"><ErrorNote error={submitError} /></div>}
+      {editable && blocked && !submitError && (
+        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{blocked}</div>
+      )}
 
       {editable && unanswered.length > 0 && (
         <div className="mb-4 overflow-hidden rounded-lg border bg-card shadow-sm">
@@ -216,7 +250,7 @@ export default function ClassicAuditReview() {
         {editable ? (
           <>
             <Button variant="outline" className="h-11 flex-1" onClick={() => navigate(`/audits/${id}`)}>Back to questions</Button>
-            <Button className="h-11 flex-1" disabled={unanswered.length > 0} onClick={() => setConfirmOpen(true)}>Submit audit</Button>
+            <Button className="h-11 flex-1" disabled={unanswered.length > 0 || !!blocked} onClick={() => setConfirmOpen(true)}>Submit audit</Button>
           </>
         ) : (
           <Button variant="outline" className="h-11 flex-1" onClick={() => navigate('/audits')}>Back to audits</Button>

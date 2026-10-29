@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Flag } from 'lucide-react';
 
 import { api } from '@/api/client';
+import { flushAudit } from '@/lib/offlineSync';
+import { useOnline } from '@/lib/useOnline';
 import { cn, fieldClass, labelClass } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/Toast';
@@ -13,6 +15,7 @@ const PRIORITIES = ['Critical', 'High', 'Medium', 'Low'];
 // raised unless the auditor presses "Raise issue".
 export default function RaiseIssue({ audit, question, disabled, onRaised }) {
   const toast = useToast();
+  const online = useOnline();
   const [open, setOpen] = useState(false);
   const [auditees, setAuditees] = useState(null);
   const [assignee, setAssignee] = useState('');
@@ -45,6 +48,12 @@ export default function RaiseIssue({ audit, question, disabled, onRaised }) {
     if (!assignee) { toast.error('Pick who the issue goes to'); return; }
     setBusy(true);
     try {
+      // The server must know the answer before it accepts an issue for it.
+      const left = await flushAudit(audit.id);
+      if (left.pending || left.conflict) {
+        toast.error('Wait for your answers to sync, then raise the issue');
+        return;
+      }
       const issue = await api.raiseIssue(audit.id, question.id, { assignee_id: assignee, priority });
       onRaised(question.id, issue);
       setOpen(false);
@@ -59,9 +68,12 @@ export default function RaiseIssue({ audit, question, disabled, onRaised }) {
   if (!open) {
     return (
       <div className="mt-3">
-        <Button type="button" variant="outline" className="h-10" onClick={() => setOpen(true)} disabled={disabled}>
+        <Button type="button" variant="outline" className="h-10" onClick={() => setOpen(true)} disabled={disabled || !online}>
           <Flag /> Raise issue
         </Button>
+        {!online && (
+          <p className="mt-1 text-xs text-muted-foreground">Raising an issue needs a connection.</p>
+        )}
       </div>
     );
   }

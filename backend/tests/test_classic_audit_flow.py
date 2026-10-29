@@ -190,3 +190,20 @@ def test_auditor_only_sees_issues_from_their_own_audits(client, tokens, db, user
     assert loose["id"] not in ids
     manager_ids = {i["id"] for i in client.get("/api/issues", headers=tokens["manager"]).json()}
     assert loose["id"] in manager_ids
+
+
+def test_replaying_a_queued_answer_is_safe(client, tokens, db):
+    """The offline queue may send the same change twice (retry after a lost
+    reply) and may send one after the audit was submitted elsewhere."""
+    cl = _checklist(db, [(1, False)])
+    a = _start(client, tokens, cl).json()
+    first = _answer(client, tokens, a, 0, "Yes", remarks="ok")
+    again = _answer(client, tokens, a, 0, "Yes", remarks="ok")
+    assert first.status_code == again.status_code == 200
+    assert again.json()["answer"] == "Yes" and again.json()["remarks"] == "ok"
+
+    client.post(f"/api/audits/{a['id']}/submit", headers=tokens["auditor1"])
+    late = _answer(client, tokens, a, 0, "No")
+    assert late.status_code == 409
+    got = client.get(f"/api/audits/{a['id']}", headers=tokens["auditor1"]).json()
+    assert got["responses"][0]["answer"] == "Yes"

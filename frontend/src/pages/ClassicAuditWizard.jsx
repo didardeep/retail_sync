@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 
-import { api, loadSession } from '@/api/client';
+import { loadSession } from '@/api/client';
 import { cn, fieldClass, labelClass } from '@/lib/utils';
 import {
   RISKS, firstUnansweredIndex, isAuditorEditable, orderedQuestions,
@@ -14,14 +14,21 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/Toast';
 import { ErrorNote, Loading } from '@/components/Loader';
 import AnswerButtons from '@/components/classic/AnswerButtons';
+import ConflictPanel from '@/components/classic/ConflictPanel';
 import OnlineBanner from '@/components/classic/OnlineBanner';
 import RaiseIssue from '@/components/classic/RaiseIssue';
+import SyncChip from '@/components/SyncChip';
 import { useOnline } from '@/lib/useOnline';
+import {
+  dismissConflict, loadAudit, saveChange, syncNow, useSyncState,
+} from '@/lib/offlineSync';
+import { updateCachedResponse } from '@/lib/offlineStore';
 
 const evidenceType = (url) => (/\.(mp4|mov|webm)$/i.test(url) ? 'video' : 'photo');
 
-// One checklist question per screen. This is online only: every change goes
-// to the server first and is shown as saved only after the server accepted it.
+// One checklist question per screen. Works offline: every change is written to
+// this device first (IndexedDB) and sent to the server when a connection is
+// there. The sync chip shows whether anything is still waiting.
 export default function ClassicAuditWizard({ initialAudit }) {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -35,8 +42,10 @@ export default function ClassicAuditWizard({ initialAudit }) {
   const [idx, setIdx] = useState(0);
   const [remarks, setRemarks] = useState('');
   const [evUrl, setEvUrl] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [failed, setFailed] = useState(null);
+  const [saveError, setSaveError] = useState(null);
+  const [dismissing, setDismissing] = useState(false);
+  const sync = useSyncState();
+  const conflict = sync.conflicts[id];
 
   const topRef = useRef(null);
   const live = useRef({});
@@ -44,19 +53,20 @@ export default function ClassicAuditWizard({ initialAudit }) {
   const questions = useMemo(() => orderedQuestions(audit), [audit]);
   const sections = useMemo(() => processes(audit), [audit]);
   const q = questions[idx];
-  live.current = { q, remarks, evUrl, failed };
+  live.current = { q, remarks, evUrl, conflict };
 
   // Load (unless the route wrapper already did) and pick the starting question.
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const a = initialAudit || (await api.audit(id));
+        const a = initialAudit || (await loadAudit(id)).audit;
         if (cancelled) return;
         if (!isAuditorEditable(a, user)) {
           navigate(`/audits/${id}/review`, { replace: true });
           return;
         }
+        syncNow();
         const total = (a.responses || []).length;
         const fromLink = parseQuestionParam(search.get('q'), total);
         const firstOpen = firstUnansweredIndex(a);
@@ -78,33 +88,24 @@ export default function ClassicAuditWizard({ initialAudit }) {
     setEvUrl(live.current.q.evidence?.[0]?.url || '');
   }, [qId]);
 
-  // Send one change to the server. Returns true only when it was accepted.
+  // Store one change on this device and let the sync engine send it.
+  // Returns true only when it is safely stored.
   const save = useCallback(async (respId, patch) => {
-    // A change that failed earlier on this question is sent again with this one.
-    const pending = live.current.failed;
-    const body = pending && pending.respId === respId ? { ...pending.patch, ...patch } : patch;
-    setSaving(true);
+    if (live.current.conflict) return false;
     try {
-      await api.answer(id, respId, body);
-      setAudit((prev) => ({
-        ...prev,
-        status: prev.status === 'Planned' ? 'Ongoing' : prev.status,
-        responses: prev.responses.map((r) => (r.id === respId ? { ...r, ...body } : r)),
-      }));
-      setFailed(null);
-      return true;
+      await saveChange(id, respId, patch);
     } catch (e) {
-      if (e.status === 409) {
-        // No longer open for editing (submitted elsewhere): show it read-only.
-        navigate(`/audits/${id}/review`, { replace: true });
-        return false;
-      }
-      setFailed({ message: e.message, offline: !!e.offline, respId, patch: body });
+      setSaveError(e.message || 'storage is unavailable');
       return false;
-    } finally {
-      setSaving(false);
     }
-  }, [id, navigate]);
+    setSaveError(null);
+    setAudit((prev) => ({
+      ...prev,
+      status: prev.status === 'Planned' ? 'Ongoing' : prev.status,
+      responses: prev.responses.map((r) => (r.id === respId ? { ...r, ...patch } : r)),
+    }));
+    return true;
+  }, [id]);
 
   // Write the remarks and evidence boxes if they changed. False means a save failed.
   const flush = useCallback(async () => {
@@ -133,18 +134,13 @@ export default function ClassicAuditWizard({ initialAudit }) {
     };
   }, [flush]);
 
-  async function retry() {
-    const f = live.current.failed;
-    if (!f) return;
-    await save(f.respId, f.patch);
-  }
-
   function pickAnswer(a) {
     return save(q.id, { answer: a });
   }
 
   // Remember on the question that an issue now exists for it.
   function markRaised(respId, issue) {
+    updateCachedResponse(id, respId, { issue_id: issue.id, issue_assignee: issue.assignee }).catch(() => {});
     setAudit((prev) => ({
       ...prev,
       responses: prev.responses.map((r) => (
@@ -152,14 +148,8 @@ export default function ClassicAuditWizard({ initialAudit }) {
     }));
   }
 
-  async function ready() {
-    const pending = live.current.failed;
-    if (pending && !(await save(pending.respId, {}))) return false;
-    return flush();
-  }
-
   async function go(delta) {
-    if (!(await ready())) return;
+    if (!(await flush())) return;
     const next = idx + delta;
     if (next < 0) return;
     if (next >= questions.length) {
@@ -171,19 +161,26 @@ export default function ClassicAuditWizard({ initialAudit }) {
   }
 
   async function jumpToSection(name) {
-    if (!(await ready())) return;
+    if (!(await flush())) return;
     const s = sections.find((x) => x.name === name);
     if (s) setIdx(s.first);
   }
 
   async function saveAndExit() {
-    if (!(await ready())) return;
-    toast('Saved');
+    if (!(await flush())) return;
+    toast(online && !sync.pending ? 'Saved' : 'Saved on this device');
     navigate('/audits');
+  }
+
+  async function dismiss() {
+    setDismissing(true);
+    await dismissConflict(id);
+    navigate(`/audits/${id}/review`, { replace: true });
   }
 
   if (error) return <ErrorNote error={error} />;
   if (!audit || !q) return <Loading what="audit" />;
+  if (conflict) return <ConflictPanel audit={audit} message={conflict} busy={dismissing} onDismiss={dismiss} />;
 
   const { answered, total, percent } = progress(audit);
   const isLast = idx === questions.length - 1;
@@ -197,7 +194,6 @@ export default function ClassicAuditWizard({ initialAudit }) {
             variant="outline"
             className="h-9 w-9 shrink-0 px-0"
             onClick={saveAndExit}
-            disabled={saving}
             aria-label="Back to audits"
           >
             <ArrowLeft />
@@ -207,12 +203,10 @@ export default function ClassicAuditWizard({ initialAudit }) {
             <div className="truncate text-xs text-muted-foreground">{audit.id}</div>
           </div>
         </div>
-        <span className="shrink-0 rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
-          Checklist audit
-        </span>
+        <SyncChip auditId={id} className="shrink-0" />
       </div>
 
-      <OnlineBanner online={online} failed={failed} onRetry={retry} retrying={saving} />
+      <OnlineBanner online={online} saveError={saveError} />
 
       <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
         <span>{answered} of {total} answered</span>
@@ -247,9 +241,9 @@ export default function ClassicAuditWizard({ initialAudit }) {
         </div>
 
         <div className="mt-4">
-          <AnswerButtons value={q.answer} onPick={pickAnswer} disabled={saving} />
+          <AnswerButtons value={q.answer} onPick={pickAnswer} />
         </div>
-        <RaiseIssue audit={audit} question={q} disabled={saving} onRaised={markRaised} />
+        <RaiseIssue audit={audit} question={q} onRaised={markRaised} />
 
         <div className="mt-4">
           <label className={labelClass} htmlFor="classic-remarks">Remarks</label>
@@ -269,7 +263,6 @@ export default function ClassicAuditWizard({ initialAudit }) {
             id="classic-risk"
             className={cn(fieldClass, 'h-11')}
             value={q.risk || ''}
-            disabled={saving}
             onChange={(e) => save(q.id, { risk: e.target.value })}
           >
             {RISKS.map((x) => <option key={x} value={x}>{x || 'None'}</option>)}
@@ -285,8 +278,12 @@ export default function ClassicAuditWizard({ initialAudit }) {
             onBlur={flush}
             inputMode="url"
             autoComplete="off"
-            placeholder="Paste a photo or video link"
+            disabled={!online}
+            placeholder={online ? 'Paste a photo or video link' : 'Needs a connection'}
           />
+          {!online && (
+            <p className="mt-1 text-xs text-muted-foreground">Evidence needs a connection. Add it once you are back online.</p>
+          )}
         </div>
       </div>
 
@@ -294,13 +291,13 @@ export default function ClassicAuditWizard({ initialAudit }) {
         className="sticky -bottom-10 z-10 -mx-4 mt-4 flex items-center gap-2 border-t border-border bg-card px-4 py-3 md:mx-0 md:rounded-lg md:border"
         style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
       >
-        <Button type="button" variant="outline" className="h-11 w-11 shrink-0 px-0" onClick={() => go(-1)} disabled={idx === 0 || saving} aria-label="Previous question">
+        <Button type="button" variant="outline" className="h-11 w-11 shrink-0 px-0" onClick={() => go(-1)} disabled={idx === 0} aria-label="Previous question">
           <ChevronLeft />
         </Button>
-        <Button type="button" variant="outline" className="h-11 flex-1" onClick={saveAndExit} disabled={saving}>
+        <Button type="button" variant="outline" className="h-11 flex-1" onClick={saveAndExit}>
           <Save /> Save &amp; exit
         </Button>
-        <Button type="button" className="h-11 flex-1" onClick={() => go(1)} disabled={saving}>
+        <Button type="button" className="h-11 flex-1" onClick={() => go(1)}>
           {isLast ? 'Review' : 'Next'} <ChevronRight />
         </Button>
       </div>

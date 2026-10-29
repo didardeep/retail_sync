@@ -252,14 +252,38 @@ from, and no rule that turns these answers into assignable items.
 
 ## 9. Offline mode for checklist audits was lost with the SOP removal
 
-**Status:** Open
+**Status:** Partly done (answers and remarks work offline; not browser-tested)
 
-**What:** The offline sync / IndexedDB layer was built only for SOP audits and
-was deleted with them (issue 5). The checklist audit wizard is online-only now.
-The offline auditor wizard was a "keep" decision, so offline support has to be
-rebuilt for checklist audits (save answers locally, sync when back online, show
-sync state). The `idb` npm dependency is currently unused.
+**What:** Rebuilt for checklist audits, answering questions only.
 
-**Open questions:**
-- What must work offline: answering questions only, or also photos/evidence?
-- Conflict rule if the same audit changed on the server while offline?
+Covered:
+- Opening an audit online stores it (questions, answers) in IndexedDB
+  (`idb`, db `retailsync-checklist`). The auditor's open audits are also
+  prefetched from the Audit page, which marks them "Available offline" and
+  lists them when the device is offline.
+- Answer, risk and remarks changes are written to IndexedDB first, then sent
+  with the existing `PUT /audits/{id}/responses/{rid}` (idempotent), in order,
+  with backoff retries; also on the browser `online` event, on app start and
+  on wizard open. No new backend endpoint.
+- Sync chip in the wizard and review: Online / Offline / N changes waiting /
+  Syncing / Conflict.
+- Conflict rule: the device wins for the auditor's own open audit. If the
+  server refuses (submitted or closed meanwhile) nothing is overwritten; a
+  conflict panel lists the local answers and stays until the auditor dismisses it.
+- Submit is blocked while offline, while changes are waiting, or on conflict;
+  the review page re-syncs first and refuses to submit with unsynced answers.
+- Evidence link box and Raise issue are disabled offline with a short note.
+- Minimal service worker (`frontend/public/sw.js`, production build only)
+  caches the app shell so a reload works offline.
+
+Not covered:
+- Photo upload / evidence offline (online only by decision).
+- Raising issues offline (disabled, not queued).
+- Starting a new audit or the other pages offline; the shell loads but their
+  data needs the network. Audits not opened or prefetched while online are not
+  on the device.
+- The service worker only exists after the first visit of a production build
+  (`npm run build`); the dev server does not register it.
+- Not tested in a real browser with DevTools offline; pure logic is unit
+  tested (`frontend/tests/offlineQueue.test.mjs`) and the backend replay /
+  409 contract in `test_replaying_a_queued_answer_is_safe`.
