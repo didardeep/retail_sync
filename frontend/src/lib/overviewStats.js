@@ -32,6 +32,13 @@ export function auditsInQuarter(audits = [], quarter, year) {
   })
 }
 
+// The latest quarter of `year` that has an audit scheduled in it, or null.
+export function latestAuditQuarter(audits = [], year) {
+  const quarters = ['q1', 'q2', 'q3', 'q4']
+  const found = quarters.filter((q) => auditsInQuarter(audits, q, year).length)
+  return found.length ? found[found.length - 1] : null
+}
+
 // Observations or issues that belong to one of the given audits. They carry no
 // quarter of their own: they sit in the quarter of the audit they came from.
 export function itemsOfAudits(items = [], audits = []) {

@@ -31,12 +31,13 @@ import { progressPercent } from '@/lib/auditorStats';
 import { prefetchAudits } from '@/lib/offlineSync';
 import { listCachedAudits } from '@/lib/offlineStore';
 import { STAGES, isAuditorEditable } from '@/lib/statuses';
+import { quarterOf, QUARTERS } from '@/lib/storeStats';
 import { useUrlFilters } from '@/lib/useUrlFilters';
 
 // stage / status / view all filter by status (see components/audit/auditHelpers
 // rowMatchesStatusFilter); id opens the detail; new opens the schedule form
 // (old /scheduling links land here).
-const FILTER_KEYS = ['stage', 'status', 'view', 'brand', 'store', 'region', 'auditor', 'q', 'id', 'new'];
+const FILTER_KEYS = ['stage', 'status', 'view', 'brand', 'store', 'region', 'quarter', 'auditor', 'q', 'id', 'new'];
 const STATUS_OPTIONS = [...STAGES, { value: 'overdue', label: 'Overdue' }];
 // Statuses a manager or admin may set by hand on a checklist audit (same list as the API).
 const EDIT_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Approved', 'Cancelled'];
@@ -214,12 +215,16 @@ export default function Audit() {
       brand: filters.brand, store: filters.store,
       region: filters.region, auditor: filters.auditor, q: filters.q,
     }).filter((r) => {
+      if (filters.quarter) {
+        const when = r.date ? new Date(r.date) : null;
+        if (!when || quarterOf(r.date) !== filters.quarter || when.getFullYear() !== new Date().getFullYear()) return false;
+      }
       if (!from && !to) return true;
       const d = r.date ? new Date(r.date) : null;
       if (!d || Number.isNaN(d.getTime())) return false;
       return !(from && d < from) && !(to && d > to);
     });
-  }, [rows, filters.brand, filters.store, filters.region, filters.auditor, filters.q, startDate, endDate]);
+  }, [rows, filters.brand, filters.store, filters.region, filters.auditor, filters.q, filters.quarter, startDate, endDate]);
   const counts = kpiCounts(forTiles);
   const overdueCount = forTiles.filter((r) => isOverdue(r)).length;
   const statusKeys = { stage: filters.stage, status: filters.status, view: filters.view };
@@ -353,6 +358,10 @@ export default function Audit() {
         <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={statusValue} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
           <option value="">Status</option>
           {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.quarter} onChange={(e) => applyFilter('quarter', e.target.value)} aria-label="Filter by quarter">
+          <option value="">Quarter</option>
+          {QUARTERS.map((q) => <option key={q} value={q}>{q.toUpperCase()}</option>)}
         </select>
         <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.region} onChange={(e) => applyFilter('region', e.target.value)} aria-label="Filter by region">
           <option value="">Region</option>

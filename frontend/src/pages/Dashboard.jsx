@@ -20,7 +20,7 @@ import { auditsLink, issuesLink, storesLink, storeScorecardLink } from '@/lib/li
 import { QUARTERS } from '@/lib/storeStats';
 import {
   RISK_COLORS, UNASSIGNED_REGION, averageScore, bucketScoredStores, formatAverages, groupAuditsByRegion,
-  auditStageCounts, auditsInQuarter, groupObservationsByRisk, itemsOfAudits, rankScored, scoreStores,
+  auditStageCounts, auditsInQuarter, groupObservationsByRisk, itemsOfAudits, latestAuditQuarter, rankScored, scoreStores,
 } from '@/lib/overviewStats';
 import {
   inScope, pickerParams, resolveScope, scopeFromParams, scopeTitle, storesInScope, wording,
@@ -46,12 +46,13 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
   // every audit whose checklist is filled in (completed or approved).
   const stageCounts = auditStageCounts(audits);
   const brandKey = scope.kind === 'brand' ? scope.id : undefined;
+  const quarterKey = selectedQ;
   const kpiTiles = [
-    { label: 'Total audits', value: stageCounts.total, link: { brand: brandKey }, icon: ClipboardList, tint: '#f3f4f6' },
-    { label: 'Planned', value: stageCounts.scheduled, link: { stage: 'scheduled', brand: brandKey }, icon: CalendarDays, tint: '#e8eefa' },
-    { label: 'Ongoing', value: stageCounts.in_progress, link: { stage: 'in_progress', brand: brandKey }, icon: Loader2, tint: '#fffbeb' },
-    { label: 'Completed', value: stageCounts.done, link: { status: 'completed', brand: brandKey }, icon: CheckCircle2, tint: '#ecfdf5' },
-    { label: 'Cancelled', value: stageCounts.cancelled, link: { stage: 'cancelled', brand: brandKey }, icon: XCircle, tint: '#fde8e8' },
+    { label: 'Total audits', value: stageCounts.total, link: { brand: brandKey, quarter: quarterKey }, icon: ClipboardList, tint: '#f3f4f6' },
+    { label: 'Planned', value: stageCounts.scheduled, link: { stage: 'scheduled', brand: brandKey, quarter: quarterKey }, icon: CalendarDays, tint: '#e8eefa' },
+    { label: 'Ongoing', value: stageCounts.in_progress, link: { stage: 'in_progress', brand: brandKey, quarter: quarterKey }, icon: Loader2, tint: '#fffbeb' },
+    { label: 'Completed', value: stageCounts.done, link: { status: 'completed', brand: brandKey, quarter: quarterKey }, icon: CheckCircle2, tint: '#ecfdf5' },
+    { label: 'Cancelled', value: stageCounts.cancelled, link: { stage: 'cancelled', brand: brandKey, quarter: quarterKey }, icon: XCircle, tint: '#fde8e8' },
   ];
 
   // Risk distribution: observations grouped by their risk level (four levels
@@ -111,7 +112,7 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
     const g = regD[idx];
     setDrillTitle(`${g.l} Audits (${g.count})`);
     setDrillList(g.items.map(a => ({ title:`${a.store}, ${a.city||''}`, badges:[{text:a.status,cls:sBadge(a.status)}], sub:a.scheduled_at, score:typeof a.score === 'number' ? a.score : null })));
-    setDrillLink(g.l === UNASSIGNED_REGION ? null : auditsLink({ region: g.l }));
+    setDrillLink(g.l === UNASSIGNED_REGION ? null : auditsLink({ region: g.l, quarter: selectedQ }));
     setDrillOpen(true);
   }
   function storeDrillItem(s, score) {
@@ -331,6 +332,8 @@ export default function Dashboard() {
     ]).then(([stores, brands, issues, observations, audits, scores]) => {
       const scoreMap = {};
       for (const sc of (scores || [])) scoreMap[sc.store_id] = sc;
+      const latestQ = latestAuditQuarter(audits || [], new Date().getFullYear());
+      if (latestQ) setSelectedQ(latestQ);
       setData({
         stores: stores || [], brands: brands || [], issues: issues || [],
         observations: observations || [], audits: audits || [], scoreMap,
