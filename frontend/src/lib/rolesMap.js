@@ -5,10 +5,13 @@
 export const ROLE_PAGES = {
   ADMIN: null,            // sees everything
   AUDIT_MANAGER: null,    // sees everything except the ADMIN-only pages below
-  AUDITOR: ['my-dashboard', 'audits', 'email'],
+  AUDITOR: ['my-dashboard', 'audits', 'issues', 'email'],
   STORE_MANAGER: ['my-store', 'issues', 'audits', 'email'],
   // An auditee only follows up the issues assigned to them.
   AUDITEE: ['my-issues', 'email'],
+  // Follow escalated issues; read-only.
+  CLUSTER_HEAD: ['issues', 'email'],
+  HO_OPERATIONS: ['issues', 'email'],
 }
 
 // 'audit-log', 'stores', 'scores', 'dashboard'

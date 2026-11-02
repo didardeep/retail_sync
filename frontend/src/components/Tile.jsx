@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 
-// A clickable count tile: icon, label and a big number. `active` outlines it.
+// A clickable count tile: icon (a component or an emoji), label and a big number.
+// `active` outlines it.
 export default function Tile({ icon: Icon, tint, label, value, active, onClick }) {
   return (
     <button
@@ -12,7 +13,7 @@ export default function Tile({ icon: Icon, tint, label, value, active, onClick }
       )}
     >
       <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg" style={{ background: tint }}>
-        <Icon className="size-4 text-foreground/70" />
+        {typeof Icon === 'string' ? <span aria-hidden="true" className="text-[15px]">{Icon}</span> : <Icon className="size-4 text-foreground/70" />}
       </div>
       <div>
         <div className="mb-0.5 text-[11px] text-muted-foreground">{label}</div>

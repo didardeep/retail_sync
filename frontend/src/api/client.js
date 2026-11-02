@@ -110,6 +110,40 @@ export const api = {
   // AI Chat
   chat: (messages, conversation_id) =>
     request('/chat', { method: 'POST', body: { messages, conversation_id } }),
+  checklist: (id) => request(`/checklists/${id}`),
+  createChecklist: (body) => request('/checklists', { method: 'POST', body }),
+  updateChecklist: (id, body) => request(`/checklists/${id}`, { method: 'PUT', body }),
+  exceptions: () => request('/exceptions'),
+  notifications: () => request('/notifications'),
+  readNotification: (id) => request(`/notifications/${id}/read`, { method: 'POST' }),
+  annexures: (auditId) => request(`/audits/${auditId}/annexures`),
+  fileAnnexure: async (auditId, file, title) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('title', title || '')
+    const res = await send(`/audits/${auditId}/annexures`, { method: 'POST', headers: authHeaders(), body: fd })
+    if (!res.ok) await throwFor(res, 'Upload failed')
+    return res.json()
+  },
+  annexureFile: async (auditId, id) => {
+    const res = await send(`/audits/${auditId}/annexures/${id}/file`, { headers: authHeaders() })
+    if (!res.ok) await throwFor(res, 'Could not load file')
+    return res.blob()
+  },
+  deleteAnnexure: (auditId, id) => request(`/audits/${auditId}/annexures/${id}`, { method: 'DELETE' }),
+  // Photo and video evidence
+  uploadEvidence: async (file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await send('/evidence', { method: 'POST', headers: authHeaders(), body: fd })
+    if (!res.ok) await throwFor(res, 'Upload failed')
+    return res.json()
+  },
+  evidenceFile: async (url) => {
+    const res = await send(url.replace(/^\/api/, ''), { headers: authHeaders() })
+    if (!res.ok) await throwFor(res, 'Could not load file')
+    return res.blob()
+  },
   // File upload
   uploadFile: async (file, section) => {
     const fd = new FormData()

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { checklistFitsStore } from '@/lib/checklists';
 
 import { useToast } from '../Toast';
 import { api } from '../../api/client';
@@ -135,7 +136,7 @@ export default function ScheduleAuditModal({ open, onClose, onSaved, stores, aud
               <label className={labelClass}>Checklist</label>
               <select className={fieldClass} value={form.checklist_id} onChange={(e) => setForm({ ...form, checklist_id: e.target.value })}>
                 <option value="">No checklist</option>
-                {checklists.map((c) => <option key={c.id} value={c.id}>{c.name} (v{c.version})</option>)}
+                {checklists.filter((c) => checklistFitsStore(c, stores.find((s) => s.id === form.store_id))).map((c) => <option key={c.id} value={c.id}>{c.name} (v{c.version})</option>)}
               </select>
             </div>
           </div>

@@ -10,6 +10,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/Toast';
 import { ErrorNote, Loading } from '@/components/Loader';
+import { EvidenceList } from '@/components/Evidence';
+import AnnexurePanel from '@/components/AnnexurePanel';
 import { Modal, ModalActions, ModalTitle } from '@/components/Modal';
 import ConflictPanel from '@/components/classic/ConflictPanel';
 import SyncChip from '@/components/SyncChip';
@@ -231,12 +233,17 @@ export default function ClassicAuditReview() {
         </div>
       )}
 
+      {online && <AnnexurePanel auditId={id} />}
+
       {!editable && questions.length > 0 && (
         <div className="mb-4 overflow-hidden rounded-lg border bg-card shadow-sm">
           <div className="bg-muted px-4 py-2.5 text-[13px] font-bold text-foreground">Answers</div>
           {questions.map((x) => (
             <div key={x.id} className="flex items-start justify-between gap-3 border-t border-border px-4 py-3">
-              <div className="text-[13px] leading-snug text-foreground">{x.question_text}</div>
+              <div className="min-w-0">
+                <div className="text-[13px] leading-snug text-foreground">{x.question_text}</div>
+                {x.evidence?.length > 0 && <div className="mt-2"><EvidenceList items={x.evidence} /></div>}
+              </div>
               <div className="shrink-0 text-sm font-bold">{x.answer || '--'}</div>
             </div>
           ))}

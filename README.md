@@ -55,14 +55,14 @@ npm run dev                     # http://localhost:5173
 Vite proxies `/api` to the FastAPI server, so no CORS configuration is needed
 in development.
 
-**Seeded logins** — password `password123`
+**Seeded logins** — password `pass`
 
-- `am@retail-chain.com` — Audit Manager
-- `aud.j.patel@retail-chain.com` — Auditor
-- `sm.a.sharma@retail-chain.com` — Store Manager
+- `manager` — Audit Manager
+- `amit` — Auditor
+- `sharma` — Store Manager
 
-Every auditor and store manager in the prototype data has an account; the email
-pattern is `aud.<name>@` and `sm.<name>@`.
+Every auditor and auditee logs in with their first name, and every store manager
+with their surname.
 
 ---
 

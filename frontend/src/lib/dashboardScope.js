@@ -73,12 +73,12 @@ export function wording(scope, brandName = '') {
   const one = scope.kind === STORE
   const where = one ? 'this store' : scope.kind === BRAND ? brandName : 'all stores'
   return {
-    trend: one ? 'Audit score by quarter' : 'Average audit score by quarter, per brand',
-    storeBars: 'Audit score by outlet / mall',
-    format: 'Average audit score by store format',
-    distribution: 'Stores by score range',
-    risk: `Observations by risk level, ${where}`,
-    region: 'Audits by region',
+    trend: 'Performance Trends',
+    storeBars: 'Store-wise Compliance Score (%)',
+    format: 'Store Format Performance (Avg. Score)',
+    distribution: 'Store Score Distribution',
+    risk: scope.kind === BRAND || one ? `Observations by Risk, ${where}` : 'All Observations by Risk',
+    region: 'Audit Distribution by Region',
     topBottom: 'Highest and lowest scoring stores',
     observations: one ? 'Most recent observations' : 'Most common observations',
     repeats: one ? 'Issues raised more than once at this store' : 'Issues raised more than once',

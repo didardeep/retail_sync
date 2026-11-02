@@ -3,7 +3,6 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { canAccess } from '@/lib/rolesMap';
 import { NAV_ITEMS, titleFor } from '@/lib/nav';
 import { Drawer } from '@/components/Modal';
@@ -13,11 +12,8 @@ import ChatAssistant from './ChatAssistant';
 
 function SidebarContent({ user, onLogout, nav, onNavigate }) {
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-sidebar-bg">
-      <div className="flex items-center gap-2.5 border-b border-white/[.07] px-3.5 pb-3.5 pt-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-base font-bold text-white">
-          SA
-        </div>
+    <div className="flex h-full w-full flex-col overflow-y-auto bg-sidebar-bg">
+      <div className="border-b border-white/[.07] px-3.5 pb-3.5 pt-4">
         <div className="text-sm font-bold leading-tight text-white">
           Store Audit
           <span className="block text-[11px] font-normal text-sidebar-fg">and Analysis</span>
@@ -39,7 +35,7 @@ function SidebarContent({ user, onLogout, nav, onNavigate }) {
             onClick={onNavigate}
             className={({ isActive }) =>
               cn(
-                'mb-0.5 flex items-center gap-2.5 whitespace-nowrap rounded-[7px] px-2.5 py-2.5 text-[12.5px] font-medium text-white no-underline transition-colors [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0',
+                'mb-0.5 flex items-center gap-2.5 whitespace-nowrap rounded-[7px] px-2.5 py-2 text-[12.5px] font-medium text-white no-underline transition-colors [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0',
                 isActive ? 'bg-sidebar-active/30' : 'hover:bg-white/[.06]',
               )
             }
@@ -48,15 +44,6 @@ function SidebarContent({ user, onLogout, nav, onNavigate }) {
           </NavLink>
         ))}
       </nav>
-      <div className="mt-auto p-3.5 pt-2.5">
-        <Button
-          onClick={onLogout}
-          variant="outline"
-          className="w-full border-white/35 bg-transparent text-xs text-white hover:bg-white/10 hover:text-white"
-        >
-          Sign out
-        </Button>
-      </div>
     </div>
   );
 }
@@ -124,7 +111,7 @@ export default function Layout({ user, onLogout, children }) {
             <NotificationBell role={user?.role} />
             <div className="relative" ref={avatarRef}>
               <div
-                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-[#00338D] to-[#0080DB] text-[11px] font-bold text-white"
+                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br md:h-[30px] md:w-[30px] from-[#00338D] to-[#0080DB] text-[11px] font-bold text-white"
                 onClick={() => setAvatarOpen(v => !v)}
                 title={user?.name || user?.email || 'User'}
               >

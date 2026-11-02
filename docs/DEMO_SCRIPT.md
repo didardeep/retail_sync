@@ -70,10 +70,10 @@ Sign in at the app address:
 
 | Role | Login | Used in |
 |------|-------|---------|
-| Audit Manager | `am@retail-chain.com` | Window A, acts 1, 2, 3, 6 |
-| Auditor (Amit Singh) | `aud.amit.singh@retail-chain.com` | Window B, acts 4, 5 |
-| Store Manager | `sm.a.sharma@retail-chain.com` | optional, "what does a store manager see" |
-| Admin | `admin@retail-chain.com` | optional, user management |
+| Audit Manager | `manager` | Window A, acts 1, 2, 3, 6 |
+| Auditor (Amit Singh) | `amit` | Window B, acts 4, 5 |
+| Store Manager | `sharma` | optional, "what does a store manager see" |
+| Admin | `admin` | optional, user management |
 
 The password for every login is printed at the end of `python demo.py prepare`.
 

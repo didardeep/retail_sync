@@ -34,7 +34,10 @@ ROLE_AUDIT_MANAGER = "AUDIT_MANAGER"
 ROLE_AUDITOR = "AUDITOR"
 ROLE_STORE_MANAGER = "STORE_MANAGER"
 ROLE_AUDITEE = "AUDITEE"          # follows up issues assigned to them; linked to stores
-ROLES = (ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, ROLE_AUDITEE)
+ROLE_CLUSTER_HEAD = "CLUSTER_HEAD"    # read-only over the stores of their region; gets escalations
+ROLE_HO_OPERATIONS = "HO_OPERATIONS"  # read-only over every store; gets escalations
+ROLES = (ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, ROLE_AUDITEE,
+         ROLE_CLUSTER_HEAD, ROLE_HO_OPERATIONS)
 
 
 # --------------------------------------------------------------------------
@@ -75,6 +78,7 @@ class User(Base):
     role = Column(String(20), nullable=False)          # one of ROLES
     designation = Column(String(120))                   # "Senior Field Auditor"
     region = Column(String(60))
+    notify_email = Column(String(200))                  # where alert mail goes; logins are usernames
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=dt.datetime.utcnow)
 
@@ -86,6 +90,52 @@ class User(Base):
             "id": self.id, "name": self.name, "email": self.email,
             "role": self.role, "designation": self.designation,
             "region": self.region, "active": self.active,
+            "notify_email": self.notify_email,
+        }
+
+
+class Notification(Base):
+    """One alert for one person. dedupe_key stops a repeat run sending it again."""
+    __tablename__ = "notifications"
+    __table_args__ = (UniqueConstraint("user_id", "dedupe_key", name="uq_notifications_user_key"),)
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    user_id = Column(String(12), ForeignKey("users.id"), nullable=False, index=True)
+    kind = Column(String(30), nullable=False)   # audit_reminder / issue_reminder / escalation
+    title = Column(String(300), nullable=False)
+    link = Column(String(200))
+    dedupe_key = Column(String(120), nullable=False)
+    read_at = Column(DateTime)
+    emailed_at = Column(DateTime)
+    created_at = Column(DateTime, default=dt.datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id, "kind": self.kind, "title": self.title, "link": self.link,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class Annexure(Base):
+    """A supporting document filed against an audit."""
+    __tablename__ = "annexures"
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    audit_id = Column(String(20), ForeignKey("audits.id"), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    file_name = Column(String(240), nullable=False)
+    stored_name = Column(String(60), nullable=False)
+    uploaded_by_id = Column(String(12), ForeignKey("users.id"))
+    created_at = Column(DateTime, default=dt.datetime.utcnow)
+
+    uploaded_by = relationship("User")
+
+    def to_dict(self):
+        return {
+            "id": self.id, "audit_id": self.audit_id, "title": self.title,
+            "file_name": self.file_name, "uploaded_by_id": self.uploaded_by_id,
+            "uploaded_by": self.uploaded_by.name if self.uploaded_by else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 
@@ -561,6 +611,7 @@ class Issue(Base):
             "question_code": r.question.code if r and r.question else None,
             "answer": r.answer if r else None,
             "remarks": r.remarks if r else None,
+            "response_evidence": (r.evidence or []) if r else [],
             "audit_date": (a.submitted_at or a.scheduled_at).isoformat()
                           if a and (a.submitted_at or a.scheduled_at) else None,
             "raised_by": self.raised_by.name if self.raised_by else None,

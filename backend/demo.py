@@ -27,7 +27,7 @@ from app.models import (
 
 BASELINE_FILE = Path(__file__).parent / ".demo_baseline.json"
 
-DEMO_AUDITOR = "aud.amit.singh@retail-chain.com"
+DEMO_AUDITOR = "amit"
 DEMO_STORE = "Ub City"
 
 
@@ -88,8 +88,8 @@ def print_logins(db):
         for u in db.query(User).filter_by(role=role):
             print(f"  {label:<14}: {u.email}")
     print(f"  {'Auditor':<14}: {DEMO_AUDITOR}   (the demo auditor)")
-    print("  Store Manager : sm.a.sharma@retail-chain.com")
-    print("  Auditee       : ae.neha.kapoor@retail-chain.com")
+    print("  Store Manager : sharma")
+    print("  Auditee       : neha")
 
 
 def status():

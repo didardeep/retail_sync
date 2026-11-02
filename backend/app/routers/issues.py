@@ -7,10 +7,10 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user, require_roles
 from ..db import get_db
 from ..models import (
-    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_STORE_MANAGER,
-    Audit, Issue, Store, User,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_CLUSTER_HEAD,
+    ROLE_HO_OPERATIONS, ROLE_STORE_MANAGER, Audit, Issue, Store, User,
 )
-from ..schemas import IssueCreate, IssueUpdate
+from ..schemas import IssueCreate, IssueReview, IssueUpdate
 from ..services import linked_auditee_ids, log_action
 
 router = APIRouter(prefix="/api/issues", tags=["issues"])
@@ -81,6 +81,8 @@ def list_issues(
                          Issue.store_id.in_(_managed_store_ids(db, user))))
     elif user.role == ROLE_AUDITEE:
         q = q.filter(Issue.assignee_id == user.id)
+    elif user.role == ROLE_CLUSTER_HEAD:
+        q = q.filter(Issue.store_id.in_(db.query(Store.id).filter(Store.region == user.region)))
     elif user.role == ROLE_AUDITOR:
         # Only issues from the auditor's own audits.
         q = q.filter(
@@ -121,12 +123,13 @@ def update_issue(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if user.role == ROLE_AUDITOR:
+    if user.role in (ROLE_AUDITOR, ROLE_CLUSTER_HEAD, ROLE_HO_OPERATIONS):
         raise HTTPException(status_code=403, detail={"error": "forbidden"})
     i = db.get(Issue, iid)
     if not i:
         raise HTTPException(status_code=404, detail={"error": "not found"})
     d = body.model_dump(exclude_unset=True)
+    old_status = i.status
 
     if user.role == ROLE_STORE_MANAGER:
         # A store manager can only record what they did, not re-prioritise.
@@ -155,6 +158,9 @@ def update_issue(
         i.due_date = _parse_due(d["due_date"]) if d["due_date"] else None
     if i.status == "Closed" and not i.closed_at:
         i.closed_at = dt.datetime.utcnow()
+    # A review only stands for the answer that was reviewed.
+    if i.status != old_status and (i.meta or {}).get("review"):
+        i.meta = {k: v for k, v in i.meta.items() if k != "review"}
     if user.role in (ROLE_AUDITEE, ROLE_STORE_MANAGER) and ("status" in d or "action_taken" in d):
         # What the manager sees in the issue: who changed what, and when.
         i.meta = {**(i.meta or {}), "history": [*(i.meta or {}).get("history", []), {
@@ -163,6 +169,46 @@ def update_issue(
     if "status" in d:
         log_action(db, user.id, "update_issue_status", "issue", i.id,
                    {"status": i.status})
+    db.commit()
+    return i.to_dict()
+
+
+@router.post("/{iid}/review")
+def review_issue(
+    iid: str,
+    body: IssueReview,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDITOR, ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
+):
+    """The auditor checks the answer to a Resolved issue from their own audit.
+    Accepting leaves it Resolved for the audit manager to close; sending it back
+    reopens it for the assignee with the reason. Either way it is recorded."""
+    i = db.get(Issue, iid)
+    if not i:
+        raise HTTPException(status_code=404, detail={"error": "not found"})
+    if user.role == ROLE_AUDITOR and (not i.audit or i.audit.auditor_id != user.id):
+        raise HTTPException(status_code=403, detail={"error": "forbidden"})
+    if i.status != "Resolved":
+        raise HTTPException(status_code=409, detail={"error": "only a resolved issue can be reviewed"})
+    note = body.note.strip()
+    if body.decision not in ("accept", "send_back"):
+        raise _bad("decision must be accept or send_back")
+    if body.decision == "send_back" and not note:
+        raise _bad("say why the issue is sent back")
+
+    now = dt.datetime.utcnow().isoformat()
+    accepted = body.decision == "accept"
+    meta = {k: v for k, v in (i.meta or {}).items() if k != "review"}
+    if accepted:
+        meta["review"] = {"decision": "accepted", "by": user.name, "at": now, "note": note}
+    else:
+        i.status = "In Progress"
+    label = "Accepted" if accepted else "Sent back"
+    meta["history"] = [*meta.get("history", []), {
+        "at": now, "by": user.name, "status": i.status,
+        "reply": f"{label}: {note}" if note else label}]
+    i.meta = meta
+    log_action(db, user.id, "review_issue", "issue", i.id, {"decision": body.decision})
     db.commit()
     return i.to_dict()
 

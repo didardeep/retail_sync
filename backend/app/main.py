@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -7,15 +8,18 @@ from fastapi.responses import JSONResponse
 
 from .db import init_db
 from .routers import (
-    admin, audit_log, audits, auth, availability, brands, checklists, chat, dashboard,
-    data, issues, observations, questions, stores, uploads,
+    admin, annexures, audit_log, audits, auth, availability, brands, checklists, chat, dashboard,
+    data, evidence, exceptions, issues, notifications, observations, questions, stores, uploads,
 )
+from .services.alerts import alert_loop
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    alerts = asyncio.create_task(alert_loop())
     yield
+    alerts.cancel()
 
 
 app = FastAPI(title="Retail Sync API", lifespan=lifespan)
@@ -30,8 +34,8 @@ app.add_middleware(
 for router in (
     auth.router, admin.router, brands.router, stores.router, questions.router, checklists.router,
     audits.router, availability.router, issues.router, observations.router,
-    data.router, dashboard.router, uploads.router, audit_log.router,
-    chat.router,
+    data.router, dashboard.router, uploads.router, evidence.router, audit_log.router,
+    chat.router, exceptions.router, notifications.router, annexures.router,
 ):
     app.include_router(router)
 

@@ -219,7 +219,7 @@ offline auditor wizard, checklist question approval, NA answer.
 
 ## 7. Assign a failed question to an auditee of that store
 
-**Status:** Done. The auditor raises an issue per question (not automatic) and picks an auditee linked to the store; the auditee replies in text and sets the status. Evidence upload for issues is not built (no upload mechanism exists, only an evidence link on the audit answer).
+**Status:** Done. The auditor raises an issue per question (not automatic) and picks an auditee linked to the store; the auditee replies in text and sets the status. Photo and video upload is built for audit answers and issues (online only; see `backend/app/routers/evidence.py`).
 store association).
 
 **What:** When an audit question gets a bad result, it should be assignable to
@@ -272,7 +272,7 @@ Covered:
   conflict panel lists the local answers and stays until the auditor dismisses it.
 - Submit is blocked while offline, while changes are waiting, or on conflict;
   the review page re-syncs first and refuses to submit with unsynced answers.
-- Evidence link box and Raise issue are disabled offline with a short note.
+- Evidence upload and Raise issue are disabled offline with a short note.
 - Minimal service worker (`frontend/public/sw.js`, production build only)
   caches the app shell so a reload works offline.
 

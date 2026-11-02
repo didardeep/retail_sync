@@ -105,6 +105,7 @@ class ChecklistCreate(ORMBase):
     name: str
     conditions: dict[str, Any] = Field(default_factory=dict)
     question_ids: list[str] = Field(default_factory=list)
+    is_active: bool = True
 
 
 # --------------------------------------------------------------------------
@@ -172,6 +173,11 @@ class RaiseIssueRequest(ORMBase):
     description: str | None = None
     priority: str = "Medium"
     due_date: str | None = None
+
+
+class IssueReview(ORMBase):
+    decision: str                     # accept | send_back
+    note: str = ""
 
 
 class IssueUpdate(ORMBase):
@@ -287,9 +293,10 @@ class UserCreate(ORMBase):
     name: str
     email: str
     password: str
-    role: str                         # AUDIT_MANAGER | AUDITOR | STORE_MANAGER | AUDITEE
+    role: str                         # AUDIT_MANAGER | AUDITOR | STORE_MANAGER | AUDITEE | CLUSTER_HEAD | HO_OPERATIONS
     designation: str | None = None
     region: str | None = None
+    notify_email: str | None = None
     store_id: str | None = None       # STORE_MANAGER only — assigns as store manager
     store_ids: list[str] = Field(default_factory=list)   # AUDITEE only — stores linked to
 
@@ -299,6 +306,7 @@ class UserUpdate(ORMBase):
     email: str | None = None
     designation: str | None = None
     region: str | None = None
+    notify_email: str | None = None
     store_id: str | None = None       # reassign store for STORE_MANAGER
     store_ids: list[str] | None = None  # replace the stores an AUDITEE is linked to
     active: bool | None = None

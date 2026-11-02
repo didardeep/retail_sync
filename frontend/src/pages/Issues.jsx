@@ -9,8 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '../components/Modal';
+import { EvidenceList, EvidencePicker } from '../components/Evidence';
 import { useUrlFilters } from '@/lib/useUrlFilters';
 import { auditsLink } from '@/lib/links';
+import { needsReview } from '@/lib/statuses';
 
 function stBorder(s) {
   return s === 'In Progress' ? '#00338D' : s === 'Resolved' ? '#0e9f6e' : s === 'On Hold' ? '#f59e0b' : s === 'Closed' ? '#6b7280' : '#e02424';
@@ -51,6 +53,8 @@ function normalizeIssue(iss) {
     due: iss.due_date || '',
     ov: iss.overdue || false,
     actionTaken: iss.action_taken || '',
+    evidence: iss.evidence || [],
+    responseEvidence: iss.response_evidence || [],
     history: iss.meta?.history || [],
   };
 }
@@ -70,6 +74,12 @@ function IssueContext({ issue, showAudit }) {
             {showAudit && issue.aid && <span><span className="text-muted-foreground">Audit: </span><b>{issue.aid}</b>{issue.audit_date ? `, ${issue.audit_date.substring(0, 10)}` : ''}</span>}
             {issue.raised_by && <span><span className="text-muted-foreground">Raised by: </span>{issue.raised_by}</span>}
           </div>
+          {issue.responseEvidence.length > 0 && (
+            <div>
+              <div className="mb-1 text-muted-foreground">Auditor evidence:</div>
+              <EvidenceList items={issue.responseEvidence} />
+            </div>
+          )}
         </>
       )}
       {issue.history.length > 0 && (
@@ -115,8 +125,13 @@ export default function Issues() {
   // like a store manager, except that closing an issue stays with the audit manager.
   const isAuditee = role === 'AUDITEE';
   const isLimited = isStoreManager || isAuditee;
+  // An auditor reviews the answers to issues from their own audits and edits nothing.
+  const isAuditor = role === 'AUDITOR';
+  // Cluster heads and HO follow issues without changing them.
+  const isViewer = role === 'CLUSTER_HEAD' || role === 'HO_OPERATIONS';
+  const [reviewNote, setReviewNote] = useState('');
   const canDelete = role === 'ADMIN' || role === 'AUDIT_MANAGER';
-  const canCreate = !isLimited;
+  const canCreate = !isLimited && !isAuditor && !isViewer;
   const statusChoices = isAuditee ? ['Open', 'In Progress', 'On Hold', 'Resolved'] : ['Open', 'In Progress', 'On Hold', 'Resolved', 'Closed'];
 
   useEffect(() => {
@@ -124,7 +139,7 @@ export default function Issues() {
       api.issues().catch(() => []),
       api.stores().catch(() => []),
       // The users list is manager/admin only; store managers never pick an assignee.
-      isLimited ? Promise.resolve([]) : api.users().catch(() => []),
+      isLimited || isAuditor || isViewer ? Promise.resolve([]) : api.users().catch(() => []),
     ]).then(([i, s, u]) => {
       const normalized = (i || []).map(normalizeIssue);
       setIssues(normalized);
@@ -198,7 +213,8 @@ export default function Issues() {
       assigneeId: i.assigneeId,
       due: i.due || '',
       aid: i.aid || '',
-      actionTaken: i.actionTaken || ''
+      actionTaken: i.actionTaken || '',
+      evidence: i.evidence
     });
     setModalOpen(true);
   }
@@ -218,10 +234,27 @@ export default function Issues() {
     if (i) openEditIssueData(i);
   }
 
+  async function reviewIssue(decision) {
+    if (decision === 'send_back' && !reviewNote.trim()) { toast.error('Say why it is sent back'); return; }
+    setSaving(true);
+    try {
+      const saved = normalizeIssue(await issuesApi.review(editId, { decision, note: reviewNote }));
+      setIssues(prev => prev.map(i => (i.id === editId ? saved : i)));
+      toast(decision === 'accept' ? 'Answer accepted' : 'Sent back to the assignee');
+      setModalOpen(false);
+      setEditId(null);
+      setReviewNote('');
+    } catch (e) {
+      toast.error(e.message || 'Could not save the review');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function saveIssue() {
     if (saving) return;
     const body = isLimited
-      ? { status: form.status, action_taken: form.actionTaken }
+      ? { status: form.status, action_taken: form.actionTaken, evidence: form.evidence }
       : {
           title: form.title.trim(),
           description: form.desc,
@@ -329,6 +362,7 @@ export default function Issues() {
           <option>Open</option>
           <option>In Progress</option>
           <option>On Hold</option>
+          <option>Resolved</option>
           <option>Closed</option>
         </select>
         <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.priority} onChange={e => setFilter('priority', e.target.value)}>
@@ -374,6 +408,8 @@ export default function Issues() {
                 <div className="mb-2 flex flex-wrap items-center gap-1.5">
                   <Badge className={stC(i.status)}>{i.status}</Badge>
                   <Badge className={prC(i.pri)}>{i.pri}</Badge>
+                  {needsReview(i) && <Badge className="bg-amber-50 text-amber-800">To review</Badge>}
+                  {i.meta?.review && <Badge className="bg-emerald-50 text-emerald-700">Accepted by {i.meta.review.by}</Badge>}
                 </div>
                 {/* description */}
                 <div className="mb-2.5 text-[11.5px] leading-snug text-muted-foreground">{i.desc}</div>
@@ -445,12 +481,44 @@ export default function Issues() {
         <div className="mb-4.5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <span className="cursor-pointer text-base text-muted-foreground" onClick={() => setModalOpen(false)}>&times;</span>
-            <span className="text-[15px] font-bold text-foreground">{editId ? 'Edit Issue' : 'New Issue'}</span>
+            <span className="text-[15px] font-bold text-foreground">{isAuditor ? 'Review Issue' : isViewer ? 'Issue' : editId ? 'Edit Issue' : 'New Issue'}</span>
           </div>
-          <Button size="sm" onClick={saveIssue} disabled={saving}>{editId ? 'Save Changes' : 'Save'}</Button>
+          {!isAuditor && !isViewer && <Button size="sm" onClick={saveIssue} disabled={saving}>{editId ? 'Save Changes' : 'Save'}</Button>}
         </div>
 
-        {isLimited ? (
+        {isAuditor || isViewer ? (
+          <div className="grid gap-3">
+            <div className="text-[13px] font-semibold text-foreground">{form.title}</div>
+            <div className="text-[11.5px] text-muted-foreground">{form.desc}</div>
+            {editIssue && <IssueContext issue={editIssue} showAudit />}
+            <div>
+              <div className={labelClass}>Reply from {editIssue?.assignee}</div>
+              <div className="text-[13px] text-foreground">{editIssue?.actionTaken || 'No reply yet.'}</div>
+            </div>
+            {editIssue?.evidence.length > 0 && (
+              <div>
+                <div className={labelClass}>Follow-up evidence</div>
+                <EvidenceList items={editIssue.evidence} />
+              </div>
+            )}
+            {isViewer ? null : editIssue && needsReview(editIssue) ? (
+              <>
+                <div>
+                  <label className={labelClass} htmlFor="review-note">Your note</label>
+                  <textarea id="review-note" className={cn(fieldClass, 'min-h-[60px] resize-y')} placeholder="Needed if you send it back" value={reviewNote} onChange={e => setReviewNote(e.target.value)} />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" disabled={saving} onClick={() => reviewIssue('send_back')}>Send back</Button>
+                  <Button disabled={saving} onClick={() => reviewIssue('accept')}>Accept</Button>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {editIssue?.meta?.review ? 'You can review an issue once. The audit manager closes it next.' : 'This can be reviewed once the assignee marks it Resolved.'}
+              </p>
+            )}
+          </div>
+        ) : isLimited ? (
           <div className="grid gap-3">
             <div className="text-[13px] font-semibold text-foreground">{form.title}</div>
             <div className="text-[11.5px] text-muted-foreground">{form.desc}</div>
@@ -466,10 +534,20 @@ export default function Issues() {
               <label className={labelClass}>{isAuditee ? 'Your reply' : 'Action taken'}</label>
               <textarea className={cn(fieldClass, 'min-h-[72px] resize-y')} placeholder={isAuditee ? 'What you did about this issue' : 'What was done about this issue'} value={form.actionTaken} onChange={e => setForm(f => ({ ...f, actionTaken: e.target.value }))} />
             </div>
+            <div>
+              <div className={labelClass}>Evidence</div>
+              <EvidencePicker value={form.evidence} onChange={next => setForm(f => ({ ...f, evidence: next }))} />
+            </div>
           </div>
         ) : (
           <div className="grid gap-3">
             {editIssue && <IssueContext issue={editIssue} showAudit />}
+            {editIssue?.evidence.length > 0 && (
+              <div>
+                <div className={labelClass}>Follow-up evidence</div>
+                <EvidenceList items={editIssue.evidence} />
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>Title <span className="text-destructive">*</span></label>

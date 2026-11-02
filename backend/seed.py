@@ -16,7 +16,8 @@ from pathlib import Path
 from app.auth import hash_password
 from app.db import SessionLocal, init_db, reset_db
 from app.models import (
-    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_STORE_MANAGER,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_CLUSTER_HEAD,
+    ROLE_HO_OPERATIONS, ROLE_STORE_MANAGER,
     Audit, AuditResponse, AuditorAvailability, CashReconciliation,
     CashDepositPickup, Checklist, ChecklistItem, DataImport,
     ExpiredInventory, Issue, Observation, Question, Store, StoreScore, User, UserStore,
@@ -27,14 +28,32 @@ from app.services import (
 )
 
 SEED_FILE = Path(__file__).parent / "seed_data.json"
-DEFAULT_PASSWORD = "password123"
+DEFAULT_PASSWORD = "pass"
 
 # Placeholder auditees (people who follow up issues) and the stores they are linked to.
 AUDITEES = {
     "Neha Kapoor": ["ST001", "ST002"],
     "Karan Bedi": ["ST001", "ST003"],
     "Divya Nair": ["ST004", "ST005"],
+    "Rahul Mehta": ["ST006", "ST007"],
+    "Pooja Iyer": ["ST008", "ST009"],
+    "Vikram Joshi": ["ST010"],
 }
+
+CLUSTER_HEADS = {
+    "Anita Verma": "North India", "Suresh Menon": "South India",
+    "Ritu Malhotra": "West India", "Arjun Sen": "East India",
+}
+
+# What an assignee writes back on an issue, and what follows from an audit finding.
+ISSUE_REPLIES = [
+    "Checked with the team and corrected the entries. Process explained to the shift staff.",
+    "Issue fixed and verified with the store manager. New checklist put up at the counter.",
+    "Root cause was a missed handover. Added a sign-off to the daily closing routine.",
+    "Vendor called in and the fault repaired. Photos shared with the area office.",
+]
+OBSERVATION_RISKS = ["High", "Medium", "Low", "Medium", "High", "Low", "Medium"]
+OBSERVATION_STATUSES = ["Open", "In Progress", "Closed"]
 
 STATUS_MAP = {"Completed": "Completed", "In Progress": "Ongoing",
               "Scheduled": "Planned", "Assigned": "Planned"}
@@ -81,8 +100,10 @@ def seed():
     def add_user(name, role, designation=None, region=None):
         if (role, name) in users:
             return users[(role, name)]
-        prefix = {"AUDITOR": "aud", "STORE_MANAGER": "sm", "AUDITEE": "ae"}.get(role, "user")
-        u = User(name=name, email=f"{prefix}.{slug(name)}@retail-chain.com", role=role,
+        # Simple logins: first name, or surname for store managers ("A. Sharma").
+        parts = slug(name).split(".")
+        login = parts[-1] if role == ROLE_STORE_MANAGER else parts[0]
+        u = User(name=name, email=login, role=role,
                  password_hash=hash_password(DEFAULT_PASSWORD),
                  designation=designation, region=region)
         s.add(u)
@@ -90,12 +111,12 @@ def seed():
         users[(role, name)] = u
         return u
 
-    super_admin = User(name="Admin", email="admin@retail-chain.com",
+    super_admin = User(name="Admin", email="admin",
                        role=ROLE_ADMIN, designation="System Administrator",
                        password_hash=hash_password(DEFAULT_PASSWORD))
     s.add(super_admin)
 
-    admin = User(name="Audit Manager", email="am@retail-chain.com",
+    admin = User(name="Audit Manager", email="manager",
                  role=ROLE_AUDIT_MANAGER, designation="Audit Manager",
                  password_hash=hash_password(DEFAULT_PASSWORD))
     s.add(admin)
@@ -107,6 +128,9 @@ def seed():
         add_user(n, ROLE_STORE_MANAGER, "Store Manager")
     for n in AUDITEES:
         add_user(n, ROLE_AUDITEE, "Store Auditee")
+    for n, region in CLUSTER_HEADS.items():
+        add_user(n, ROLE_CLUSTER_HEAD, "Cluster Head", region)
+    add_user("Nisha Gupta", ROLE_HO_OPERATIONS, "HO Store Operations")
 
     # ---- stores ----------------------------------------------------------
     for st in data["stores"]:
@@ -340,6 +364,7 @@ def seed():
         for q in range(1, current_q):
             start = dt.datetime(now.year, 3 * (q - 1) + 1, 5 + (n * 2) % 20, 10)
             add_audit(sid, start, "Approved" if q < current_q - 1 or n % 2 else "Completed", n + q)
+            add_audit(sid, start + dt.timedelta(days=35), "Approved" if q < current_q - 1 else "Completed", n + q + 1)
         # This quarter: a mix of every status the pages show.
         if sid == "ST003":
             pass  # Ub City: no scored audit this quarter, so its score stays the imported one
@@ -409,27 +434,53 @@ def seed():
     seeded_ids = {a["id"] for a in data["audits"]}
     for n, audit in enumerate(a for a in audit_objs.values()
                               if a.id not in seeded_ids and a.status in SCORED_STATUSES):
-        if n % 3:
+        if n % 2:
             continue
         failed = next((r for r in audit.responses if r.answer == "No"), None)
         if failed is None:
             continue
         q = failed.question
-        status = statuses[(n // 3) % len(statuses)]
+        status = statuses[(n // 2) % len(statuses)]
         issue_no += 1
+        assignee_id = (store_auditee[audit.store_id].id if audit.store_id in store_auditee
+                       else s.get(Store, audit.store_id).manager_id)
+        # Issues that have moved on carry the assignee's reply; some Resolved ones
+        # are already accepted by the auditor, the rest wait for review.
+        meta, reply = {}, None
+        if status != "Open":
+            reply = ISSUE_REPLIES[n % len(ISSUE_REPLIES)]
+            at = (audit.submitted_at + dt.timedelta(days=5)).isoformat()
+            meta["history"] = [{"at": at, "by": s.get(User, assignee_id).name, "status": status, "reply": reply}]
+            if status == "Closed" or (status == "Resolved" and n % 8 == 0):
+                reviewer = s.get(User, audit.auditor_id).name if audit.auditor_id else admin.name
+                meta["review"] = {"decision": "accepted", "by": reviewer, "at": at, "note": ""}
         s.add(Issue(
             id=f"ISS-{issue_no:03d}", audit_id=audit.id, store_id=audit.store_id,
             response_id=failed.id, title=f"Not met: {q.text}"[:240],
             description=f"Answered No during audit {audit.id}.",
             process=q.process, sub_process=q.sub_process,
             priority="Critical" if q.is_critical else "Medium", status=status,
-            assignee_id=(store_auditee[audit.store_id].id if audit.store_id in store_auditee
-                         else s.get(Store, audit.store_id).manager_id),
+            assignee_id=assignee_id, action_taken=reply, meta=meta,
             raised_by_id=audit.auditor_id or admin.id,
             due_date=(audit.submitted_at + dt.timedelta(days=14)).date(),
-            closed_at=audit.submitted_at + dt.timedelta(days=10) if status in ("Resolved", "Closed") else None,
+            closed_at=audit.submitted_at + dt.timedelta(days=10) if status == "Closed" else None,
             created_at=audit.submitted_at,
         ))
+
+    # ---- observations from "No" answers, so every quarter has findings -----
+    for n, audit in enumerate(a for a in audit_objs.values()
+                              if a.id not in seeded_ids and a.status in SCORED_STATUSES):
+        for sr_no, resp in enumerate((r for r in audit.responses if r.answer == "No"), 1):
+            if sr_no > 2:
+                break
+            s.add(Observation(
+                audit_id=audit.id, store_id=audit.store_id, sr_no=sr_no,
+                observation=resp.question.text, risk=OBSERVATION_RISKS[(n + sr_no) % len(OBSERVATION_RISKS)],
+                action_plan="Correct the gap and confirm at the next audit.",
+                person_responsible=s.get(Store, audit.store_id).name,
+                target=(audit.submitted_at + dt.timedelta(days=30)).strftime("%d-%b-%y"),
+                status=OBSERVATION_STATUSES[n % len(OBSERVATION_STATUSES)],
+            ))
 
     # ---- quarter scores follow the audits scored in each quarter ----------
     for audit in audit_objs.values():
@@ -462,8 +513,8 @@ def seed():
           f"{ei_count} expired inventory, {ss_count} store scores, {ob_count} observations")
     print(f"  Issues: {issue_no}, brands: {len({st.get('brand') for st in data['stores']})}")
     print(f"\nLogins (password: {DEFAULT_PASSWORD})")
-    print("  Admin         : admin@retail-chain.com")
-    print("  Audit Manager : am@retail-chain.com")
+    print("  Admin         : admin")
+    print("  Audit Manager : manager")
     for role, label in ((ROLE_AUDITOR, "Auditor      "),
                         (ROLE_STORE_MANAGER, "Store Manager"),
                         (ROLE_AUDITEE, "Auditee      ")):

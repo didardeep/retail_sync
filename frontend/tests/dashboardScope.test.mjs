@@ -51,11 +51,10 @@ test('scope filters stores and everything that belongs to them', () => {
 test('one wording set; single store reads differently where the table says so', () => {
   const all = wording({ kind: 'all' });
   const one = wording({ kind: 'store', id: 'S1' });
-  assert.equal(all.trend, 'Average audit score by quarter, per brand');
-  assert.equal(one.trend, 'Audit score by quarter');
-  assert.equal(all.risk, 'Observations by risk level, all stores');
-  assert.equal(one.risk, 'Observations by risk level, this store');
-  assert.equal(wording({ kind: 'brand', id: 'b1' }, 'FreshMart').risk, 'Observations by risk level, FreshMart');
+  assert.equal(all.trend, 'Performance Trends');
+  assert.equal(all.risk, 'All Observations by Risk');
+  assert.equal(one.risk, 'Observations by Risk, this store');
+  assert.equal(wording({ kind: 'brand', id: 'b1' }, 'FreshMart').risk, 'Observations by Risk, FreshMart');
   assert.equal(all.observations, 'Most common observations');
   assert.equal(one.observations, 'Most recent observations');
   assert.equal(one.issues, 'Open issues at this store');

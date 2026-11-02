@@ -3,6 +3,9 @@
 // language.
 export const AUDIT_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Approved']
 
+// An issue the assignee has answered and the auditor has not checked yet.
+export const needsReview = (issue) => issue.status === 'Resolved' && !issue.meta?.review
+
 export const STAGES = [
   { value: 'scheduled', label: 'Scheduled' },
   { value: 'in_progress', label: 'In progress' },

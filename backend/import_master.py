@@ -30,7 +30,7 @@ from import_excel import (
 UPLOADS = Path(__file__).parent / "uploads"
 MASTER_FILE = UPLOADS / "Store_Master_dummy.xlsx"
 CHECKLIST_FILE = UPLOADS / "Store_Audit_Checklist_v1_dummy.xlsx"
-DEFAULT_PASSWORD = "password123"
+DEFAULT_PASSWORD = "pass"
 
 
 def _read_named_sheet(path, sheet_name):
@@ -110,7 +110,7 @@ def seed_from_excel():
     # 1. Users (create a fixed set of users)
     # ====================================================================
     admin = User(
-        name="Audit Manager", email="am@retail-chain.com",
+        name="Audit Manager", email="manager",
         role=ROLE_AUDIT_MANAGER, designation="Audit Manager",
         password_hash=hash_password(DEFAULT_PASSWORD),
     )
@@ -122,7 +122,7 @@ def seed_from_excel():
     for name in auditor_names:
         slug = ".".join(p for p in name.lower().replace(".", " ").split() if p)
         u = User(
-            name=name, email=f"aud.{slug}@retail-chain.com",
+            name=name, email=f"aud.{slug}",
             role=ROLE_AUDITOR, designation="Field Auditor",
             password_hash=hash_password(DEFAULT_PASSWORD),
         )
@@ -139,7 +139,7 @@ def seed_from_excel():
             return managers[name]
         slug = ".".join(p for p in name.lower().replace(".", " ").split() if p)
         u = User(
-            name=name, email=f"sm.{slug}@retail-chain.com",
+            name=name, email=f"sm.{slug}",
             role=ROLE_STORE_MANAGER, designation="Store Manager",
             password_hash=hash_password(DEFAULT_PASSWORD),
         )
@@ -596,7 +596,7 @@ def seed_from_excel():
     print(f"  {len(issue_templates)} issues")
     print(f"  {len(auditors) + len(managers) + 1} users")
     print(f"\nLogins (password: {DEFAULT_PASSWORD})")
-    print(f"  Audit Manager : am@retail-chain.com")
+    print(f"  Audit Manager : manager")
     for name, u in list(auditors.items())[:1]:
         print(f"  Auditor       : {u.email}")
     for name, u in list(managers.items())[:1]:

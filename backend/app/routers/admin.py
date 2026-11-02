@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user, hash_password, require_roles
 from ..db import get_db
 from ..models import (
-    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_STORE_MANAGER, Store, User,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_CLUSTER_HEAD, ROLE_HO_OPERATIONS,
+    ROLE_STORE_MANAGER, Store, User,
     UserStore,
 )
 from ..schemas import UserCreate, UserUpdate
@@ -16,7 +17,8 @@ from ..services import log_action
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 # Roles that the admin is allowed to create/manage (not ADMIN itself)
-_MANAGEABLE_ROLES = {ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, ROLE_AUDITEE}
+_MANAGEABLE_ROLES = {ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, ROLE_AUDITEE,
+                     ROLE_CLUSTER_HEAD, ROLE_HO_OPERATIONS}
 
 
 def _user_dict(user: User, db: Session) -> dict:
@@ -82,6 +84,7 @@ def create_user(
         role=body.role,
         designation=body.designation,
         region=body.region,
+        notify_email=body.notify_email,
         active=True,
     )
     db.add(new_user)
@@ -128,6 +131,8 @@ def update_user(
         target.designation = d["designation"]
     if "region" in d:
         target.region = d["region"]
+    if "notify_email" in d:
+        target.notify_email = (d["notify_email"] or "").strip() or None
     if "active" in d:
         target.active = d["active"]
     if "password" in d and d["password"]:

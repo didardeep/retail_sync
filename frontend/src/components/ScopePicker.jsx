@@ -2,20 +2,20 @@ import { Building2, ChevronDown, Store } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
-const selectClass = 'h-11 w-full cursor-pointer appearance-none rounded-lg border-2 border-primary/50 bg-card pl-10 pr-9 text-sm font-semibold text-foreground shadow-sm hover:border-primary focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+const selectClass = 'h-11 w-full cursor-pointer appearance-none rounded-[7px] border border-border bg-card pl-8 pr-7 text-xs font-semibold md:h-[30px] text-foreground shadow-sm hover:border-primary/50 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 function Picker({ id, label, icon: Icon, value, onChange, children }) {
   return (
-    <div className="min-w-[200px]">
-      <label htmlFor={id} className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="min-w-[150px]">
+      <label htmlFor={id} className="sr-only">
         {label}
       </label>
       <div className="relative">
-        <Icon aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-primary" />
+        <Icon aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-primary" />
         <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className={selectClass}>
           {children}
         </select>
-        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
       </div>
     </div>
   );

@@ -6,6 +6,8 @@ node_modules/
 dist/
 .env
 backend/uploads/sop/
+backend/uploads/evidence/
+backend/uploads/annexures/
 
 # Agent scratch worktrees
 .claude/worktrees/

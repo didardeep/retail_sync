@@ -7,6 +7,8 @@ const ROLES = [
   { value: 'AUDITOR',       label: 'Auditor' },
   { value: 'STORE_MANAGER', label: 'Store Manager' },
   { value: 'AUDITEE',       label: 'Auditee' },
+  { value: 'CLUSTER_HEAD',  label: 'Cluster Head' },
+  { value: 'HO_OPERATIONS', label: 'HO Store Operations' },
 ];
 
 const ROLE_LABEL = {
@@ -15,6 +17,8 @@ const ROLE_LABEL = {
   AUDITOR:       'Auditor',
   STORE_MANAGER: 'Store Manager',
   AUDITEE:       'Auditee',
+  CLUSTER_HEAD:  'Cluster Head',
+  HO_OPERATIONS: 'HO Store Operations',
 };
 
 const ROLE_COLOR = {
@@ -23,11 +27,13 @@ const ROLE_COLOR = {
   AUDITOR:       'bg-amber-100 text-amber-700',
   STORE_MANAGER: 'bg-emerald-100 text-emerald-700',
   AUDITEE:       'bg-rose-100 text-rose-700',
+  CLUSTER_HEAD:  'bg-cyan-100 text-cyan-700',
+  HO_OPERATIONS: 'bg-indigo-100 text-indigo-700',
 };
 
 const EMPTY_FORM = {
   name: '', email: '', password: '', role: 'AUDITOR',
-  designation: '', region: '', store_id: '', store_ids: [],
+  designation: '', region: '', notify_email: '', store_id: '', store_ids: [],
 };
 
 export default function UserManagement() {
@@ -80,7 +86,7 @@ export default function UserManagement() {
     setForm({
       name: u.name, email: u.email, password: '',
       role: u.role, designation: u.designation || '',
-      region: u.region || '', store_id: u.store_id || '',
+      region: u.region || '', notify_email: u.notify_email || '', store_id: u.store_id || '',
       store_ids: u.store_ids || [],
     });
     setModalOpen(true);
@@ -90,7 +96,7 @@ export default function UserManagement() {
 
   async function save() {
     if (!form.name.trim() || !form.email.trim()) {
-      return showToast('Name and email are required', 'error');
+      return showToast('Name and username are required', 'error');
     }
     if (!editUser && !form.password) {
       return showToast('Password is required for new users', 'error');
@@ -184,7 +190,7 @@ export default function UserManagement() {
         <table className="w-full text-[12.5px]">
           <thead>
             <tr className="border-b border-border bg-muted/30">
-              {['Name', 'Email', 'Role', 'Region / Store', 'Status', 'Actions'].map(h => (
+              {['Name', 'Username', 'Role', 'Region / Store', 'Status', 'Actions'].map(h => (
                 <th key={h} className="px-4 py-2.5 text-left font-semibold text-muted-foreground">{h}</th>
               ))}
             </tr>
@@ -249,10 +255,11 @@ export default function UserManagement() {
             <div className="space-y-3">
               {[
                 { label: 'Name *',        key: 'name',        type: 'text',     placeholder: 'Full name' },
-                { label: 'Email *',       key: 'email',       type: 'email',    placeholder: 'user@example.com' },
+                { label: 'Username *',    key: 'email',       type: 'text',     placeholder: 'e.g. neha' },
                 { label: editUser ? 'New Password' : 'Password *', key: 'password', type: 'password', placeholder: editUser ? 'Leave blank to keep' : 'Min 6 characters' },
                 { label: 'Designation',   key: 'designation', type: 'text',     placeholder: 'e.g. Field Auditor' },
                 { label: 'Region',        key: 'region',      type: 'text',     placeholder: 'e.g. North India' },
+                { label: 'Alert email',   key: 'notify_email', type: 'email',   placeholder: 'For reminders and escalations' },
               ].map(({ label, key, type, placeholder }) => (
                 <div key={key}>
                   <label className="mb-1 block text-[11px] font-medium text-muted-foreground">{label}</label>

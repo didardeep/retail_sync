@@ -9,14 +9,14 @@ a scripted audit, use `DEMO_SCRIPT.md`. For what every page does, see `PAGE_GUID
 2. `cd backend && python demo.py prepare` (stages the data; safe to repeat).
 3. Two browser windows: **A** normal Chrome (manager / admin), **B** Incognito at phone size
    (F12, Ctrl+Shift+M, iPhone 12 Pro). One browser profile holds only one login.
-4. Password for every login: `password123`.
+4. Password for every login: `pass`.
 
 | Window | Login | Role |
 |---|---|---|
-| A | `admin@retail-chain.com` | Admin (sees everything) |
-| A (later) | `am@retail-chain.com` | Audit Manager |
-| B | `aud.amit.singh@retail-chain.com` | Auditor |
-| optional | `sm.a.sharma@retail-chain.com` | Store Manager |
+| A | `admin` | Admin (sees everything) |
+| A (later) | `manager` | Audit Manager |
+| B | `amit` | Auditor |
+| optional | `sharma` | Store Manager |
 
 ## 1. The flow: Plan -> Do -> Review -> Act
 
@@ -59,7 +59,7 @@ Point to make: built for poor signal; nothing is lost; the review step catches m
 | Audit Log | the actions just taken | Accountability: who scheduled, submitted, published |
 
 ### Step 5. Act on findings (Store Manager) - 2 min
-Sign out, sign in as `sm.a.sharma@retail-chain.com`.
+Sign out, sign in as `sharma`.
 | Open | Show | Point to make |
 |---|---|---|
 | My Store | quarter score, recent audits (click one), open issues | The store's own view; a manager sees only their store |

@@ -9,10 +9,11 @@ import {
   parseQuestionParam, processes, progress,
 } from '@/lib/classicAudit';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/Toast';
 import { ErrorNote, Loading } from '@/components/Loader';
+import { EvidencePicker } from '@/components/Evidence';
+import ExceptionsCard from '@/components/ExceptionsCard';
 import AnswerButtons from '@/components/classic/AnswerButtons';
 import ConflictPanel from '@/components/classic/ConflictPanel';
 import OnlineBanner from '@/components/classic/OnlineBanner';
@@ -23,8 +24,6 @@ import {
   dismissConflict, loadAudit, saveChange, syncNow, useSyncState,
 } from '@/lib/offlineSync';
 import { updateCachedResponse } from '@/lib/offlineStore';
-
-const evidenceType = (url) => (/\.(mp4|mov|webm)$/i.test(url) ? 'video' : 'photo');
 
 // One checklist question per screen. Works offline: every change is written to
 // this device first (IndexedDB) and sent to the server when a connection is
@@ -41,7 +40,6 @@ export default function ClassicAuditWizard({ initialAudit }) {
   const [error, setError] = useState(null);
   const [idx, setIdx] = useState(0);
   const [remarks, setRemarks] = useState('');
-  const [evUrl, setEvUrl] = useState('');
   const [saveError, setSaveError] = useState(null);
   const [dismissing, setDismissing] = useState(false);
   const sync = useSyncState();
@@ -53,7 +51,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
   const questions = useMemo(() => orderedQuestions(audit), [audit]);
   const sections = useMemo(() => processes(audit), [audit]);
   const q = questions[idx];
-  live.current = { q, remarks, evUrl, conflict };
+  live.current = { q, remarks, conflict };
 
   // Load (unless the route wrapper already did) and pick the starting question.
   useEffect(() => {
@@ -85,7 +83,6 @@ export default function ClassicAuditWizard({ initialAudit }) {
   useEffect(() => {
     if (!live.current.q) return;
     setRemarks(live.current.q.remarks || '');
-    setEvUrl(live.current.q.evidence?.[0]?.url || '');
   }, [qId]);
 
   // Store one change on this device and let the sync engine send it.
@@ -107,18 +104,11 @@ export default function ClassicAuditWizard({ initialAudit }) {
     return true;
   }, [id]);
 
-  // Write the remarks and evidence boxes if they changed. False means a save failed.
+  // Write the remarks box if it changed. False means a save failed.
   const flush = useCallback(async () => {
-    const { q: cur, remarks: rem, evUrl: ev } = live.current;
-    if (!cur) return true;
-    const patch = {};
-    if (rem !== (cur.remarks || '')) patch.remarks = rem;
-    const url = ev.trim();
-    if (url !== (cur.evidence?.[0]?.url || '')) {
-      patch.evidence = url ? [{ type: evidenceType(url), url }] : [];
-    }
-    if (!Object.keys(patch).length) return true;
-    return save(cur.id, patch);
+    const { q: cur, remarks: rem } = live.current;
+    if (!cur || rem === (cur.remarks || '')) return true;
+    return save(cur.id, { remarks: rem });
   }, [save]);
 
   useEffect(() => {
@@ -208,6 +198,13 @@ export default function ClassicAuditWizard({ initialAudit }) {
 
       <OnlineBanner online={online} saveError={saveError} />
 
+      {online && (
+        <details className="mb-3">
+          <summary className="cursor-pointer text-xs font-medium text-primary">Data analytics exceptions to verify at this store</summary>
+          <div className="mt-2"><ExceptionsCard storeIds={[audit.store_id]} limit={5} /></div>
+        </details>
+      )}
+
       <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
         <span>{answered} of {total} answered</span>
         <span>{percent}%</span>
@@ -270,16 +267,12 @@ export default function ClassicAuditWizard({ initialAudit }) {
         </div>
 
         <div className="mt-3">
-          <label className={labelClass} htmlFor="classic-evidence">Evidence link</label>
-          <Input
-            id="classic-evidence"
-            value={evUrl}
-            onChange={(e) => setEvUrl(e.target.value)}
-            onBlur={flush}
-            inputMode="url"
-            autoComplete="off"
+          <div className={labelClass}>Evidence</div>
+          <EvidencePicker
+            key={q.id}
+            value={q.evidence}
+            onChange={(next) => save(q.id, { evidence: next })}
             disabled={!online}
-            placeholder={online ? 'Paste a photo or video link' : 'Needs a connection'}
           />
           {!online && (
             <p className="mt-1 text-xs text-muted-foreground">Evidence needs a connection. Add it once you are back online.</p>

@@ -10,7 +10,7 @@ Items marked **[verified]** were also confirmed by running the app.
 
 | | |
 |---|---|
-| Login | `admin@retail-chain.com` |
+| Login | `admin` |
 | Password | the shared demo password (printed by `python backend/demo.py prepare`; it is `DEFAULT_PASSWORD` in `backend/seed.py`) |
 | Role | ADMIN. Not listed in the login page's demo box, so type it in |
 

@@ -5,5 +5,6 @@ import { request } from './client'
 export const issuesApi = {
   create: (body) => request('/issues', { method: 'POST', body }),
   update: (id, body) => request(`/issues/${id}`, { method: 'PUT', body }),
+  review: (id, body) => request(`/issues/${id}/review`, { method: 'POST', body }),
   remove: (id) => request(`/issues/${id}`, { method: 'DELETE' }),
 }

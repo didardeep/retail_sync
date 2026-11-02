@@ -13,7 +13,7 @@ export default function OnlineBanner({ online, saveError }) {
       <div className="min-w-0 flex-1">
         {saveError
           ? `Your last change could not be saved on this device: ${saveError}`
-          : 'You are offline. Answers and remarks are saved on this device and will sync when you are back online. Evidence links and raising issues need a connection.'}
+          : 'You are offline. Answers and remarks are saved on this device and will sync when you are back online. Evidence uploads and raising issues need a connection.'}
       </div>
     </div>
   );

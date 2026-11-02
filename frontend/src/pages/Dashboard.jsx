@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CalendarDays, CheckCircle2, ClipboardList, Loader2, XCircle } from 'lucide-react';
 import { api, loadSession } from '../api/client';
 import { Loading } from '@/components/Loader';
 import FormatLegend from '@/components/FormatLegend';
@@ -10,6 +9,7 @@ import Tile from '@/components/Tile';
 import PowerBiSample from '@/components/PowerBiSample';
 import BrandTrendCard from '@/components/dashboard/BrandTrendCard';
 import ObservationsCard from '@/components/dashboard/ObservationsCard';
+import ExceptionsCard from '@/components/ExceptionsCard';
 import { StoreView } from '@/components/store-dashboard/StoreView';
 import { avC, sColor, sBadge, pbClass, prC, stC } from '../utils/helpers';
 import { cn } from '@/lib/utils';
@@ -48,11 +48,10 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
   const brandKey = scope.kind === 'brand' ? scope.id : undefined;
   const quarterKey = selectedQ;
   const kpiTiles = [
-    { label: 'Total audits', value: stageCounts.total, link: { brand: brandKey, quarter: quarterKey }, icon: ClipboardList, tint: '#f3f4f6' },
-    { label: 'Planned', value: stageCounts.scheduled, link: { stage: 'scheduled', brand: brandKey, quarter: quarterKey }, icon: CalendarDays, tint: '#e8eefa' },
-    { label: 'Ongoing', value: stageCounts.in_progress, link: { stage: 'in_progress', brand: brandKey, quarter: quarterKey }, icon: Loader2, tint: '#fffbeb' },
-    { label: 'Completed', value: stageCounts.done, link: { status: 'completed', brand: brandKey, quarter: quarterKey }, icon: CheckCircle2, tint: '#ecfdf5' },
-    { label: 'Cancelled', value: stageCounts.cancelled, link: { stage: 'cancelled', brand: brandKey, quarter: quarterKey }, icon: XCircle, tint: '#fde8e8' },
+    { label: 'Total audits', value: stageCounts.total, link: { brand: brandKey, quarter: quarterKey }, icon: '📊', tint: '#f3f4f6' },
+    { label: 'Planned', value: stageCounts.scheduled, link: { stage: 'scheduled', brand: brandKey, quarter: quarterKey }, icon: '📋', tint: '#e8eefa' },
+    { label: 'Ongoing', value: stageCounts.in_progress, link: { stage: 'in_progress', brand: brandKey, quarter: quarterKey }, icon: '⏳', tint: '#fffbeb' },
+    { label: 'Completed', value: stageCounts.done, link: { status: 'completed', brand: brandKey, quarter: quarterKey }, icon: '✅', tint: '#ecfdf5' },
   ];
 
   // Risk distribution: observations grouped by their risk level (four levels
@@ -134,7 +133,7 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
   return (
     <>
       {/* KPIs: each opens the Audit page with the same brand and status, so it shows the same rows */}
-      <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {kpiTiles.map(k => (
           <Tile key={k.label} icon={k.icon} tint={k.tint} label={k.label} value={k.value} onClick={() => navigate(auditsLink(k.link))} />
         ))}
@@ -265,6 +264,9 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
         <ObservationsCard scope={scope} observations={observations} issues={issues} />
       </div>
 
+      {/* Exceptions in the imported data */}
+      <div className="mb-3"><ExceptionsCard storeIds={stores.map(s => s.id)} /></div>
+
       {/* Row 5: Recent issues */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -368,18 +370,18 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div className="mb-4 rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-lg font-bold text-foreground">{scopeTitle(scope, stores, brands)}</h2>
+            <h2 className="text-xl font-bold text-foreground">{scope.kind === 'all' ? 'Audit Operations' : scopeTitle(scope, stores, brands)}</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {store
                 ? `${store.brand || 'No brand'}${store.format ? ` - format ${store.format}` : ''}`
-                : `${scoped.length} ${scoped.length === 1 ? 'store' : 'stores'}${scope.kind === 'all' ? ` in ${shownBrands.length} ${shownBrands.length === 1 ? 'brand' : 'brands'}` : ''}`}
-              {' - '}{selectedQ.toUpperCase()}
+                : scope.kind === 'all' ? 'Consolidated View' : `${scoped.length} ${scoped.length === 1 ? 'store' : 'stores'}`}
+              {' • '}{selectedQ.toUpperCase()}
             </p>
           </div>
-          <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ScopePicker
               brands={brands}
               stores={stores}
@@ -391,10 +393,10 @@ export default function Dashboard() {
             />
             <div className="flex gap-1.5">
               {QUARTERS.map((q) => (
-                <Button key={q} size="sm" className="h-11" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
+                <Button key={q} size="sm" className="h-11 md:h-[30px]" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
               ))}
             </div>
-            <Button size="sm" className="h-11" variant="outline" onClick={() => setPbiOpen(true)}>Power BI (sample preview)</Button>
+            <Button size="sm" className="h-11 md:h-[30px]" variant="outline" onClick={() => setPbiOpen(true)}>BI Dashboard</Button>
           </div>
         </div>
       </div>

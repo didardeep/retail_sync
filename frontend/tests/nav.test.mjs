@@ -67,9 +67,9 @@ test('Audit is one sidebar item for every role that had either page', () => {
   }
 });
 
-test('auditor sees Dashboard, Audit and Email only; managers do not get the auditor dashboard', () => {
+test('auditor sees Dashboard, Audit, Action Taken Tracking and Email only; managers do not get the auditor dashboard', () => {
   const auditorPages = NAV_ITEMS.filter((n) => canAccess('AUDITOR', n.page)).map((n) => n.label);
-  assert.deepEqual(auditorPages, ['Dashboard', 'Audit', 'Email Communications']);
+  assert.deepEqual(auditorPages, ['Dashboard', 'Audit', 'Action Taken Tracking', 'Email Communications']);
   assert.equal(canAccess('AUDIT_MANAGER', 'my-dashboard'), false);
   assert.equal(canAccess('ADMIN', 'my-dashboard'), false);
   assert.equal(canAccess('STORE_MANAGER', 'my-dashboard'), false);

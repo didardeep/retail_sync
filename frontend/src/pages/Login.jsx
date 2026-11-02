@@ -85,12 +85,13 @@ export default function Login({ onLogin }) {
           </div>
 
           <label className="login-field">
-            <span>Email address</span>
+            <span>Username</span>
             <div className="login-input-wrap">
               <span className="login-input-icon">&#x2709;</span>
               <input
-                type="email"
-                placeholder="name@retail-chain.com"
+                type="text"
+                placeholder="Enter your username"
+                autoCapitalize="none"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="username"
@@ -128,25 +129,25 @@ export default function Login({ onLogin }) {
             <div className="login-hint-row">
               <span className="login-hint-badge am">AM</span>
               <div>
-                <div className="login-hint-email">am@retail-chain.com</div>
+                <div className="login-hint-email">manager</div>
                 <div className="login-hint-role">Audit Manager</div>
               </div>
             </div>
             <div className="login-hint-row">
               <span className="login-hint-badge aud">AU</span>
               <div>
-                <div className="login-hint-email">aud.amit.singh@retail-chain.com</div>
+                <div className="login-hint-email">amit</div>
                 <div className="login-hint-role">Auditor</div>
               </div>
             </div>
             <div className="login-hint-row">
               <span className="login-hint-badge sm">SM</span>
               <div>
-                <div className="login-hint-email">sm.a.sharma@retail-chain.com</div>
+                <div className="login-hint-email">sharma</div>
                 <div className="login-hint-role">Store Manager</div>
               </div>
             </div>
-            <div className="login-hint-pw">Password for all: <code>password123</code></div>
+            <div className="login-hint-pw">Password for all: <code>pass</code></div>
           </div>
         </form>
       </div>
