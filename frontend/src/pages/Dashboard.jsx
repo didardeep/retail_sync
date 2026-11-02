@@ -20,7 +20,7 @@ import { auditsLink, issuesLink, storesLink, storeScorecardLink } from '@/lib/li
 import { QUARTERS } from '@/lib/storeStats';
 import {
   RISK_COLORS, UNASSIGNED_REGION, averageScore, bucketScoredStores, formatAverages, groupAuditsByRegion,
-  auditStageCounts, groupObservationsByRisk, rankScored, scoreStores,
+  auditStageCounts, auditsInQuarter, groupObservationsByRisk, itemsOfAudits, rankScored, scoreStores,
 } from '@/lib/overviewStats';
 import {
   inScope, pickerParams, resolveScope, scopeFromParams, scopeTitle, storesInScope, wording,
@@ -346,6 +346,17 @@ export default function Dashboard() {
   );
   const scoped = useMemo(() => (data ? storesInScope(stores, scope) : []), [data, stores, scope]);
 
+  // Audits, and the observations and issues raised in them, for the selected quarter.
+  const { quarterAudits, quarterObservations, quarterIssues } = useMemo(() => {
+    if (!data) return { quarterAudits: [], quarterObservations: [], quarterIssues: [] };
+    const audits = auditsInQuarter(inScope(data.audits, scoped), selectedQ, new Date().getFullYear());
+    return {
+      quarterAudits: audits,
+      quarterObservations: itemsOfAudits(inScope(data.observations, scoped), audits),
+      quarterIssues: itemsOfAudits(inScope(data.issues, scoped), audits),
+    };
+  }, [data, scoped, selectedQ]);
+
   if (!data) return <Loading what="dashboard" />;
 
   const brandName = brands.find((b) => b.id === scope.id)?.name || '';
@@ -396,9 +407,9 @@ export default function Dashboard() {
           allBrands={brands}
           stores={scoped}
           scoreMap={data.scoreMap}
-          issues={inScope(data.issues, scoped)}
-          observations={inScope(data.observations, scoped)}
-          audits={inScope(data.audits, scoped)}
+          issues={quarterIssues}
+          observations={quarterObservations}
+          audits={quarterAudits}
           selectedQ={selectedQ}
         />
       )}

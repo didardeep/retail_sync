@@ -2,6 +2,7 @@
 // slice, legend entry and drill-down list is derived from the same function
 // output, so the number you see is the number you get when you click it.
 import { stageOf } from './statuses.js'
+import { quarterOf } from './storeStats.js'
 
 export const RISK_LEVELS = ['Critical', 'High', 'Medium', 'Low', 'Unrated']
 export const UNASSIGNED_REGION = 'Unassigned'
@@ -20,6 +21,22 @@ export const SCORE_BUCKETS = [
 
 export function pct(count, total) {
   return total ? Math.round((count / total) * 100) : 0
+}
+
+// Audits scheduled in `quarter` of `year` (planned and cancelled ones count too,
+// so the date used is the scheduled date, not the submitted date).
+export function auditsInQuarter(audits = [], quarter, year) {
+  return audits.filter((a) => {
+    if (!a.scheduled_at || quarterOf(a.scheduled_at) !== quarter) return false
+    return new Date(a.scheduled_at).getFullYear() === year
+  })
+}
+
+// Observations or issues that belong to one of the given audits. They carry no
+// quarter of their own: they sit in the quarter of the audit they came from.
+export function itemsOfAudits(items = [], audits = []) {
+  const ids = new Set(audits.map((a) => a.id))
+  return items.filter((it) => ids.has(it.audit_id))
 }
 
 // A usable score is a finite number above 0; null/0/missing means "not scored".
