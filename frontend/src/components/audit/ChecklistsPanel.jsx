@@ -34,7 +34,8 @@ function Choices({ label, hint, options, value, onChange }) {
 }
 
 // Build and edit checklists: their questions and which stores they apply to.
-export default function Checklists() {
+// Shown inside the Audit page for managers. onChange gets the new list.
+export default function ChecklistsPanel({ onChange }) {
   const toast = useToast();
   const [rows, setRows] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -84,7 +85,9 @@ export default function Checklists() {
     setSaving(true);
     try {
       const saved = form.id ? await api.updateChecklist(form.id, body) : await api.createChecklist(body);
-      setRows(await api.checklists());
+      const list = await api.checklists();
+      setRows(list);
+      onChange?.(list);
       setForm(null);
       toast(form.id && saved.id !== form.id ? `Saved as version ${saved.version}` : 'Checklist saved');
     } catch (e) {
@@ -101,7 +104,7 @@ export default function Checklists() {
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Checklists</h2>
+          <h3 className="text-[15px] font-bold text-foreground">Checklists</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">Choose the questions and which store formats or categories each checklist applies to</p>
         </div>
         <Button size="sm" onClick={() => { setForm(EMPTY); setSearch(''); }}>+ New Checklist</Button>

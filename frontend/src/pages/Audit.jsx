@@ -15,6 +15,7 @@ import { Drawer } from '../components/Modal';
 import { useToast } from '../components/Toast';
 import AuditRowStatus from '@/components/AuditRowStatus';
 import Tile from '@/components/Tile';
+import ChecklistsPanel from '@/components/audit/ChecklistsPanel';
 import NewAuditSection from '@/components/audit/NewAuditSection';
 import ScheduledForYou from '@/components/audit/ScheduledForYou';
 import ScheduleAuditModal, { scheduleErrorMessage } from '@/components/audit/ScheduleAuditModal';
@@ -110,6 +111,7 @@ export default function Audit() {
   const me = loadSession()?.user;
   const toast = useToast();
   const canEdit = MANAGER_ROLES.includes(me?.role);
+  const [showChecklists, setShowChecklists] = useState(false);
   const isAuditor = me?.role === 'AUDITOR';
   const ws = useAuditorWorkspace();
   const { prepare } = ws;
@@ -407,6 +409,11 @@ export default function Audit() {
         <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={startDate} onChange={(e) => { setPage(1); setStartDate(e.target.value); }} aria-label="From date" />
         <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={endDate} onChange={(e) => { setPage(1); setEndDate(e.target.value); }} aria-label="To date" />
         {anyFilter && <Button size="sm" variant="outline" onClick={clearFilters}>Clear</Button>}
+        {canEdit && (
+          <Button size="sm" variant={showChecklists ? 'default' : 'outline'} onClick={() => setShowChecklists((v) => !v)} aria-expanded={showChecklists}>
+            Checklists
+          </Button>
+        )}
         {canEdit && <Button size="sm" onClick={() => setSchedule({})}>+ Schedule Audit</Button>}
         {isAuditor && (
           <Button size="sm" onClick={() => setShowNew((v) => !v)} aria-expanded={showNew}>
@@ -414,6 +421,12 @@ export default function Audit() {
           </Button>
         )}
       </div>
+
+      {canEdit && showChecklists && (
+        <div className="mb-3">
+          <ChecklistsPanel onChange={(list) => setChecklists(list.filter((c) => c.is_active !== false))} />
+        </div>
+      )}
 
       {chipLabel && (
         <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">

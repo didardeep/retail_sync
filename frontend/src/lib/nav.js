@@ -7,7 +7,6 @@ export const NAV_ITEMS = [
   { path: '/my-issues', page: 'my-issues', label: 'My Issues', title: 'My Issues', icon: 'issues', group: 'My issues' },
   { path: '/audits', page: 'audits', label: 'Audit', title: 'Audit', icon: 'audits', group: 'Audits' },
   { path: '/questions', page: 'questions', label: 'Audit Questions', title: 'Audit Questions', icon: 'questions', group: 'Admin' },
-  { path: '/checklists', page: 'checklists', label: 'Checklists', title: 'Checklists', icon: 'questions', group: 'Admin' },
   { path: '/issues', page: 'issues', label: 'Action Taken Tracking', title: 'Action Taken Tracking', icon: 'issues', group: 'Insights' },
   { path: '/stores', page: 'stores', label: 'Store Management', title: 'Store Management', icon: 'stores', group: 'Admin' },
   { path: '/scores', page: 'scores', label: 'Store Audit Scores', title: 'Store Audit Scores', icon: 'scores', group: 'Insights' },

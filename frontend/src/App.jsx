@@ -14,7 +14,6 @@ import StoreAuditScores from './pages/StoreAuditScores'
 import Issues from './pages/Issues'
 import Audit from './pages/Audit'
 import Questions from './pages/Questions'
-import Checklists from './pages/Checklists'
 import Stores from './pages/Stores'
 import Email from './pages/Email'
 import AuditLog from './pages/AuditLog'
@@ -80,7 +79,6 @@ export default function App() {
             <Route path="/audits/:id/review" element={guarded('audits', <ClassicAuditReview />)} />
             <Route path="/scheduling" element={<SchedulingRedirect />} />
             <Route path="/questions" element={guarded('questions', <Questions />)} />
-            <Route path="/checklists" element={guarded('checklists', <Checklists />)} />
             <Route path="/stores"element={guarded('stores', <Stores />)} />
             <Route path="/email" element={guarded('email', <Email />)} />
             <Route path="/audit-log" element={guarded('audit-log', <AuditLog />)} />
