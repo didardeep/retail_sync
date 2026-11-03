@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Store Audit &amp; Analysis</title>
+<!-- Mockup only. Tailwind CDN + the app's own tailwind.config.js colours, so the
+     class names below are copied as-is from Layout.jsx, Audit.jsx, Tile.jsx,
+     NotificationBell.jsx and components/ui/*. Needs an internet connection. -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          background: 'hsl(var(--background))',
+          foreground: 'hsl(var(--foreground))',
+          card: { DEFAULT: 'hsl(var(--card))', foreground: 'hsl(var(--card-foreground))' },
+          primary: { DEFAULT: 'hsl(var(--primary))', foreground: 'hsl(var(--primary-foreground))' },
+          secondary: { DEFAULT: 'hsl(var(--secondary))', foreground: 'hsl(var(--secondary-foreground))' },
+          muted: { DEFAULT: 'hsl(var(--muted))', foreground: 'hsl(var(--muted-foreground))' },
+          accent: { DEFAULT: 'hsl(var(--accent-ui))', foreground: 'hsl(var(--accent-foreground))' },
+          destructive: { DEFAULT: 'hsl(var(--destructive))', foreground: 'hsl(var(--destructive-foreground))' },
+          border: 'hsl(var(--border-ui))',
+          input: 'hsl(var(--input))',
+          ring: 'hsl(var(--ring))',
+          sidebar: { bg: 'hsl(var(--sidebar-bg))', fg: 'hsl(var(--sidebar-fg))', active: 'hsl(var(--sidebar-active))' },
+        },
+        borderRadius: { lg: 'var(--radius)', md: 'calc(var(--radius) - 2px)', sm: 'calc(var(--radius) - 4px)' },
+      },
+    },
+  };
+</script>
+<style>
+  /* From frontend/src/styles.css */
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;background:#eef1f7;color:#1a1a2e;-webkit-font-smoothing:antialiased;}
+  :root{
+    --background: 220 36% 95%; --foreground: 218 65% 11%;
+    --card: 0 0% 100%; --card-foreground: 218 65% 11%;
+    --primary: 218 100% 28%; --primary-foreground: 0 0% 100%;
+    --secondary: 220 64% 95%; --secondary-foreground: 218 100% 28%;
+    --muted: 220 20% 93%; --muted-foreground: 216 18% 47%;
+    --accent-ui: 220 64% 95%; --accent-foreground: 218 100% 28%;
+    --destructive: 0 75% 51%; --destructive-foreground: 0 0% 100%;
+    --border-ui: 218 31% 88%; --input: 218 31% 88%; --ring: 218 100% 28%;
+    --radius: 0.5rem;
+    --sidebar-bg: 218 100% 28%; --sidebar-fg: 220 30% 82%; --sidebar-active: 205 100% 43%;
+  }
+  button{font:inherit;cursor:pointer;}
+  a{color:inherit;text-decoration:none;}
+  .mock-toast{position:fixed;bottom:20px;right:20px;z-index:60;opacity:0;transform:translateY(6px);transition:all .2s;pointer-events:none;}
+  .mock-toast.show{opacity:1;transform:none;}
+</style>
+</head>
+<body>
+<div class="flex h-screen overflow-hidden">
+  <!-- Sidebar: same shell and item classes as Layout.jsx -->
+  <aside class="hidden w-[222px] shrink-0 md:flex">
+    <div class="flex h-full w-full flex-col overflow-y-auto bg-sidebar-bg">
+      <div class="border-b border-white/[.07] px-3.5 pb-3.5 pt-4">
+        <div class="text-sm font-bold leading-tight text-white">
+          Store Audit
+          <span class="block text-[11px] font-normal text-sidebar-fg">and Analysis</span>
+        </div>
+      </div>
+      <div class="mb-1 flex items-center gap-2 border-b border-white/[.07] px-3.5 py-2.5">
+        <div class="h-[7px] w-[7px] rounded-full bg-amber-400"></div>
+        <div class="text-[11px] text-sidebar-fg">
+          <b class="block text-xs text-white">Hi, Welcome</b>
+          Audit Manager
+        </div>
+      </div>
+      <nav id="nav" class="flex-1 px-2 py-1"></nav>
+    </div>
+  </aside>
+
+  <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
+    <!-- Top bar: same as Layout.jsx -->
+    <div class="flex h-[50px] shrink-0 items-center justify-between border-b border-border bg-card px-4 md:px-[22px]">
+      <div class="flex items-center gap-2">
+        <div id="title" class="text-sm font-semibold text-foreground"></div>
+      </div>
+      <div class="flex items-center gap-2.5">
+        <!-- Notification bell: NotificationBell.jsx, with "Needs you" moved in -->
+        <div class="relative" id="bellWrap">
+          <button id="bell" class="relative flex h-10 w-10 items-center justify-center rounded-[7px] border border-border bg-card text-[13px]" title="Notifications">
+            &#x1F514;
+            <span id="bellDot" class="absolute right-1.5 top-1.5 flex h-[8px] w-[8px] items-center justify-center rounded-full bg-red-500"></span>
+          </button>
+          <div id="bellMenu" class="absolute right-0 top-[calc(100%+6px)] z-50 hidden min-w-[280px] overflow-hidden rounded-lg border border-border bg-card shadow-lg"></div>
+        </div>
+        <div class="relative">
+          <div class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br md:h-[30px] md:w-[30px] from-[#00338D] to-[#0080DB] text-[11px] font-bold text-white" title="Audit Manager">M</div>
+        </div>
+      </div>
+    </div>
+    <div id="content" class="flex-1 overflow-y-auto px-4 pb-10 pt-[18px] md:px-[22px]"></div>
+  </div>
+</div>
+<div id="toast" class="mock-toast rounded-md border border-border bg-card px-4 py-3 text-[12.5px] text-foreground shadow-lg"></div>
+
+<script>
+/* ── Icons ── nav icons are copied from components/navIcons.jsx; page icons are lucide shapes */
+const NAV_ICONS = {
+  dashboard: '<rect x="3" y="12" width="4" height="9"/><rect x="10" y="6" width="4" height="15"/><rect x="17" y="2" width="4" height="19"/>',
+  scores: '<polyline points="3,17 9,11 13,15 21,5"/>',
+  issues: '<path d="M12 2L22 20H2Z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16.5" r=".5" fill="currentColor"/>',
+  audits: '<circle cx="12" cy="12" r="9"/><polyline points="8,12 11,15 16,9"/>',
+  scheduling: '<rect x="3" y="4" width="18" height="17" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/>',
+  questions: '<rect x="4" y="3" width="16" height="18" rx="1"/><polyline points="8,9 10,11 14,7"/><line x1="8" y1="15" x2="16" y2="15"/>',
+  stores: '<rect x="2" y="7" width="20" height="14" rx="1"/><path d="M16 21V7a4 4 0 00-8 0v14"/>',
+  email: '<rect x="3" y="5" width="18" height="14" rx="1"/><polyline points="3,7 12,13 21,7"/>',
+  'audit-log': '<path d="M9 12h6M9 16h6M9 8h6"/><rect x="4" y="3" width="16" height="18" rx="1"/>',
+  'my-store': '<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/>',
+  // same stroke style, for the new entries
+  progress: '<circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15,14"/>',
+  overdue: '<circle cx="12" cy="13" r="8"/><polyline points="12,9 12,13 14,15"/><line x1="5" y1="3" x2="2" y2="6"/><line x1="19" y1="3" x2="22" y2="6"/>',
+  approved: '<rect x="4" y="3" width="16" height="18" rx="1"/><polyline points="8,12 11,15 16,9"/>',
+  escalate: '<polyline points="7,11 12,6 17,11"/><line x1="12" y1="6" x2="12" y2="19"/>',
+  shield: '<path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="15.5" r=".5" fill="currentColor"/>',
+  coverage: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
+};
+const LUCIDE = {
+  ClipboardList: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+  CalendarDays: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/>',
+  Loader2: '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  CheckCircle2: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  BadgeCheck: '<path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/>',
+  XCircle: '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>',
+  AlarmClock: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/>',
+  UserX: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" x2="22" y1="8" y2="13"/><line x1="22" x2="17" y1="8" y2="13"/>',
+  Eye: '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+  Pencil: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
+  X: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+};
+const navSvg = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${NAV_ICONS[k]}</svg>`;
+const lucide = (k, cls) => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${LUCIDE[k]}</svg>`;
+
+/* ── Sample data ── */
+const AUDITS = [
+  { id: 'AUD-1042', tool: 'Cash Management SOP', store: 'Ub City', city: 'Bengaluru', region: 'South', sched: '2026-10-28', start: '2026-11-02T09:30', end: '2026-11-02T13:00', auditor: 'Amit Singh', stage: 'completed', score: '71/77' },
+  { id: 'AUD-1039', tool: 'FMCG Freshness SOP', store: 'Phoenix Marketcity', city: 'Mumbai', region: 'West', sched: '2026-10-27', start: '2026-11-01T10:00', end: '2026-11-01T14:00', auditor: 'Neha Rao', stage: 'completed', score: '80/92' },
+  { id: 'AUD-1037', tool: 'Cashiering Checklist', store: 'Select Citywalk', city: 'Delhi', region: 'North', sched: '2026-10-25', start: '2026-10-31T11:00', end: '2026-10-31T12:30', auditor: 'Rahul Verma', stage: 'completed', score: '88%' },
+  { id: 'AUD-1035', tool: 'Cash Management SOP', store: 'Forum Mall', city: 'Kolkata', region: 'East', sched: '2026-10-24', start: '2026-10-30T09:00', end: '2026-10-30T12:00', auditor: 'Amit Singh', stage: 'completed', score: '62/77' },
+  { id: 'AUD-1031', tool: 'FMCG Freshness SOP', store: 'Inorbit Mall', city: 'Hyderabad', region: 'South', sched: '2026-10-22', start: '2026-10-29T10:00', end: '2026-10-29T13:30', auditor: 'Neha Rao', stage: 'completed', score: '85/92' },
+  { id: 'AUD-1044', tool: 'Cash Management SOP', store: 'DLF Promenade', city: 'Delhi', region: 'North', sched: '2026-10-30', start: '2026-11-03T09:00', end: '2026-11-03T17:00', auditor: 'Rahul Verma', stage: 'in_progress', progress: 40 },
+  { id: 'AUD-1045', tool: 'Cashiering Checklist', store: 'Lulu Mall', city: 'Kochi', region: 'South', sched: '2026-10-30', start: '2026-11-03T10:00', end: '2026-11-03T18:00', auditor: 'Neha Rao', stage: 'in_progress', progress: 15 },
+  { id: 'AUD-1028', tool: 'FMCG Freshness SOP', store: 'Orion Mall', city: 'Bengaluru', region: 'South', sched: '2026-10-20', start: '2026-10-28T09:00', end: '2026-10-28T17:00', auditor: 'Amit Singh', stage: 'scheduled', overdue: true },
+  { id: 'AUD-1048', tool: 'Cash Management SOP', store: 'Ambience Mall', city: 'Gurugram', region: 'North', sched: '2026-11-01', start: '2026-11-05T09:00', end: '2026-11-05T17:00', auditor: 'Rahul Verma', stage: 'scheduled' },
+  { id: 'AUD-1049', tool: 'FMCG Freshness SOP', store: 'Palladium', city: 'Mumbai', region: 'West', sched: '2026-11-01', start: '2026-11-06T09:00', end: '2026-11-06T17:00', auditor: 'Neha Rao', stage: 'scheduled' },
+  { id: 'AUD-1050', tool: 'Cashiering Checklist', store: 'Nexus Koramangala', city: 'Bengaluru', region: 'South', sched: '2026-11-02', start: '2026-11-08T09:00', end: '2026-11-08T17:00', auditor: null, stage: 'scheduled' },
+  { id: 'AUD-1020', tool: 'Cash Management SOP', store: 'Ub City', city: 'Bengaluru', region: 'South', sched: '2026-10-10', start: '2026-10-20T09:30', end: '2026-10-20T13:00', auditor: 'Amit Singh', stage: 'approved', score: '74/77' },
+  { id: 'AUD-1018', tool: 'FMCG Freshness SOP', store: 'Forum Mall', city: 'Kolkata', region: 'East', sched: '2026-10-08', start: '2026-10-18T10:00', end: '2026-10-18T14:00', auditor: 'Neha Rao', stage: 'approved', score: '70/92' },
+  { id: 'AUD-1012', tool: 'Cashiering Checklist', store: 'Palladium', city: 'Mumbai', region: 'West', sched: '2026-10-05', start: '2026-10-12T10:00', end: '2026-10-12T11:30', auditor: 'Rahul Verma', stage: 'cancelled' },
+];
+const OPEN_ISSUES = 12, ESCALATED = 3, QUESTIONS_PENDING = 2;
+
+const count = (st) => AUDITS.filter((a) => a.stage === st).length;
+const overdueCount = AUDITS.filter((a) => a.overdue).length;
+
+/* ── Helpers copied from the app ── */
+const cn = (...c) => c.filter(Boolean).join(' ');
+const avCols = ['bg-indigo-500', 'bg-emerald-500', 'bg-amber-500', 'bg-red-500', 'bg-violet-500', 'bg-cyan-500'];
+const avC = (name) => avCols[[...name].reduce((s, ch) => s + ch.charCodeAt(0), 0) % avCols.length];
+const STAGE_LABEL = { scheduled: 'Scheduled', in_progress: 'In progress', completed: 'Completed', approved: 'Approved', cancelled: 'Cancelled' };
+function stageBadgeClass(stage) {
+  if (stage === 'in_progress') return 'border-transparent bg-amber-500 text-white hover:bg-amber-500';
+  if (stage === 'completed' || stage === 'approved') return 'border-transparent bg-emerald-600 text-white hover:bg-emerald-600';
+  return 'border-transparent bg-muted text-muted-foreground hover:bg-muted';
+}
+const badgeBase = 'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors';
+const btnBase = 'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors [&_svg]:size-4 [&_svg]:shrink-0';
+const btnDefault = btnBase + ' bg-primary text-primary-foreground hover:bg-primary/90';
+const btnOutline = btnBase + ' border border-input bg-background hover:bg-accent hover:text-accent-foreground';
+const fieldClass = 'flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none';
+const filterClass = cn(fieldClass, 'w-auto cursor-pointer bg-card');
+const fmtDate = (iso) => new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+const fmtTime = (iso) => iso.length > 10 ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+const iconBtn = 'flex h-[26px] w-[26px] items-center justify-center rounded-md border border-border bg-card';
+
+/* ── Sidebar: workflow groups. Item classes are Layout.jsx's NavLink classes. ── */
+const NAV = [
+  { group: null, items: [{ key: 'dashboard', label: 'Dashboard & Analytics', icon: 'dashboard', route: '/dashboard' }] },
+  { group: '1 · Plan', items: [
+    { key: 'audits', label: 'All Audits', icon: 'audits', route: '/audits' },
+    { key: 'scheduled', label: 'Scheduled', icon: 'scheduling', route: '/audits?stage=scheduled', filter: 'scheduled', count: count('scheduled') },
+    { key: 'questions', label: 'Audit Questions', icon: 'questions', route: '/questions' },
+  ]},
+  { group: '2 · Execute', items: [
+    { key: 'in_progress', label: 'In Progress', icon: 'progress', route: '/audits?stage=in_progress', filter: 'in_progress', count: count('in_progress') },
+    { key: 'overdue', label: 'Overdue', icon: 'overdue', route: '/audits?view=overdue', filter: 'overdue', count: overdueCount, tone: 'red' },
+  ]},
+  { group: '3 · Review', items: [
+    { key: 'completed', label: 'Pending Approval', icon: 'audits', route: '/audits?stage=completed', filter: 'completed', count: count('completed'), tone: 'amber' },
+    { key: 'approved', label: 'Approved', icon: 'approved', route: '/audits?stage=approved', filter: 'approved' },
+  ]},
+  { group: '4 · Act', items: [
+    { key: 'issues', label: 'Action Taken Tracking', icon: 'issues', route: '/issues', count: OPEN_ISSUES },
+    { key: 'escalations', label: 'Escalations', icon: 'escalate', route: '/issues?status=escalated', count: ESCALATED, tone: 'red' },
+  ]},
+  { group: '5 · Analyse', items: [
+    { key: 'scores', label: 'Store Audit Scores', icon: 'scores', route: '/scores' },
+    { key: 'stores', label: 'Store Management', icon: 'stores', route: '/stores' },
+  ]},
+  { group: 'Admin', items: [
+    { key: 'email', label: 'Email Communications', icon: 'email', route: '/email' },
+    { key: 'audit-log', label: 'Audit Log', icon: 'audit-log', route: '/audit-log' },
+  ]},
+];
+const ALL_ITEMS = NAV.flatMap((g) => g.items.map((it) => ({ ...it, group: g.group })));
+
+/* "Needs you" now lives in the bell, in the same row style as NotificationBell.jsx */
+const NEEDS_YOU = [
+  { n: count('completed'), label: 'audits awaiting approval', go: 'completed', tone: 'amber' },
+  { n: overdueCount, label: 'audit overdue', go: 'overdue', tone: 'red' },
+  { n: ESCALATED, label: 'issues escalated', go: 'escalations', tone: 'red' },
+  { n: QUESTIONS_PENDING, label: 'questions awaiting approval', go: 'questions', tone: 'amber' },
+].filter((r) => r.n > 0);
+const ALERTS = [
+  { label: 'Reminder: AUD-1048 Ambience Mall starts on 05 Nov', go: 'scheduled' },
+];
+
+let current = 'completed';
+
+function renderNav() {
+  document.getElementById('nav').innerHTML = NAV.map((g) => `
+    ${g.group ? `<div class="px-2.5 pb-1 pt-3 text-[10.5px] font-semibold uppercase tracking-wide text-sidebar-fg/80">${g.group}</div>` : ''}
+    ${g.items.map((it) => `
+      <a href="#" data-view="${it.key}" class="${cn(
+        'mb-0.5 flex items-center gap-2.5 whitespace-nowrap rounded-[7px] px-2.5 py-2 text-[12.5px] font-medium text-white no-underline transition-colors [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0',
+        current === it.key ? 'bg-sidebar-active/30' : 'hover:bg-white/[.06]')}">
+        ${navSvg(it.icon)}${it.label}
+        ${it.count ? `<span class="${cn('ml-auto rounded-full px-1.5 text-[10.5px] font-semibold leading-[18px]',
+          it.tone === 'red' ? 'bg-red-500 text-white' : it.tone === 'amber' ? 'bg-amber-400 text-foreground' : 'bg-white/15 text-white')}">${it.count}</span>` : ''}
+      </a>`).join('')}`).join('');
+}
+
+function renderBell() {
+  const menu = document.getElementById('bellMenu');
+  document.getElementById('bellDot').style.display = (NEEDS_YOU.length + ALERTS.length) ? '' : 'none';
+  const row = (inner, go) => `<button data-view="${go}" class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[12.5px] text-foreground hover:bg-accent">${inner}</button>`;
+  menu.innerHTML =
+    `<div class="border-b border-border px-4 py-2 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Needs you</div>` +
+    (NEEDS_YOU.length
+      ? NEEDS_YOU.map((r) => row(`<span class="${cn(badgeBase, 'min-w-[26px] justify-center px-2', r.tone === 'red' ? 'border-transparent bg-destructive text-destructive-foreground' : 'border-transparent bg-amber-500 text-white')}">${r.n}</span>${r.label}`, r.go)).join('')
+      : '<div class="px-4 py-3 text-[12.5px] text-muted-foreground">You are all caught up</div>') +
+    `<div class="border-y border-border px-4 py-2 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Notifications</div>` +
+    (ALERTS.length ? ALERTS.map((a) => row(a.label, a.go)).join('') : '<div class="px-4 py-3 text-[12.5px] text-muted-foreground">No new notifications</div>');
+}
+
+function tile(icon, tint, label, value, active, view) {
+  return `<button type="button" data-view="${view}" class="${cn(
+    'flex items-center gap-3 rounded-[10px] border border-border bg-card p-3.5 py-4 text-left transition-colors hover:bg-accent',
+    active && 'border-primary ring-1 ring-primary')}">
+    <div class="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg" style="background:${tint}">${lucide(icon, 'size-4 text-foreground/70')}</div>
+    <div><div class="mb-0.5 text-[11px] text-muted-foreground">${label}</div><div class="text-2xl font-bold leading-none text-foreground">${value}</div></div>
+  </button>`;
+}
+
+function dateCell(iso, extra) {
+  return `<div class="${cn('text-[12.5px] font-semibold', extra)}">${fmtDate(iso)}</div><div class="text-[11px] text-muted-foreground">${fmtTime(iso)}</div>`;
+}
+
+function renderAuditPage(filter) {
+  const rows = AUDITS.filter((a) => !filter ? true : filter === 'overdue' ? a.overdue : a.stage === filter);
+  const chip = filter ? (filter === 'overdue' ? 'Overdue' : STAGE_LABEL[filter]) : null;
+  const th = 'h-12 px-4 text-left align-middle font-medium text-muted-foreground';
+  const td = 'p-4 align-middle';
+  return `
+  <div class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+    ${tile('ClipboardList', '#e8eefa', 'Total Audits', AUDITS.length, !filter, 'audits')}
+    ${tile('CalendarDays', '#e8eefa', 'Scheduled', count('scheduled'), filter === 'scheduled', 'scheduled')}
+    ${tile('Loader2', '#fffbeb', 'In progress', count('in_progress'), filter === 'in_progress', 'in_progress')}
+    ${tile('CheckCircle2', '#ecfdf5', 'Completed', count('completed'), filter === 'completed', 'completed')}
+    ${tile('BadgeCheck', '#ecfdf5', 'Approved', count('approved'), filter === 'approved', 'approved')}
+    ${tile('XCircle', '#f3f4f6', 'Cancelled', count('cancelled'), false, 'audits')}
+    ${tile('AlarmClock', '#fde8e8', 'Overdue', overdueCount, filter === 'overdue', 'overdue')}
+    ${tile('UserX', '#f3f4f6', 'Unassigned', AUDITS.filter((a) => !a.auditor).length, false, 'audits')}
+  </div>
+
+  <div class="mb-3.5 flex flex-wrap items-center gap-2">
+    <div class="relative min-w-[180px] flex-1">
+      <input class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none" placeholder="Search audit, store or auditor...">
+    </div>
+    ${['Status', 'Quarter', 'Region', 'Brand', 'Store', 'Auditor'].map((l) =>
+      `<select class="${l === 'Status' && filter ? cn(filterClass, 'border-primary bg-primary/10 font-semibold text-primary') : filterClass}"><option>${l === 'Status' && chip ? chip : l}</option></select>`).join('')}
+    <input type="date" class="${filterClass}">
+    <input type="date" class="${filterClass}">
+    ${filter ? `<button data-view="audits" class="${btnOutline} h-9 px-3">Clear</button>` : ''}
+    <button data-toast="Checklists panel opens here" class="${btnOutline} h-9 px-3">Checklists</button>
+    <button data-toast="Opens the existing Schedule Audit form" class="${btnDefault} h-9 px-3">+ Schedule Audit</button>
+  </div>
+
+  ${chip ? `<div class="mb-2 flex flex-wrap items-center gap-2 text-xs">
+    <span class="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 font-medium text-foreground">
+      Filter: ${chip}
+      <button type="button" data-view="audits" class="inline-flex items-center gap-0.5 text-primary hover:underline">(clear)${lucide('X', 'size-3')}</button>
+    </span>
+    <span class="text-muted-foreground">${rows.length} shown</span>
+  </div>` : ''}
+
+  <div class="overflow-x-auto rounded-[10px] border border-border bg-card">
+    <div class="relative w-full overflow-auto"><table class="w-full caption-bottom text-sm">
+      <thead class="[&_tr]:border-b"><tr class="border-b transition-colors hover:bg-muted/50">
+        <th class="${th}">Audit</th><th class="${th}">Store</th><th class="${th}">Scheduled on</th><th class="${th}">Start</th>
+        <th class="${th}">End</th><th class="${th}">Auditor</th><th class="${th}">Status</th><th class="${th}">Actions</th>
+      </tr></thead>
+      <tbody class="[&_tr:last-child]:border-0">
+        ${rows.length === 0 ? `<tr><td colspan="8" class="p-10 text-center text-muted-foreground">No audits match these filters</td></tr>` : ''}
+        ${rows.map((s) => `
+        <tr class="${cn('border-b transition-colors hover:bg-muted/50', s.overdue && 'bg-red-50/40')}">
+          <td class="${td}"><div class="text-[12.5px] font-semibold">${s.id}</div><div class="text-[11px] text-muted-foreground">${s.tool}</div></td>
+          <td class="${td}"><div class="text-[12.5px] font-medium">${s.store}</div><div class="text-[11px] text-muted-foreground">${s.city}, ${s.region}</div></td>
+          <td class="${td}">${dateCell(s.sched)}</td>
+          <td class="${td}">${dateCell(s.start)}</td>
+          <td class="${td}">${dateCell(s.end, s.overdue && 'text-destructive')}</td>
+          <td class="${td}">${s.auditor
+            ? `<div class="flex items-center gap-1.5"><div class="${cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(s.auditor))}">${s.auditor[0]}</div><div class="text-[12.5px] font-semibold">${s.auditor}</div></div>`
+            : `<div class="${badgeBase} bg-muted text-muted-foreground border border-border">Unassigned</div>`}</td>
+          <td class="${td}">
+            ${s.overdue
+              ? `<div class="${badgeBase} border-transparent bg-destructive text-destructive-foreground">${STAGE_LABEL[s.stage]} but overdue</div>`
+              : `<div class="${cn(badgeBase, stageBadgeClass(s.stage))}">${STAGE_LABEL[s.stage]}</div>`}
+            ${s.progress ? `<div class="mt-1.5 h-1 w-24 overflow-hidden rounded-full bg-muted"><div class="h-full bg-amber-500" style="width:${s.progress}%"></div></div><div class="mt-0.5 text-[10.5px] text-muted-foreground">${s.progress}% answered</div>` : ''}
+            ${s.score ? `<div class="mt-1 text-[11px] text-muted-foreground">Score ${s.score}</div>` : ''}
+          </td>
+          <td class="${td}"><div class="flex items-center gap-1">
+            <button class="${iconBtn}" data-toast="Opens the audit details" title="View">${lucide('Eye', 'size-3.5')}</button>
+            ${(s.stage === 'completed' || s.stage === 'approved') ? `<button data-toast="Opens /audits/${s.id}/approve" class="${btnDefault} h-7 rounded-md px-2.5 text-[11px]">Review</button>` : ''}
+            ${s.stage === 'scheduled' ? `<button class="${iconBtn}" data-toast="Reschedule or edit" title="Reschedule or edit">${lucide('Pencil', 'size-3.5')}</button>
+              <button class="${iconBtn}" data-toast="Cancel audit" title="Cancel audit">${lucide('XCircle', 'size-3.5 text-destructive')}</button>` : ''}
+          </div></td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="mt-3 flex flex-wrap items-center justify-end gap-1 text-xs text-muted-foreground">
+    <span class="mr-2">${rows.length} audits</span>
+    <button class="flex h-[27px] w-[27px] items-center justify-center rounded-md border border-primary bg-primary text-xs text-primary-foreground">1</button>
+  </div>`;
+}
+
+function renderPlaceholder(it) {
+  return `<div class="rounded-[10px] border border-border bg-card p-10 text-center text-muted-foreground">
+    In the app this opens the existing page <b class="text-foreground">${it.route}</b>.<br>
+    <span class="text-[11.5px]">Mockup only: the Audit list views are built out here.</span></div>`;
+}
+
+function render() {
+  const it = ALL_ITEMS.find((x) => x.key === current);
+  const isAuditView = it.key === 'audits' || it.filter;
+  // Title, as titleFor() would give it; filtered views name the filter
+  document.getElementById('title').textContent = it.filter ? `Audit · ${it.label}` : it.label;
+  document.getElementById('content').innerHTML = isAuditView ? renderAuditPage(it.filter) : renderPlaceholder(it);
+  renderNav();
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('bellMenu');
+  if (e.target.closest('#bell')) { menu.classList.toggle('hidden'); return; }
+  if (!e.target.closest('#bellWrap')) menu.classList.add('hidden');
+  const tb = e.target.closest('[data-toast]');
+  if (tb) { e.preventDefault(); toast(tb.dataset.toast); return; }
+  const v = e.target.closest('[data-view]');
+  if (v) { e.preventDefault(); menu.classList.add('hidden'); current = v.dataset.view; render(); }
+});
+
+renderBell();
+render();
+</script>
+</body>
+</html>
