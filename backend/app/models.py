@@ -479,11 +479,18 @@ class AuditResponse(Base):
     remarks = Column(Text)
     risk = Column(Text)                          # Risk description or level
     evidence = Column(JSON, default=list)       # [{"type":"photo","url":...}]
+    # The audit manager's review: approved, query (asked the auditor), replied.
+    review_status = Column(String(20))
+    review_note = Column(Text)
+    review_reply = Column(Text)
+    reviewed_by_id = Column(String(12), ForeignKey("users.id"))
+    reviewed_at = Column(DateTime)
     answered_at = Column(DateTime, default=dt.datetime.utcnow)
 
     audit = relationship("Audit", back_populates="responses")
     question = relationship("Question")
     issues = relationship("Issue", back_populates="response")
+    reviewed_by = relationship("User", foreign_keys=[reviewed_by_id])
 
     def to_dict(self):
         q = self.question
@@ -500,6 +507,9 @@ class AuditResponse(Base):
             "process": q.process if q else None,
             "answer": self.answer, "remarks": self.remarks, "risk": self.risk,
             "evidence": self.evidence or [],
+            "review_status": self.review_status, "review_note": self.review_note,
+            "review_reply": self.review_reply,
+            "reviewed_by": self.reviewed_by.name if self.reviewed_by else None,
         }
 
 

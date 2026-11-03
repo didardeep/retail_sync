@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 
 import { api } from '@/api/client';
 import { exceptionKinds } from '@/lib/checklists';
+import { CRITERIA } from '@/lib/scoreCriteria';
+import InfoButton from '@/components/InfoButton';
 import { Badge } from '@/components/ui/badge';
 
 const SEVERITY = { High: 'bg-red-50 text-red-800', Medium: 'bg-amber-50 text-amber-800' };
@@ -28,7 +30,7 @@ export default function ExceptionsCard({ storeIds, limit = 8 }) {
   return (
     <div className="rounded-[10px] border border-border bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[13px] font-semibold text-foreground">
-        <span>Data Analytics Exceptions<span className="ml-2 text-[11px] font-normal text-muted-foreground">{list.length} to verify</span></span>
+        <span>Data Analytics Exceptions<InfoButton lines={CRITERIA.exceptions} /><span className="ml-2 text-[11px] font-normal text-muted-foreground">{list.length} to verify</span></span>
         <span className="flex flex-wrap gap-1.5">
           {exceptionKinds(list).map((k) => (
             <span key={k.kind} className="rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-medium text-foreground/80">{k.kind}: {k.count}</span>

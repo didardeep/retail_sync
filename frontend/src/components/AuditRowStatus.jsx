@@ -1,15 +1,10 @@
 import { Badge } from '@/components/ui/badge';
-import { stageBadgeClass } from '@/lib/statuses';
+import { stageBadgeClass, stageLabel } from '@/lib/statuses';
 import { isOverdue } from '@/lib/auditRows';
 
-// Status of an audit row: a stage-coloured badge, plus "Overdue" for scheduled
-// audits dated before today.
+// Status of an audit row in the same words as the filters. Past its end date a
+// scheduled or running audit says so in one red badge.
 export default function AuditRowStatus({ row }) {
-  const overdue = isOverdue(row);
-  return (
-    <span className="inline-flex flex-wrap items-center gap-1">
-      <Badge className={stageBadgeClass(row.stage)}>{row.status}</Badge>
-      {overdue && <Badge variant="destructive">Overdue</Badge>}
-    </span>
-  );
+  if (isOverdue(row)) return <Badge variant="destructive">{stageLabel(row.stage)} but overdue</Badge>;
+  return <Badge className={stageBadgeClass(row.stage)}>{stageLabel(row.stage)}</Badge>;
 }

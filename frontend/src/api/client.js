@@ -110,6 +110,10 @@ export const api = {
   // AI Chat
   chat: (messages, conversation_id) =>
     request('/chat', { method: 'POST', body: { messages, conversation_id } }),
+  reviewResponse: (auditId, respId, body) =>
+    request(`/audits/${auditId}/responses/${respId}/review`, { method: 'POST', body }),
+  replyToReview: (auditId, respId, note) =>
+    request(`/audits/${auditId}/responses/${respId}/reply`, { method: 'POST', body: { note } }),
   checklist: (id) => request(`/checklists/${id}`),
   createChecklist: (body) => request('/checklists', { method: 'POST', body }),
   updateChecklist: (id, body) => request(`/checklists/${id}`, { method: 'PUT', body }),

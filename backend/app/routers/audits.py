@@ -12,12 +12,14 @@ from ..models import (
 )
 from ..schemas import (
     AnswerQuestionRequest, AuditApproveRequest, AuditPatchRequest,
-    AuditRatingRequest, AuditScheduleRequest, AuditStartRequest, RaiseIssueRequest,
+    AuditRatingRequest, AuditScheduleRequest, AuditStartRequest, RaiseIssueRequest, ResponseReply,
+    ResponseReview,
 )
 from ..services import (
     SCORED_STATUSES, auditor_conflict, compute_audit_score, linked_auditee_ids, log_action,
     next_audit_id, sync_store_score,
 )
+from ..services.alerts import notify
 
 router = APIRouter(prefix="/api/audits", tags=["audits"])
 
@@ -411,6 +413,84 @@ def raise_issue(
                {"audit_id": audit.id, "assignee_id": issue.assignee_id})
     db.commit()
     return issue.to_dict()
+
+
+def _response(db, aid, rid):
+    audit = db.get(Audit, aid)
+    resp = db.get(AuditResponse, rid)
+    if not audit or not resp or resp.audit_id != aid:
+        raise HTTPException(status_code=404, detail={"error": "not found"})
+    return audit, resp
+
+
+@router.post("/{aid}/responses/{rid}/review")
+def review_response(
+    aid: str,
+    rid: str,
+    body: ResponseReview,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
+):
+    """The audit manager's decision on one question: approve it or ask the auditor
+    about it. The audit is approved when its last question is."""
+    audit, resp = _response(db, aid, rid)
+    if audit.status != "Completed":
+        raise HTTPException(status_code=409, detail={"error": "audit is not waiting for review"})
+    note = body.note.strip()
+    if body.decision not in ("approve", "query"):
+        raise HTTPException(status_code=400, detail={"error": "decision must be approve or query"})
+    if body.decision == "query" and not note:
+        raise HTTPException(status_code=400, detail={"error": "write your question first"})
+
+    now = dt.datetime.utcnow()
+    resp.reviewed_by_id = user.id
+    resp.reviewed_at = now
+    if body.decision == "approve":
+        resp.review_status = "approved"
+    else:
+        resp.review_status = "query"
+        resp.review_note = note
+        resp.review_reply = None
+        notify(db, db.get(User, audit.auditor_id) if audit.auditor_id else None, "review_query",
+               f"Question on audit {audit.id}: {note}", f"/audits/{audit.id}/review",
+               f"query:{rid}:{now.isoformat()}")
+    log_action(db, user.id, "review_response", "audit", audit.id,
+               {"response": rid, "decision": body.decision})
+
+    db.flush()
+    if all(r.review_status == "approved" for r in audit.responses):
+        audit.status = "Approved"
+        audit.approved_by_id = user.id
+        sync_store_score(db, audit.store_id, audit.submitted_at)
+        log_action(db, user.id, "approve_audit", "audit", audit.id, {"score": audit.score})
+    db.commit()
+    return audit.to_dict(with_responses=True)
+
+
+@router.post("/{aid}/responses/{rid}/reply")
+def reply_to_review(
+    aid: str,
+    rid: str,
+    body: ResponseReply,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDITOR)),
+):
+    """The auditor answers the audit manager's question."""
+    audit, resp = _response(db, aid, rid)
+    if audit.auditor_id != user.id:
+        raise HTTPException(status_code=403, detail={"error": "forbidden"})
+    if resp.review_status != "query":
+        raise HTTPException(status_code=409, detail={"error": "no question is waiting for a reply"})
+    note = body.note.strip()
+    if not note:
+        raise HTTPException(status_code=400, detail={"error": "write your reply first"})
+    resp.review_status = "replied"
+    resp.review_reply = note
+    notify(db, resp.reviewed_by, "review_reply", f"Auditor replied on audit {audit.id}: {note}",
+           f"/audits/{audit.id}/approve", f"reply:{rid}:{dt.datetime.utcnow().isoformat()}")
+    log_action(db, user.id, "reply_to_review", "audit", audit.id, {"response": rid})
+    db.commit()
+    return audit.to_dict(with_responses=True)
 
 
 @router.post("/{aid}/submit")

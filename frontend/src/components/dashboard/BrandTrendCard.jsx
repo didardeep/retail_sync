@@ -4,6 +4,8 @@ import { Line } from 'react-chartjs-2';
 import { api } from '@/api/client';
 import { cn } from '@/lib/utils';
 import { BENCHMARK, QUARTERS } from '@/lib/storeStats';
+import { CRITERIA } from '@/lib/scoreCriteria';
+import InfoButton from '@/components/InfoButton';
 import { brandStyles, trendQuery } from '@/lib/dashboardScope';
 
 const GRID = 'rgba(0,0,0,.06)';
@@ -89,7 +91,7 @@ export default function BrandTrendCard({ title, allBrands, brands, stores }) {
   return (
     <div className="rounded-[10px] border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between gap-2 text-[13px] font-semibold text-foreground">
-        {title}
+        <span>{title}<InfoButton lines={CRITERIA.trend} /></span>
         <span className="text-[11px] font-normal text-muted-foreground">Benchmark: {BENCHMARK}%</span>
       </div>
       <div className="mb-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="Brands shown in the chart">

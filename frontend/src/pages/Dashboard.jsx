@@ -10,6 +10,7 @@ import PowerBiSample from '@/components/PowerBiSample';
 import BrandTrendCard from '@/components/dashboard/BrandTrendCard';
 import ObservationsCard from '@/components/dashboard/ObservationsCard';
 import ExceptionsCard from '@/components/ExceptionsCard';
+import InfoButton from '@/components/InfoButton';
 import { StoreView } from '@/components/store-dashboard/StoreView';
 import { avC, sColor, sBadge, pbClass, prC, stC } from '../utils/helpers';
 import { cn } from '@/lib/utils';
@@ -18,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Drawer } from '../components/Modal';
 import { auditsLink, issuesLink, storesLink, storeScorecardLink } from '@/lib/links';
 import { QUARTERS } from '@/lib/storeStats';
+import { CRITERIA } from '@/lib/scoreCriteria';
 import {
   RISK_COLORS, UNASSIGNED_REGION, averageScore, bucketScoredStores, formatAverages, groupAuditsByRegion,
   auditStageCounts, auditsInQuarter, groupObservationsByRisk, itemsOfAudits, latestAuditQuarter, rankScored, scoreStores,
@@ -143,7 +145,7 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <BrandTrendCard title={words.trend} allBrands={allBrands} brands={brands} stores={stores} />
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.risk}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{observations.length} total</span></div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.risk}<InfoButton lines={CRITERIA.risk} /><span className="ml-2 text-[11px] font-normal text-muted-foreground">{observations.length} total</span></div>
           <div className="flex h-[190px] items-center justify-center gap-4">
             <div className="relative h-[155px] w-[155px] shrink-0">
               {riskD.length ? <Doughnut data={riskData} options={donutOpts('62%', openRiskDrill)}/> : null}
@@ -164,11 +166,11 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
       {/* Row 2: Store bars + Region */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.storeBars}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{storeBarNote}</span></div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.storeBars}<InfoButton lines={CRITERIA.storeBars} /><span className="ml-2 text-[11px] font-normal text-muted-foreground">{storeBarNote}</span></div>
           {storeBarD.length ? <div className="relative h-[190px] w-full"><Bar data={storeBarData} options={storeBarOpts}/></div> : <div className="flex h-[190px] items-center justify-center text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
         </div>
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.region}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{audits.length} checklist audits</span></div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.region}<InfoButton lines={CRITERIA.region} /><span className="ml-2 text-[11px] font-normal text-muted-foreground">{audits.length} checklist audits</span></div>
           <div className="flex h-[190px] items-center justify-center gap-3.5">
             <div className="relative h-[150px] w-[150px] shrink-0">
               {regD.length ? <Doughnut data={regData} options={donutOpts('58%', openRegionDrill)}/> : null}
@@ -192,7 +194,7 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
       {/* Row 3: Format + Distribution */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 flex items-center gap-1 text-[13px] font-semibold text-foreground">{words.format}<FormatLegend /><span className="ml-1 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
+          <div className="mb-3 flex items-center gap-1 text-[13px] font-semibold text-foreground">{words.format}<InfoButton lines={CRITERIA.format} /><FormatLegend /><span className="ml-1 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
           <div className="flex gap-4.5">
             <div className="flex-1">{fmtScored.length ? <Bar data={fmtData} options={fmtOpts} height={145}/> : <div className="flex h-[145px] items-center justify-center text-xs text-muted-foreground">No scored stores in {qLabel}</div>}</div>
             <div className="min-w-[155px] text-xs">
@@ -209,7 +211,7 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
           </div>
         </div>
         <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.distribution}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
+          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.distribution}<InfoButton lines={CRITERIA.distribution} /><span className="ml-2 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
           <div className="flex h-[185px] items-center justify-center gap-3">
             <div className="relative h-[145px] w-[145px] shrink-0">
               {scored.length ? <Doughnut data={distData} options={donutOpts('58%', openDistDrill)}/> : null}

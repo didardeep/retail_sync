@@ -73,7 +73,7 @@ export function wording(scope, brandName = '') {
   const one = scope.kind === STORE
   const where = one ? 'this store' : scope.kind === BRAND ? brandName : 'all stores'
   return {
-    trend: 'Performance Trends',
+    trend: 'Brand / Store Performance',
     storeBars: 'Store-wise Compliance Score (%)',
     format: 'Store Format Performance (Avg. Score)',
     distribution: 'Store Score Distribution',

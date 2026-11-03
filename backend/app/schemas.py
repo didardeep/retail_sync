@@ -175,6 +175,15 @@ class RaiseIssueRequest(ORMBase):
     due_date: str | None = None
 
 
+class ResponseReview(ORMBase):
+    decision: str                     # approve | query
+    note: str = ""
+
+
+class ResponseReply(ORMBase):
+    note: str = ""
+
+
 class IssueReview(ORMBase):
     decision: str                     # accept | send_back
     note: str = ""

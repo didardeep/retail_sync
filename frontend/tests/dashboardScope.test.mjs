@@ -51,7 +51,7 @@ test('scope filters stores and everything that belongs to them', () => {
 test('one wording set; single store reads differently where the table says so', () => {
   const all = wording({ kind: 'all' });
   const one = wording({ kind: 'store', id: 'S1' });
-  assert.equal(all.trend, 'Performance Trends');
+  assert.equal(all.trend, 'Brand / Store Performance');
   assert.equal(all.risk, 'All Observations by Risk');
   assert.equal(one.risk, 'Observations by Risk, this store');
   assert.equal(wording({ kind: 'brand', id: 'b1' }, 'FreshMart').risk, 'Observations by Risk, FreshMart');

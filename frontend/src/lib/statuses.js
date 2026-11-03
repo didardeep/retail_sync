@@ -14,6 +14,9 @@ export const STAGES = [
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
+// The word shown for a stage, the same on badges, tiles and filters.
+export const stageLabel = (stage) => STAGES.find((s) => s.value === stage)?.label || stage
+
 const STAGE_OF_STATUS = {
   Planned: 'scheduled',
   Ongoing: 'in_progress',

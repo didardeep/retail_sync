@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  AlarmClock, CalendarDays, CheckCircle2, ClipboardList, Eye, Loader2, Pencil, Plus, UserX, X, XCircle,
+  AlarmClock, BadgeCheck, CalendarDays, CheckCircle2, ClipboardList, Eye, Loader2, Pencil, Plus, UserX, X, XCircle,
 } from 'lucide-react';
 
 import { api, loadSession } from '../api/client';
@@ -31,7 +32,7 @@ import {
 import { progressPercent } from '@/lib/auditorStats';
 import { prefetchAudits } from '@/lib/offlineSync';
 import { listCachedAudits } from '@/lib/offlineStore';
-import { STAGES, isAuditorEditable } from '@/lib/statuses';
+import { STAGES, isAuditorEditable, stageLabel, stageOf } from '@/lib/statuses';
 import { quarterOf, QUARTERS } from '@/lib/storeStats';
 import { useUrlFilters } from '@/lib/useUrlFilters';
 
@@ -86,6 +87,11 @@ function useAuditDetail(row) {
   return state;
 }
 
+// A filter in use stands out from the ones that are not.
+function filterClass(value) {
+  return cn(fieldClass, 'w-auto cursor-pointer bg-card', value && 'border-primary bg-primary/10 font-semibold text-primary');
+}
+
 function answerBadge(answer) {
   if (answer === 'Yes') return 'bg-emerald-50 text-emerald-700';
   if (answer === 'No') return 'bg-red-50 text-red-800';
@@ -112,6 +118,9 @@ export default function Audit() {
   const toast = useToast();
   const canEdit = MANAGER_ROLES.includes(me?.role);
   const [showChecklists, setShowChecklists] = useState(false);
+  const navigate = useNavigate();
+  // Submitted audits open the manager's question-by-question review.
+  const canReview = (r) => canEdit && (r.stage === 'completed' || r.stage === 'approved');
   const isAuditor = me?.role === 'AUDITOR';
   const ws = useAuditorWorkspace();
   const { prepare } = ws;
@@ -319,7 +328,7 @@ export default function Audit() {
         </div>
       )}
 
-      <div className={cn('mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2', canEdit ? 'lg:grid-cols-6' : 'lg:grid-cols-5')}>
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile icon={ClipboardList} tint="#e8eefa" label="Total Audits" value={counts.total}
           active={!statusValue && filters.auditor !== UNASSIGNED}
           onClick={() => { setPage(1); setMany({ stage: '', status: '', view: '', ...(filters.auditor === UNASSIGNED ? { auditor: '' } : {}) }); }} />
@@ -329,6 +338,10 @@ export default function Audit() {
           active={statusValue === 'in_progress'} onClick={() => toggleStatus('in_progress')} />
         <Tile icon={CheckCircle2} tint="#ecfdf5" label="Completed" value={counts.completed}
           active={statusValue === 'completed'} onClick={() => toggleStatus('completed')} />
+        <Tile icon={BadgeCheck} tint="#ecfdf5" label="Approved" value={counts.approved}
+          active={statusValue === 'approved'} onClick={() => toggleStatus('approved')} />
+        <Tile icon={XCircle} tint="#f3f4f6" label="Cancelled" value={counts.cancelled}
+          active={statusValue === 'cancelled'} onClick={() => toggleStatus('cancelled')} />
         <Tile icon={AlarmClock} tint="#fde8e8" label="Overdue" value={overdueCount}
           active={statusValue === 'overdue'} onClick={() => toggleStatus('overdue')} />
         {canEdit && (
@@ -357,20 +370,20 @@ export default function Audit() {
         <div className="relative min-w-[180px] flex-1">
           <Input placeholder="Search audit, store or auditor..." value={filters.q} onChange={(e) => applyFilter('q', e.target.value)} />
         </div>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={statusValue} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
+        <select className={filterClass(statusValue)} value={statusValue} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
           <option value="">Status</option>
           {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.quarter} onChange={(e) => applyFilter('quarter', e.target.value)} aria-label="Filter by quarter">
+        <select className={filterClass(filters.quarter)} value={filters.quarter} onChange={(e) => applyFilter('quarter', e.target.value)} aria-label="Filter by quarter">
           <option value="">Quarter</option>
           {QUARTERS.map((q) => <option key={q} value={q}>{q.toUpperCase()}</option>)}
         </select>
-        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.region} onChange={(e) => applyFilter('region', e.target.value)} aria-label="Filter by region">
+        <select className={filterClass(filters.region)} value={filters.region} onChange={(e) => applyFilter('region', e.target.value)} aria-label="Filter by region">
           <option value="">Region</option>
           {regionOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <select
-          className={cn(fieldClass, 'w-auto cursor-pointer')}
+          className={filterClass(filters.brand)}
           value={filters.brand}
           onChange={(e) => {
             const brand = e.target.value;
@@ -385,7 +398,7 @@ export default function Audit() {
           {brandOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <select
-          className={cn(fieldClass, 'w-auto cursor-pointer')}
+          className={filterClass(filters.store)}
           value={filters.store}
           onChange={(e) => {
             // Picking a store also picks its brand, so the two filters always agree.
@@ -400,14 +413,14 @@ export default function Audit() {
           {storeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         {!isAuditor && (
-          <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={filters.auditor} onChange={(e) => applyFilter('auditor', e.target.value)} aria-label="Filter by auditor">
+          <select className={filterClass(filters.auditor)} value={filters.auditor} onChange={(e) => applyFilter('auditor', e.target.value)} aria-label="Filter by auditor">
             <option value="">Auditor</option>
             <option value={UNASSIGNED}>Unassigned</option>
             {auditorOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         )}
-        <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={startDate} onChange={(e) => { setPage(1); setStartDate(e.target.value); }} aria-label="From date" />
-        <input type="date" className={cn(fieldClass, 'w-auto cursor-pointer')} value={endDate} onChange={(e) => { setPage(1); setEndDate(e.target.value); }} aria-label="To date" />
+        <input type="date" className={filterClass(startDate)} value={startDate} onChange={(e) => { setPage(1); setStartDate(e.target.value); }} aria-label="From date" />
+        <input type="date" className={filterClass(endDate)} value={endDate} onChange={(e) => { setPage(1); setEndDate(e.target.value); }} aria-label="To date" />
         {anyFilter && <Button size="sm" variant="outline" onClick={clearFilters}>Clear</Button>}
         {canEdit && (
           <Button size="sm" variant={showChecklists ? 'default' : 'outline'} onClick={() => setShowChecklists((v) => !v)} aria-expanded={showChecklists}>
@@ -506,7 +519,8 @@ export default function Audit() {
                       ) : (
                         <button className={iconBtn} onClick={() => setFilter('id', s.id)} title="View" aria-label="View"><Eye className="size-3.5" /></button>
                       )}
-                      {canChange(s) && <button className={iconBtn} onClick={() => openEdit(s)} title="Edit" aria-label="Edit"><Pencil className="size-3.5" /></button>}
+                      {canReview(s) && <Button size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => navigate(`/audits/${s.id}/approve`)}>Review</Button>}
+                      {canChange(s) && <button className={iconBtn} onClick={() => openEdit(s)} title="Reschedule or edit" aria-label="Reschedule or edit"><Pencil className="size-3.5" /></button>}
                       {canChange(s) && <button className={iconBtn} onClick={() => cancelRow(s)} title="Cancel audit" aria-label="Cancel audit"><XCircle className="size-3.5 text-destructive" /></button>}
                     </div>
                   </TableCell>
@@ -525,7 +539,7 @@ export default function Audit() {
       </div>
 
       {/* Detail drawer */}
-      <Drawer open={!!detailRow} onClose={() => setFilter('id', '')}>
+      <Drawer open={!!detailRow} onClose={() => setFilter('id', '')} className="w-[640px]">
         {detailRow && <>
           <div className="mb-1 flex items-center justify-between">
             <div className="text-[10.5px] uppercase tracking-wide text-muted-foreground">Audit Reference</div>
@@ -555,7 +569,7 @@ export default function Audit() {
               )}
             </div>
           </Section>
-          <Section label="Assigned Personnel">
+          <Section label="Auditor">
             {detailRow.auditor ? (
               <div className="flex items-center gap-2">
                 <div className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(detailRow.auditor))}>{detailRow.auditor[0]}</div>
@@ -627,13 +641,14 @@ export default function Audit() {
                 onChange={(e) => e.target.value && markAs(detailRow, e.target.value)}
               >
                 <option value="">Change status...</option>
-                {EDIT_STATUSES.filter((st) => st !== detailRow.status).map((st) => <option key={st} value={st}>{st}</option>)}
+                {EDIT_STATUSES.filter((st) => st !== detailRow.status).map((st) => <option key={st} value={st}>{stageLabel(stageOf(st))}</option>)}
               </select>
             </Section>
           )}
 
           <div className="mb-3 flex gap-2">
-            {canChange(detailRow) && <Button className="flex-1" onClick={() => openEdit(detailRow)}>Edit Audit</Button>}
+            {canChange(detailRow) && <Button className="flex-1" onClick={() => openEdit(detailRow)}>Reschedule / Edit</Button>}
+            {canReview(detailRow) && <Button className="flex-1" onClick={() => navigate(`/audits/${detailRow.id}/approve`)}>Review questions</Button>}
             {canChange(detailRow) && <Button variant="outline" className="border-red-200 text-destructive" onClick={() => cancelRow(detailRow)}>Cancel audit</Button>}
             {isAuditor && detailAction !== 'view' && (
               <Button className="flex-1" disabled={ws.openingKey === detailRow.key} onClick={() => ws.openRow(detailRow)}>

@@ -21,6 +21,7 @@ import StoreDashboard from './pages/StoreDashboard'
 import UserManagement from './pages/UserManagement'
 import AuditRoute from './components/classic/AuditRoute'
 import ClassicAuditReview from './pages/ClassicAuditReview'
+import AuditApproval from './pages/AuditApproval'
 
 // Old My Store bookmarks and links (/my-store?store=<id>) open the Dashboard
 // store view for admin and Audit Manager; the ?store key is kept.
@@ -77,6 +78,7 @@ export default function App() {
             <Route path="/audits" element={guarded('audits', <Audit />)} />
             <Route path="/audits/:id" element={guarded('audits', <AuditRoute />)} />
             <Route path="/audits/:id/review" element={guarded('audits', <ClassicAuditReview />)} />
+            <Route path="/audits/:id/approve" element={guarded('audits', <AuditApproval />)} />
             <Route path="/scheduling" element={<SchedulingRedirect />} />
             <Route path="/questions" element={guarded('questions', <Questions />)} />
             <Route path="/stores"element={guarded('stores', <Stores />)} />

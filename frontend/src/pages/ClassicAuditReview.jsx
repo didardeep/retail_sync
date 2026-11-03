@@ -12,6 +12,7 @@ import { useToast } from '@/components/Toast';
 import { ErrorNote, Loading } from '@/components/Loader';
 import { EvidenceList } from '@/components/Evidence';
 import AnnexurePanel from '@/components/AnnexurePanel';
+import ReviewQueries from '@/components/classic/ReviewQueries';
 import { Modal, ModalActions, ModalTitle } from '@/components/Modal';
 import ConflictPanel from '@/components/classic/ConflictPanel';
 import SyncChip from '@/components/SyncChip';
@@ -232,6 +233,8 @@ export default function ClassicAuditReview() {
           <div className="whitespace-pre-line text-sm text-foreground">{audit.notes}</div>
         </div>
       )}
+
+      <ReviewQueries audit={audit} onChange={setAudit} />
 
       {online && <AnnexurePanel auditId={id} />}
 
