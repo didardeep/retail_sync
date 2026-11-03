@@ -455,6 +455,8 @@ class Audit(Base):
     sm_rating = Column(Integer)                          # store manager's rating
     sm_comment = Column(Text)
     notes = Column(Text)
+    decision_note = Column(Text)                         # the manager's reason when returned or rejected
+    decision_at = Column(DateTime)
 
     store = relationship("Store")
     checklist = relationship("Checklist")
@@ -481,6 +483,8 @@ class Audit(Base):
             "status": self.status, "score": self.score,
             "sm_rating": self.sm_rating, "sm_comment": self.sm_comment,
             "notes": self.notes,
+            "decision_note": self.decision_note,
+            "decision_at": self.decision_at.isoformat() if self.decision_at else None,
         }
         if with_responses:
             d["responses"] = [r.to_dict() for r in self.responses]

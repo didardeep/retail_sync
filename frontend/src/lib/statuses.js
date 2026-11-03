@@ -1,7 +1,7 @@
 // Audit statuses and the "stage" vocabulary. A stage is the bucket a status
 // maps onto, so scheduling, status and dashboards talk about audits in one
 // language.
-export const AUDIT_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Changes Requested', 'Approved']
+export const AUDIT_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Changes Requested', 'Approved', 'Rejected']
 
 // The audit manager sent the audit back; the auditor fixes the queried questions
 // and resubmits. Counted with the audits in progress.
@@ -16,6 +16,7 @@ export const STAGES = [
   { value: 'completed', label: 'Completed' },
   { value: 'approved', label: 'Approved' },
   { value: 'cancelled', label: 'Cancelled' },
+  { value: 'rejected', label: 'Rejected' },
 ]
 
 // The word shown for a stage, the same on badges, tiles and filters.
@@ -28,6 +29,7 @@ const STAGE_OF_STATUS = {
   'Changes Requested': 'in_progress',
   Approved: 'approved',
   Cancelled: 'cancelled',
+  Rejected: 'rejected',
 }
 
 // Unknown statuses fall back to 'scheduled' when they look like Planned,
@@ -58,6 +60,8 @@ export function stageBadgeClass(stage) {
     case 'completed':
     case 'approved':
       return 'border-transparent bg-emerald-600 text-white hover:bg-emerald-600'
+    case 'rejected':
+      return 'border-transparent bg-red-600 text-white hover:bg-red-600'
     case 'scheduled':
     case 'cancelled':
     default:

@@ -209,6 +209,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
       {audit.status === 'Changes Requested' && (
         <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-[12.5px] text-amber-900" role="status">
           <b>Changes requested.</b> Fix the {queriedLeft.length} queried question{queriedLeft.length === 1 ? '' : 's'}, then go to Review and resubmit. The other answers are locked.
+          {audit.decision_note && <div className="mt-1"><b>Audit manager:</b> {audit.decision_note}</div>}
           {queriedLeft.length > 1 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {queriedLeft.map((r) => (

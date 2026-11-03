@@ -174,6 +174,10 @@ def update_issue(
     if i.assignee_id and i.assignee_id != old_assignee:
         # Reassigned (for example to another auditee of the same store).
         new = db.get(User, i.assignee_id)
+        before = db.get(User, old_assignee) if old_assignee else None
+        i.meta = {**(i.meta or {}), "history": [*(i.meta or {}).get("history", []), {
+            "at": dt.datetime.utcnow().isoformat(), "by": user.name, "status": i.status,
+            "reply": f"Reassigned from {before.name if before else 'nobody'} to {new.name if new else 'nobody'}"}]}
         notify(db, new, "issue_assigned", f"Issue assigned to you: {i.title}",
                f"/my-issues?id={i.id}" if new and new.role == ROLE_AUDITEE else f"/issues?id={i.id}",
                f"issue_assign:{i.id}:{i.assignee_id}:{dt.datetime.utcnow().isoformat()}")

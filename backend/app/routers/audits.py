@@ -11,7 +11,7 @@ from ..models import (
     Audit, AuditResponse, AuditorAvailability, Checklist, ChecklistItem, Issue, Store, User,
 )
 from ..schemas import (
-    AnswerQuestionRequest, AuditApproveRequest, AuditPatchRequest, AuditRatingRequest,
+    AnswerQuestionRequest, AuditApproveRequest, AuditDecision, AuditPatchRequest, AuditRatingRequest,
     AuditReassign, AuditRequestChanges, AuditScheduleRequest, AuditStartRequest, RaiseIssueRequest,
     ResponseReply, ResponseReview,
 )
@@ -460,7 +460,7 @@ def answer_question(
         raise HTTPException(status_code=404, detail={"error": "not found"})
     if user.role == ROLE_AUDITOR and audit.auditor_id != user.id:
         raise HTTPException(status_code=403, detail={"error": "forbidden"})
-    if audit.status in ("Completed", "Approved", "Cancelled"):
+    if audit.status in ("Completed", "Approved", "Cancelled", "Rejected"):
         raise HTTPException(status_code=409, detail={"error": "audit already submitted"})
     if audit.status == CHANGES_REQUESTED and resp.review_status != "query":
         raise HTTPException(status_code=409, detail={
@@ -502,8 +502,8 @@ def raise_issue(
         raise HTTPException(status_code=404, detail={"error": "not found"})
     if user.role == ROLE_AUDITOR and audit.auditor_id != user.id:
         raise HTTPException(status_code=403, detail={"error": "forbidden"})
-    if audit.status == "Cancelled":
-        raise HTTPException(status_code=409, detail={"error": "audit is cancelled"})
+    if audit.status in ("Cancelled", "Rejected"):
+        raise HTTPException(status_code=409, detail={"error": f"audit is {audit.status.lower()}"})
     if not resp.answer:
         raise HTTPException(status_code=409, detail={"error": "answer the question before raising an issue"})
     if body.priority not in ISSUE_PRIORITIES:
@@ -608,6 +608,86 @@ def _notify_approved(db, audit):
     _notify_auditees(db, audit, "audit_approved", title, f"approved:{audit.id}")
 
 
+@router.post("/{aid}/decision")
+def decide_audit(
+    aid: str,
+    body: AuditDecision,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
+):
+    """The manager's verdict on a submitted audit, from the review page: approve it,
+    return it for changes (the ticked questions become queries, each with its reason),
+    or reject it. Return and reject need a reason. The auditor and the store's
+    auditees are told."""
+    audit = db.get(Audit, aid)
+    if not audit:
+        raise HTTPException(status_code=404, detail={"error": "not found"})
+    if audit.status != "Completed":
+        raise HTTPException(status_code=409, detail={"error": "audit is not waiting for review"})
+    if body.decision not in ("approve", "return", "reject"):
+        raise HTTPException(status_code=400, detail={"error": "decision must be approve, return or reject"})
+    reason = body.reason.strip()
+    now = dt.datetime.utcnow()
+    key = f"{body.decision}:{audit.id}:{_now_key()}"
+
+    if body.decision == "approve":
+        if body.items:
+            raise HTTPException(status_code=400, detail={"error": "untick the questions before approving"})
+        for r in audit.responses:
+            r.review_status = "approved"
+            r.reviewed_by_id, r.reviewed_at = user.id, now
+        audit.status = "Approved"
+        audit.approved_by_id = user.id
+        audit.decision_note, audit.decision_at = reason or None, now
+        _notify_approved(db, audit)
+
+    elif body.decision == "return":
+        if not body.items:
+            raise HTTPException(status_code=400, detail={"error": "tick at least one question to check again"})
+        if not reason:
+            raise HTTPException(status_code=400, detail={"error": "say what the auditor should fix"})
+        if not audit.auditor_id:
+            raise HTTPException(status_code=409, detail={"error": "assign an auditor first"})
+        by_id = {r.id: r for r in audit.responses}
+        for item in body.items:
+            if item.response_id not in by_id:
+                raise HTTPException(status_code=404, detail={"error": "question not found in this audit"})
+            if not item.note.strip():
+                raise HTTPException(status_code=400, detail={"error": "say why each ticked question is checked again"})
+            if item.category and item.category not in QUERY_CATEGORIES:
+                raise HTTPException(status_code=400, detail={
+                    "error": f"category must be one of {', '.join(QUERY_CATEGORIES)}"})
+        for item in body.items:
+            r = by_id[item.response_id]
+            r.review_status, r.review_note, r.review_reply = "query", item.note.strip(), None
+            r.review_category = item.category
+            r.reviewed_by_id, r.reviewed_at = user.id, now
+        audit.status = CHANGES_REQUESTED
+        audit.decision_note, audit.decision_at = reason, now
+        n = len(body.items)
+        summary = f"{n} question{'s' if n != 1 else ''}: {reason}"
+        _notify_auditor(db, audit, "changes_requested",
+                        f"Changes requested on audit {audit.id}, {summary}", key, link=f"/audits/{audit.id}")
+        _notify_auditees(db, audit, "changes_requested",
+                         f"Audit {audit.id} was sent back to the auditor for changes, {summary}", key)
+
+    else:
+        if not reason:
+            raise HTTPException(status_code=400, detail={"error": "say why the audit is rejected"})
+        audit.status = "Rejected"
+        audit.decision_note, audit.decision_at = reason, now
+        _notify_auditor(db, audit, "audit_rejected", f"Audit {audit.id} was rejected: {reason}", key,
+                        link=f"/audits/{audit.id}")
+        _notify_auditees(db, audit, "audit_rejected", f"Audit {audit.id} was rejected: {reason}", key)
+
+    db.flush()
+    sync_store_score(db, audit.store_id, audit.submitted_at)
+    log_action(db, user.id, f"{body.decision}_audit", "audit", audit.id,
+               {"reason": reason, "questions": [i.response_id for i in body.items]})
+    db.commit()
+    return audit.to_dict(with_responses=True)
+
+
 @router.post("/{aid}/request-changes")
 def request_changes(
     aid: str,
@@ -708,6 +788,7 @@ def submit_audit(
                 r.review_reply = r.review_reply or "Answer updated"
                 if r.reviewed_by:
                     reviewers.add(r.reviewed_by)
+        audit.decision_note = None
         for m in reviewers:
             notify(db, m, "audit_resubmitted", f"Audit {audit.id} was resubmitted after changes",
                    f"/audits/{audit.id}/approve", f"resubmit:{audit.id}:{_now_key()}")

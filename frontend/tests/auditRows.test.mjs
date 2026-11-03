@@ -55,7 +55,7 @@ test('kpiCounts counts per stage and unassigned', () => {
   const rows = auditRows(audits)
   assert.deepEqual(kpiCounts(rows), {
     total: 4, unassigned: 1, scheduled: 1, in_progress: 1, completed: 1,
-    approved: 0, cancelled: 1,
+    approved: 0, cancelled: 1, rejected: 0,
   })
   assert.equal(kpiCounts([]).total, 0)
 })

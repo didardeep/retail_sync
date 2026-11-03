@@ -247,6 +247,19 @@ class AuditReassign(ORMBase):
     reason: str = ""
 
 
+class DecisionItem(ORMBase):
+    response_id: str
+    note: str = ""
+    category: str | None = None       # wrong_answer / missing_evidence / unclear_photo / other
+
+
+class AuditDecision(ORMBase):
+    """The audit manager's verdict on a submitted audit."""
+    decision: str                     # approve | return | reject
+    reason: str = ""
+    items: list[DecisionItem] = []    # the questions to check again (return only)
+
+
 class AuditRequestChanges(ORMBase):
     """Send a reviewed audit back to the auditor to fix the queried questions."""
     note: str = ""

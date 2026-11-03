@@ -178,6 +178,8 @@ export const api = {
   reassignAudit: (id, auditorId, reason = '') =>
     request(`/audits/${id}/reassign`, { method: 'POST', body: { auditor_id: auditorId, reason } }),
   // Send a reviewed audit back; query the questions first with reviewResponse.
+  decideAudit: (auditId, body) =>
+    request(`/audits/${auditId}/decision`, { method: 'POST', body }),
   requestChanges: (id, note = '') =>
     request(`/audits/${id}/request-changes`, { method: 'POST', body: { note } }),
   // Audit manager's call on the action taken: approve closes, deny reopens.

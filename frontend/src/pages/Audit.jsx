@@ -131,7 +131,7 @@ export default function Audit() {
   const [showChecklists, setShowChecklists] = useState(false);
   const navigate = useNavigate();
   // Submitted audits open the manager's question-by-question review.
-  const canReview = (r) => canEdit && (r.stage === 'completed' || r.stage === 'approved');
+  const canReview = (r) => canEdit && ['completed', 'approved', 'rejected'].includes(r.stage);
   const isAuditor = me?.role === 'AUDITOR';
   const ws = useAuditorWorkspace();
   const { prepare } = ws;
@@ -558,9 +558,9 @@ export default function Audit() {
                           {ACTION_LABELS[action]}
                         </Button>
                       ) : (
-                        <button className={iconBtn} onClick={() => setFilter('id', s.id)} title="View" aria-label="View"><Eye className="size-3.5" /></button>
+                        !canReview(s) && <button className={iconBtn} onClick={() => setFilter('id', s.id)} title="View" aria-label="View"><Eye className="size-3.5" /></button>
                       )}
-                      {canReview(s) && <Button size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => navigate(`/audits/${s.id}/approve`)}>Review</Button>}
+                      {canReview(s) && <Button size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => navigate(`/audits/${s.id}/approve`)}>{s.stage === 'completed' ? 'Review' : 'View review'}</Button>}
                       {canChange(s) && <button className={iconBtn} onClick={() => openEdit(s)} title="Reschedule or edit" aria-label="Reschedule or edit"><Pencil className="size-3.5" /></button>}
                       {canReassign(s) && <button className={iconBtn} onClick={() => setReassign({ row: s, auditor_id: '', reason: '' })} title="Reassign auditor" aria-label="Reassign auditor"><UserCog className="size-3.5" /></button>}
                       {canChange(s) && <button className={iconBtn} onClick={() => cancelRow(s)} title="Cancel audit" aria-label="Cancel audit"><XCircle className="size-3.5 text-destructive" /></button>}

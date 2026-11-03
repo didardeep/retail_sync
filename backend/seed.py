@@ -383,6 +383,13 @@ def seed():
                   notes="Quarterly checklist audit.")
     s.flush()
 
+    # ---- each auditor covers the stores they audit ----------------------
+    # (auditors and auditees share user_stores; the user's role says which is which)
+    covered = {(a.auditor_id, a.store_id) for a in audit_objs.values() if a.auditor_id}
+    for user_id, store_id in sorted(covered):
+        s.add(UserStore(user_id=user_id, store_id=store_id))
+    s.flush()
+
     # ---- scheduled audits that have no audit record yet ------------------
     for sc in data.get("schedules", []):
         auditor = users.get((ROLE_AUDITOR, sc.get("auditor")))

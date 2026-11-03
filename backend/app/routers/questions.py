@@ -1,7 +1,7 @@
 import datetime as dt
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..auth import get_staff_user, require_roles
@@ -41,8 +41,9 @@ def create_question(
 ):
     """AM creates approved questions directly; an auditor's goes to PENDING."""
     is_am = user.role in (ROLE_AUDIT_MANAGER, ROLE_ADMIN)
-    last = db.query(func.max(Question.code)).scalar() or "Q000"
-    code = body.code or f"Q{int(last[1:]) + 1:03d}"
+    # The next number after the existing Q### codes; other codes are ignored.
+    numbers = [int(c[1:]) for (c,) in db.query(Question.code) if c and re.fullmatch(r"Q\d+", c)]
+    code = body.code or f"Q{max(numbers, default=0) + 1:03d}"
     q = Question(
         code=code, text=body.text, process=body.process,
         sub_process=body.sub_process, audit_type=body.audit_type,

@@ -5,6 +5,7 @@ export const NAV_ITEMS = [
   { path: '/my-store', page: 'my-store', label: 'My Store', title: 'My Store', icon: 'my-store', group: 'My store' },
   { path: '/my-issues', page: 'my-issues', label: 'My Issues', title: 'My Issues', icon: 'issues', group: 'My issues' },
   { path: '/audits', page: 'audits', label: 'Audit', title: 'Audit', icon: 'audits', group: 'Audits' },
+  { path: '/approvals', page: 'approvals', label: 'Pending Approval', title: 'Pending Approval', icon: 'audits', group: 'Audits' },
   { path: '/dashboard', page: 'dashboard', label: 'Dashboard & Analytics', title: 'Dashboard & Analytics', icon: 'dashboard', group: 'Insights' },
   { path: '/questions', page: 'questions', label: 'Audit Questions', title: 'Audit Questions', icon: 'questions', group: 'Admin' },
   { path: '/issues', page: 'issues', label: 'Action Taken Tracking', title: 'Action Taken Tracking', icon: 'issues', group: 'Insights' },

@@ -35,3 +35,37 @@ export function reviewProgress(responses = []) {
 // Questions the manager asked about, for the auditor to answer.
 export const openQueries = (responses = []) =>
   responses.filter((r) => r.review_status === 'query' || r.review_status === 'replied')
+
+// The manager's verdict on a whole audit. `ticked` maps a question id to
+// { note, category }: why it should be checked again. Returns the message to show,
+// or '' when the decision can go ahead.
+export function checkDecision({ decision, reason = '', ticked = {} }) {
+  const notes = Object.values(ticked)
+  if (decision === 'approve') {
+    return notes.length ? 'Untick the questions before approving' : ''
+  }
+  if (decision === 'return') {
+    if (!notes.length) return 'Tick at least one question to check again'
+    if (notes.some((n) => !(n.note || '').trim())) return 'Say why each ticked question is checked again'
+    return reason.trim() ? '' : 'Say what the auditor should fix'
+  }
+  if (decision === 'reject') {
+    return reason.trim() ? '' : 'Say why the audit is rejected'
+  }
+  return 'Choose approve, return or reject'
+}
+
+// The body for POST /audits/:id/decision.
+export function decisionBody(decision, reason, ticked) {
+  return {
+    decision,
+    reason: reason.trim(),
+    items: decision === 'return'
+      ? Object.entries(ticked).map(([response_id, t]) => ({ response_id, note: t.note.trim(), category: t.category || null }))
+      : [],
+  }
+}
+
+// Number of evidence files across the answers.
+export const evidenceCount = (responses = []) =>
+  responses.reduce((sum, r) => sum + (r.evidence?.length || 0), 0)
