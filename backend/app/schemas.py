@@ -172,6 +172,8 @@ class AuditScheduleRequest(ORMBase):
     scheduled_at: str
     due_at: str | None = None
     checklist_id: str | None = None
+    # Several checklists make one audit with their questions combined (each question once).
+    checklist_ids: list[str] = Field(default_factory=list)
     auditor_id: str | None = None
     audit_type: str = "Checklist based Audit"
     notes: str | None = None

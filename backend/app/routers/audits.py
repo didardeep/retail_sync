@@ -70,13 +70,18 @@ def _progress_by_audit(db, audit_ids):
 
 
 def _copy_checklist_items(db, audit):
-    """Materialise the checklist so the auditor sees a fixed question set."""
-    if not audit.checklist_id:
-        return
-    items = db.query(ChecklistItem).filter_by(
-        checklist_id=audit.checklist_id).order_by(ChecklistItem.sort_order).all()
-    for it in items:
-        db.add(AuditResponse(audit_id=audit.id, question_id=it.question_id))
+    """Materialise the checklist(s) so the auditor sees a fixed question set. With several
+    checklists the questions are combined in order, each question once."""
+    ids = audit.checklist_ids or ([audit.checklist_id] if audit.checklist_id else [])
+    seen = set()
+    for checklist_id in ids:
+        items = db.query(ChecklistItem).filter_by(
+            checklist_id=checklist_id).order_by(ChecklistItem.sort_order).all()
+        for it in items:
+            if it.question_id in seen:
+                continue
+            seen.add(it.question_id)
+            db.add(AuditResponse(audit_id=audit.id, question_id=it.question_id))
 
 
 @router.get("")
@@ -207,9 +212,17 @@ def schedule_audit(
         if conflict:
             raise HTTPException(status_code=409, detail=conflict)
 
+    # One checklist (checklist_id) or several (checklist_ids): the first stays in checklist_id.
+    checklist_ids = list(dict.fromkeys(body.checklist_ids or ([body.checklist_id] if body.checklist_id else [])))
+    for cid in checklist_ids:
+        checklist = db.get(Checklist, cid)
+        if not checklist or not checklist.is_active:
+            raise HTTPException(status_code=404, detail={"error": f"unknown or inactive checklist: {cid}"})
+
     audit = Audit(
         id=next_audit_id(db), store_id=body.store_id,
-        checklist_id=body.checklist_id, auditor_id=auditor_id,
+        checklist_id=checklist_ids[0] if checklist_ids else None, checklist_ids=checklist_ids,
+        auditor_id=auditor_id,
         created_by_id=user.id, scheduled_at=when, due_at=due,
         audit_type=body.audit_type,
         status="Planned", notes=body.notes,

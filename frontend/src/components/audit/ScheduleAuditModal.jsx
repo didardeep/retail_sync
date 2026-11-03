@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { checklistFitsStore } from '@/lib/checklists';
+import { checklistSummary, fittingChecklists, keepFitting, toggleId } from '@/lib/checklists';
 
 import { useToast } from '../Toast';
 import { api } from '../../api/client';
@@ -13,7 +13,7 @@ import { durationLabel, formatTime } from '@/lib/auditRows';
 const AUDIT_TYPES = ['Checklist based Audit', 'Store Visit', 'Structured data analysis', 'Unstructured data analysis'];
 
 const EMPTY_FORM = {
-  checklist_id: '', audit_type: AUDIT_TYPES[0],
+  checklist_ids: [], audit_type: AUDIT_TYPES[0],
   store_id: '', auditor_id: '', date: '', time: '10:00', end_date: '', end_time: '18:00', notes: '',
 };
 
@@ -128,6 +128,7 @@ export default function ScheduleAuditModal({ open, onClose, onSaved, stores, aud
     return () => { cancelled = true; clearTimeout(timer); };
   }, [canCheck, form.auditor_id, form.date, form.store_id, editRow]);
 
+  const fitting = fittingChecklists(checklists, stores.find((s) => s.id === form.store_id));
   const startAt = form.date ? `${form.date}T${form.time || '10:00'}:00` : '';
   const endAt = form.end_date ? `${form.end_date}T${form.end_time || '18:00'}:00` : '';
   const endBeforeStart = startAt && endAt && endAt < startAt;
@@ -150,7 +151,7 @@ export default function ScheduleAuditModal({ open, onClose, onSaved, stores, aud
         const created = await api.scheduleAudit({
           store_id: form.store_id, scheduled_at: startAt, due_at: endAt || null,
           auditor_id: form.auditor_id || null, audit_type: form.audit_type,
-          notes: form.notes || null, checklist_id: form.checklist_id || null,
+          notes: form.notes || null, checklist_ids: form.checklist_ids,
           assign_to_store: !!form.auditor_id && pickedOutsideStore && assignToStore,
         });
         const when = new Date(startAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -182,12 +183,27 @@ export default function ScheduleAuditModal({ open, onClose, onSaved, stores, aud
                 {AUDIT_TYPES.map((t) => <option key={t}>{t}</option>)}
               </select>
             </div>
-            <div>
-              <label className={labelClass}>Checklist</label>
-              <select className={fieldClass} value={form.checklist_id} onChange={(e) => setForm({ ...form, checklist_id: e.target.value })}>
-                <option value="">No checklist</option>
-                {checklists.filter((c) => checklistFitsStore(c, stores.find((s) => s.id === form.store_id))).map((c) => <option key={c.id} value={c.id}>{c.name} (v{c.version})</option>)}
-              </select>
+            <div className="sm:col-span-2">
+              <div className="mb-1 flex items-center justify-between">
+                <label className={labelClass}>Checklists</label>
+                <span className="flex gap-3 text-[11.5px]">
+                  <button type="button" className="font-medium text-primary hover:underline"
+                    onClick={() => setForm({ ...form, checklist_ids: fitting.map((c) => c.id) })}>Add all ({fitting.length})</button>
+                  <button type="button" className="font-medium text-muted-foreground hover:underline"
+                    onClick={() => setForm({ ...form, checklist_ids: [] })}>Clear</button>
+                </span>
+              </div>
+              <div className="max-h-40 overflow-y-auto rounded-md border border-border p-1.5">
+                {fitting.length ? fitting.map((c) => (
+                  <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-[12.5px] hover:bg-accent">
+                    <input type="checkbox" className="accent-primary" checked={form.checklist_ids.includes(c.id)}
+                      onChange={() => setForm({ ...form, checklist_ids: toggleId(form.checklist_ids, c.id) })} />
+                    <span className="flex-1">{c.name} (v{c.version})</span>
+                    <span className="text-[11px] text-muted-foreground">{c.question_count ?? 0} questions</span>
+                  </label>
+                )) : <div className="px-1.5 py-2 text-xs text-muted-foreground">No checklist applies to this store.</div>}
+              </div>
+              <p className="mt-1 text-[11.5px] text-muted-foreground">{checklistSummary(form.checklist_ids, checklists)}</p>
             </div>
           </div>
         )}
@@ -196,7 +212,10 @@ export default function ScheduleAuditModal({ open, onClose, onSaved, stores, aud
           {!editRow && (
             <div>
               <label className={labelClass}>Store <span className="text-destructive">*</span></label>
-              <select className={fieldClass} value={form.store_id} onChange={(e) => setForm({ ...form, store_id: e.target.value })}>
+              <select className={fieldClass} value={form.store_id} onChange={(e) => {
+                const store = stores.find((s) => s.id === e.target.value);
+                setForm({ ...form, store_id: e.target.value, checklist_ids: keepFitting(form.checklist_ids, checklists, store) });
+              }}>
                 <option value="">Select store</option>
                 {stores.map((s) => <option key={s.id} value={s.id}>{s.name}{s.city ? ` - ${s.city}` : ''}</option>)}
               </select>

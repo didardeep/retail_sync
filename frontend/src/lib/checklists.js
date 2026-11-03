@@ -46,3 +46,23 @@ export function exceptionKinds(rows = []) {
     .map(([kind, count]) => ({ kind, count }))
     .sort((a, b) => b.count - a.count || a.kind.localeCompare(b.kind))
 }
+
+// The checklists that apply to a store (all of them when no store is picked yet).
+export const fittingChecklists = (checklists = [], store) => checklists.filter((c) => checklistFitsStore(c, store))
+
+// Tick or untick one checklist in a list of ids.
+export const toggleId = (ids, id) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id])
+
+// When the store changes, keep only the chosen checklists that still apply to it.
+export function keepFitting(ids, checklists, store) {
+  const ok = new Set(fittingChecklists(checklists, store).map((c) => c.id))
+  return ids.filter((id) => ok.has(id))
+}
+
+// One line under the list: how many are chosen and about how many questions they bring.
+export function checklistSummary(ids, checklists) {
+  const chosen = checklists.filter((c) => ids.includes(c.id))
+  if (!chosen.length) return 'No checklist: the audit is scheduled without questions.'
+  const questions = chosen.reduce((sum, c) => sum + (c.question_count || 0), 0)
+  return `${chosen.length} ${chosen.length === 1 ? 'checklist' : 'checklists'} chosen, up to ${questions} questions (a question in two checklists is asked once).`
+}

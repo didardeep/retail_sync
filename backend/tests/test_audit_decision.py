@@ -111,3 +111,40 @@ def test_reassigning_an_issue_is_kept_in_its_history(client, tokens, db, user_id
     assert r.status_code == 200, r.text
     assert r.json()["assignee_id"] == heir.id
     assert "Reassigned from" in r.json()["meta"]["history"][-1]["reply"]
+
+
+def _schedule(client, tokens, **extra):
+    return client.post("/api/audits", headers=tokens["manager"], json={
+        "store_id": "T001", "scheduled_at": "2030-01-15T10:00:00", **extra})
+
+
+def test_several_checklists_make_one_audit_with_the_questions_combined(client, tokens, db):
+    from app.models import ChecklistItem
+    a = _checklist(db, [(1, False), (2, False)])
+    b = _checklist(db, [(1, False), (3, True)])
+    # b also contains the first question of a: it must appear once.
+    shared = db.query(ChecklistItem).filter_by(checklist_id=a, sort_order=0).first().question_id
+    db.add(ChecklistItem(checklist_id=b, question_id=shared, sort_order=9))
+    db.commit()
+
+    r = _schedule(client, tokens, checklist_ids=[a, b])
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["checklist_ids"] == [a, b] and body["checklist_id"] == a
+
+    audit = client.get(f"/api/audits/{body['id']}", headers=tokens["manager"]).json()
+    ids = [x["question_id"] for x in audit["responses"]]
+    assert len(ids) == 4 and len(set(ids)) == 4          # 2 + 2 new + 1 shared, shared once
+
+
+def test_one_checklist_still_works_and_unknown_or_inactive_ones_are_refused(client, tokens, db):
+    from app.models import Checklist
+    a = _checklist(db, [(1, False)])
+    one = _schedule(client, tokens, checklist_id=a)
+    assert one.status_code == 201 and one.json()["checklist_ids"] == [a]
+    assert _schedule(client, tokens, checklist_ids=[a, "nope"]).status_code == 404
+    off = _checklist(db, [(1, False)])
+    db.get(Checklist, off).is_active = False
+    db.commit()
+    assert _schedule(client, tokens, checklist_ids=[off]).status_code == 404
+    assert _schedule(client, tokens).json()["checklist_ids"] == []      # no checklist at all

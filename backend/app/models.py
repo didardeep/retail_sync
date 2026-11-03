@@ -455,6 +455,7 @@ class Audit(Base):
     sm_rating = Column(Integer)                          # store manager's rating
     sm_comment = Column(Text)
     notes = Column(Text)
+    checklist_ids = Column(JSON, default=list)           # every checklist the audit was scheduled with (checklist_id is the first)
     decision_note = Column(Text)                         # the manager's reason when returned or rejected
     decision_at = Column(DateTime)
 
@@ -473,6 +474,7 @@ class Audit(Base):
             "brand_id": self.store.brand_id if self.store else None,
             "brand": self.store.brand.name if self.store and self.store.brand else None,
             "checklist_id": self.checklist_id,
+            "checklist_ids": self.checklist_ids or ([self.checklist_id] if self.checklist_id else []),
             "auditor_id": self.auditor_id,
             "auditor": self.auditor.name if self.auditor else None,
             "audit_type": self.audit_type,
