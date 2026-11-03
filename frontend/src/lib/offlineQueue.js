@@ -139,3 +139,17 @@ export function submitBlock({ online, pending = 0, conflict = false }) {
   }
   return null
 }
+
+// How many unsent changes each audit has, from the queue. The sync chip and the
+// submit check are about the audit on screen, so a stuck change on another audit
+// must not show up there.
+export function countByAudit(queue = []) {
+  const counts = {}
+  for (const e of queue) counts[e.audit_id] = (counts[e.audit_id] || 0) + 1
+  return counts
+}
+
+// A request that never reached the server while the browser says it is online
+// (the server is restarting, say) will not be helped by an 'online' event, so
+// try again later instead of waiting for one.
+export const shouldRetryAfterNetworkError = (classified, online) => classified.kind === 'offline' && !!online

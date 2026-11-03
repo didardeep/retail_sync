@@ -19,7 +19,8 @@ export default function SyncChip({ auditId, className }) {
   const online = useOnline();
   const { label, tone, state } = syncSummary({
     online,
-    pending: sync.pending,
+    // With an audit given, only that audit's unsent changes count.
+    pending: auditId ? (sync.pendingByAudit[auditId] || 0) : sync.pending,
     syncing: sync.syncing,
     conflict: auditId ? !!sync.conflicts[auditId] : Object.keys(sync.conflicts).length > 0,
     auth: sync.auth,

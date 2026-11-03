@@ -124,3 +124,19 @@ test('submitBlock never lets an audit with unsynced answers through', () => {
   assert.match(submitBlock({ online: true, pending: 1 }), /1 change is not synced/);
   assert.match(submitBlock({ online: true, pending: 0, conflict: true }), /conflict/);
 });
+
+test('countByAudit counts unsent changes per audit', async () => {
+  const { countByAudit } = await import('../src/lib/offlineQueue.js')
+  const queue = [{ audit_id: 'A' }, { audit_id: 'B' }, { audit_id: 'A' }]
+  assert.deepEqual(countByAudit(queue), { A: 2, B: 1 })
+  assert.deepEqual(countByAudit([]), {})
+  assert.deepEqual(countByAudit(undefined), {})
+})
+
+test('an unreachable server while the browser is online is retried, a real offline is not', async () => {
+  const { shouldRetryAfterNetworkError } = await import('../src/lib/offlineQueue.js')
+  assert.equal(shouldRetryAfterNetworkError({ kind: 'offline' }, true), true)
+  assert.equal(shouldRetryAfterNetworkError({ kind: 'offline' }, false), false)
+  assert.equal(shouldRetryAfterNetworkError({ kind: 'retry' }, true), false)
+  assert.equal(shouldRetryAfterNetworkError({ kind: 'conflict' }, true), false)
+})

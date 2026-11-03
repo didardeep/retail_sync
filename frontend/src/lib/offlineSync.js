@@ -8,10 +8,12 @@ import {
   cacheAudit, discardLocal, getCachedAudit, listConflicts, listQueue, recordChange,
   removeCachedAudit, removeEntryIfUnchanged, setConflict,
 } from './offlineStore';
-import { classifyError, nextEntry, reconcile, retryDelay } from './offlineQueue';
+import {
+  classifyError, countByAudit, nextEntry, reconcile, retryDelay, shouldRetryAfterNetworkError,
+} from './offlineQueue';
 import { isAuditorEditable } from './statuses';
 
-let state = { syncing: false, pending: 0, conflicts: {}, auth: false, failing: false };
+let state = { syncing: false, pending: 0, pendingByAudit: {}, conflicts: {}, auth: false, failing: false };
 const listeners = new Set();
 let running = null;
 let again = false;
@@ -30,6 +32,7 @@ async function refresh() {
     const [queue, conflicts] = await Promise.all([listQueue(), listConflicts()]);
     setState({
       pending: queue.length,
+      pendingByAudit: countByAudit(queue),
       conflicts: Object.fromEntries(conflicts.map((c) => [c.audit_id, c.message])),
     });
   } catch {
@@ -69,6 +72,11 @@ async function run() {
           scheduleRetry();
           break;
         } else {
+          // Not reachable although the browser says it is online: retry soon.
+          if (shouldRetryAfterNetworkError(c, navigator.onLine)) {
+            setState({ failing: true });
+            scheduleRetry();
+          }
           break;
         }
       }

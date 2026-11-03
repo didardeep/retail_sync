@@ -66,7 +66,7 @@ export default function ClassicAuditReview() {
   }, [id]);
 
   const conflict = sync.conflicts[id];
-  const blocked = submitBlock({ online, pending: sync.pending, conflict: !!conflict });
+  const blocked = submitBlock({ online, pending: sync.pendingByAudit[id] || 0, conflict: !!conflict });
 
   if (error) return <ErrorNote error={error} />;
   if (!audit) return <Loading what="review" />;
