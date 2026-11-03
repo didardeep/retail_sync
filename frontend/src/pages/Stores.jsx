@@ -14,7 +14,6 @@ import FormatLegend from '@/components/FormatLegend'
 import { storeScorecardLink } from '@/lib/links'
 import { storesApi } from '../api/storesApi'
 import StorePeople from '@/components/StorePeople'
-import AddPersonModal from '@/components/AddPersonModal'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { BRAND_CATEGORIES, STORE_FORMATS, STORE_TYPES, formatLabel, formatNote, typeNote } from '@/lib/storeCatalog'
 
@@ -69,7 +68,6 @@ export default function Stores() {
   const [nextSteps, setNextSteps] = useState(null)       // store just added
   const [peopleFilter, setPeopleFilter] = useState('')
   const [peopleFocus, setPeopleFocus] = useState(null)
-  const [addPerson, setAddPerson] = useState(null)       // 'auditor' | 'auditee'
   const [page, setPage] = useState(1)
 
   /* modals */
@@ -283,7 +281,7 @@ export default function Stores() {
             <Button key={q} size="sm" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
           ))}
           <Button size="sm" variant="outline" onClick={handleExport}>&#x2B07; Export</Button>
-          {/* One Add button; the menu says what to add, in onboarding order. */}
+          {/* One Add button for what Store Management owns: brands and stores. People are added from a store's People tab. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm">+ Add &#x25BE;</Button>
@@ -291,8 +289,6 @@ export default function Stores() {
             <DropdownMenuContent align="end" className="w-[160px]">
               <DropdownMenuItem className="cursor-pointer" onSelect={() => openBrand('header')}>Brand</DropdownMenuItem>
               <DropdownMenuItem className="cursor-pointer" onSelect={() => openAdd()}>Store</DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer" onSelect={() => setAddPerson('auditor')}>Auditor</DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer" onSelect={() => setAddPerson('auditee')}>Auditee</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -449,18 +445,6 @@ export default function Stores() {
           </ModalActions>
         </Modal>
       )}
-
-      <AddPersonModal
-        kind={addPerson}
-        stores={stores.filter(st => st.status !== 'Dehired')}
-        onClose={() => setAddPerson(null)}
-        onSaved={person => {
-          // Count the new person on each store they were linked to.
-          const key = person.role === 'AUDITOR' ? 'auditor_count' : 'auditee_count'
-          const linked = new Set(person.store_ids || [])
-          setStores(prev => prev.map(x => linked.has(x.id) ? { ...x, [key]: (x[key] || 0) + 1 } : x))
-        }}
-      />
 
       <Modal open={!!addStoreFor} onClose={() => setAddStoreFor(null)}>
         <ModalTitle>Brand {addStoreFor?.name} added</ModalTitle>

@@ -38,10 +38,10 @@ test('each role lands on a page it can open', () => {
 });
 
 test('titles resolve for nested and detail routes', () => {
-  assert.equal(titleFor('/audits/AUD-1001/review'), 'Audit');
+  assert.equal(titleFor('/audits/AUD-1001/review'), 'Audit Management');
   assert.equal(titleFor('/questions/anything'), 'Audit Questions');
-  assert.equal(titleFor('/audits/AUD-1001'), 'Audit');
-  assert.equal(titleFor('/audits'), 'Audit');
+  assert.equal(titleFor('/audits/AUD-1001'), 'Audit Management');
+  assert.equal(titleFor('/audits'), 'Audit Management');
   assert.equal(titleFor('/my-store'), 'My Store');
   assert.equal(titleFor('/nowhere'), 'Store Audit and Analysis');
 });
@@ -61,15 +61,15 @@ test('auditors cannot open Audit Questions (managers and admins only)', () => {
 });
 
 test('Audit is one sidebar item for every role that had either page', () => {
-  assert.equal(NAV_ITEMS.filter((n) => n.label === 'Audit').length, 1);
+  assert.equal(NAV_ITEMS.filter((n) => n.label === 'Audit Management').length, 1);
   for (const role of ['ADMIN', 'AUDIT_MANAGER', 'AUDITOR', 'STORE_MANAGER']) {
     assert.equal(canAccess(role, 'audits'), true, role);
   }
 });
 
-test('auditor sees Dashboard, Audit, Action Taken Tracking and Email only; managers do not get the auditor dashboard', () => {
+test('auditor sees Dashboard, Audit Management, Action Taken Tracking and Email only; managers do not get the auditor dashboard', () => {
   const auditorPages = NAV_ITEMS.filter((n) => canAccess('AUDITOR', n.page)).map((n) => n.label);
-  assert.deepEqual(auditorPages, ['Dashboard', 'Audit', 'Action Taken Tracking', 'Email Communications']);
+  assert.deepEqual(auditorPages, ['Dashboard', 'Audit Management', 'Action Taken Tracking', 'Email Communications']);
   assert.equal(canAccess('AUDIT_MANAGER', 'my-dashboard'), false);
   assert.equal(canAccess('ADMIN', 'my-dashboard'), false);
   assert.equal(canAccess('STORE_MANAGER', 'my-dashboard'), false);

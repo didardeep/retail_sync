@@ -6,7 +6,6 @@ import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardCheck, Clock } fro
 import { api } from '@/api/client';
 import { Loading } from '@/components/Loader';
 import ObservationsCard from '@/components/dashboard/ObservationsCard';
-import ExceptionsCard from '@/components/ExceptionsCard';
 import Tile from '@/components/Tile';
 import { BRAND, bandColors, clickableBar } from '@/components/charts/chartKit';
 import { Badge } from '@/components/ui/badge';
@@ -375,7 +374,6 @@ export function StoreView({ store, role, quarter: controlledQuarter }) {
 
       <div className="mt-3">
         <ObservationsCard scope={{ kind: 'store', id: store.id }} observations={data.observations} issues={issues} />
-        <ExceptionsCard storeIds={[store.id]} />
       </div>
 
       <DrillDrawer

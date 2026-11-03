@@ -4,7 +4,7 @@ export const NAV_ITEMS = [
   { path: '/my-dashboard', page: 'my-dashboard', label: 'Dashboard', title: 'Dashboard', icon: 'dashboard', group: 'Insights' },
   { path: '/my-store', page: 'my-store', label: 'My Store', title: 'My Store', icon: 'my-store', group: 'My store' },
   { path: '/my-issues', page: 'my-issues', label: 'My Issues', title: 'My Issues', icon: 'issues', group: 'My issues' },
-  { path: '/audits', page: 'audits', label: 'Audit', title: 'Audit', icon: 'audits', group: 'Audits' },
+  { path: '/audits', page: 'audits', label: 'Audit Management', title: 'Audit Management', icon: 'audits', group: 'Audits' },
   { path: '/approvals', page: 'approvals', label: 'Pending Approval', title: 'Pending Approval', icon: 'audits', group: 'Audits' },
   { path: '/dashboard', page: 'dashboard', label: 'Dashboard & Analytics', title: 'Dashboard & Analytics', icon: 'dashboard', group: 'Insights' },
   { path: '/questions', page: 'questions', label: 'Audit Questions', title: 'Audit Questions', icon: 'questions', group: 'Admin' },
@@ -26,6 +26,6 @@ export function titleFor(pathname) {
   const exact = titleOfPath(pathname)
   if (exact) return exact
   if (pathname.startsWith('/questions/')) return titleOfPath('/questions')
-  if (pathname.startsWith('/audits/')) return 'Audit'
+  if (pathname.startsWith('/audits/')) return titleOfPath('/audits')
   return DEFAULT_TITLE
 }

@@ -15,7 +15,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/Toast';
 import { ErrorNote, Loading } from '@/components/Loader';
 import { EvidencePicker } from '@/components/Evidence';
-import ExceptionsCard from '@/components/ExceptionsCard';
 import AnswerButtons from '@/components/classic/AnswerButtons';
 import ChangesPanel from '@/components/classic/ChangesPanel';
 import ConflictPanel from '@/components/classic/ConflictPanel';
@@ -233,7 +232,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
 
   async function saveAndExit() {
     if (!(await flush())) return;
-    toast(online && !sync.pending ? 'Saved' : 'Saved on this device');
+    toast(online && !sync.pendingByAudit[id] ? 'Saved' : 'Saved on this device');
     navigate('/audits');
   }
 
@@ -285,13 +284,6 @@ export default function ClassicAuditWizard({ initialAudit }) {
       {fixing && (
         <ChangesPanel audit={audit} flagged={flagged} changed={changed} currentIndex={idx}
           onJump={jumpTo} onSubmit={submitChanges} submitting={submitting} />
-      )}
-
-      {online && (
-        <details className="mb-3">
-          <summary className="cursor-pointer text-xs font-medium text-primary">Data analytics exceptions to verify at this store</summary>
-          <div className="mt-2"><ExceptionsCard storeIds={[audit.store_id]} limit={5} /></div>
-        </details>
       )}
 
       <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">

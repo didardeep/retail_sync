@@ -117,7 +117,6 @@ export const api = {
   checklist: (id) => request(`/checklists/${id}`),
   createChecklist: (body) => request('/checklists', { method: 'POST', body }),
   updateChecklist: (id, body) => request(`/checklists/${id}`, { method: 'PUT', body }),
-  exceptions: () => request('/exceptions'),
   notifications: () => request('/notifications'),
   readNotification: (id) => request(`/notifications/${id}/read`, { method: 'POST' }),
   annexures: (auditId) => request(`/audits/${auditId}/annexures`),

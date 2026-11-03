@@ -32,10 +32,4 @@ export const CRITERIA = {
     'Each scored store is counted once: above 90, 75 to 90, 60 to under 75, 40 to under 60, or under 40.',
     STORE_SCORE,
   ],
-  exceptions: [
-    'From the imported data, not the audits. The quarter buttons do not change this list.',
-    'Cash: any difference. High from Rs. 1,000.',
-    'Deposit: any shortfall (High), or handover more than 2 days late (Medium).',
-    'Stock: expiry date on or before the review date (High).',
-  ],
 };

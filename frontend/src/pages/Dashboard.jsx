@@ -9,7 +9,6 @@ import Tile from '@/components/Tile';
 import PowerBiSample from '@/components/PowerBiSample';
 import BrandTrendCard from '@/components/dashboard/BrandTrendCard';
 import ObservationsCard from '@/components/dashboard/ObservationsCard';
-import ExceptionsCard from '@/components/ExceptionsCard';
 import InfoButton from '@/components/InfoButton';
 import { StoreView } from '@/components/store-dashboard/StoreView';
 import { avC, sColor, sBadge, pbClass, prC, stC } from '../utils/helpers';
@@ -265,9 +264,6 @@ function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, i
         </div>
         <ObservationsCard scope={scope} observations={observations} issues={issues} />
       </div>
-
-      {/* Exceptions in the imported data */}
-      <div className="mb-3"><ExceptionsCard storeIds={stores.map(s => s.id)} /></div>
 
       {/* Row 5: Recent issues */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
