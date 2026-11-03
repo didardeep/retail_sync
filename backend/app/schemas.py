@@ -33,10 +33,65 @@ class LoginResponse(ORMBase):
 # --------------------------------------------------------------------------
 class BrandCreate(ORMBase):
     name: str
+    code: str | None = None
+    legal_name: str | None = None
+    category: str | None = None
+    contact_name: str | None = None
+    contact_email: str | None = None
+    contact_phone: str | None = None
+    regions: list[str] = Field(default_factory=list)
+    status: str = "Active"
+    notes: str | None = None
 
 
 class BrandUpdate(ORMBase):
     name: str | None = None
+    code: str | None = None
+    legal_name: str | None = None
+    category: str | None = None
+    contact_name: str | None = None
+    contact_email: str | None = None
+    contact_phone: str | None = None
+    regions: list[str] | None = None
+    status: str | None = None
+    notes: str | None = None
+
+
+class StorePersonLink(ORMBase):
+    """Link an existing auditor or auditee to a store."""
+    user_id: str
+
+
+class StorePersonRemove(ORMBase):
+    """Unlink a person from a store, and what to do with their open work there.
+    Auditor: planned audits at the store go to `reassign_to`, or are left
+    unassigned. Auditee: open issues at the store go to `move_issues_to`; with
+    open issues and no one to move them to, the removal is refused."""
+    reassign_to: str | None = None
+    move_issues_to: str | None = None
+
+
+class PersonCreate(ORMBase):
+    """An audit manager adds an auditor or an auditee."""
+    name: str
+    email: str
+    password: str
+    designation: str | None = None
+    region: str | None = None
+    phone: str | None = None
+    notify_email: str | None = None
+    store_ids: list[str] = Field(default_factory=list)
+
+
+class PersonUpdate(ORMBase):
+    name: str | None = None
+    designation: str | None = None
+    region: str | None = None
+    phone: str | None = None
+    notify_email: str | None = None
+    active: bool | None = None
+    # Deactivating with open work: hand it to this person (same role).
+    hand_over_to: str | None = None
 
 
 class StoreCreate(ORMBase):
@@ -84,7 +139,8 @@ class QuestionCreate(ORMBase):
 
 
 class QuestionApprove(ORMBase):
-    decision: str = "APPROVED"
+    decision: str = "APPROVED"        # APPROVED | REJECTED
+    reason: str = ""                  # required when REJECTED
 
 
 class QuestionEdit(ORMBase):
@@ -119,6 +175,9 @@ class AuditScheduleRequest(ORMBase):
     auditor_id: str | None = None
     audit_type: str = "Checklist based Audit"
     notes: str | None = None
+    # Also make the chosen auditor one of the store's auditors, so the next
+    # audit there suggests them.
+    assign_to_store: bool = False
 
 
 class AnswerQuestionRequest(ORMBase):
@@ -178,6 +237,27 @@ class RaiseIssueRequest(ORMBase):
 class ResponseReview(ORMBase):
     decision: str                     # approve | query
     note: str = ""
+    # Optional label for a query: wrong_answer / missing_evidence / unclear_photo / other
+    category: str | None = None
+
+
+class AuditReassign(ORMBase):
+    """Give a planned or ongoing audit to another auditor; None removes the auditor."""
+    auditor_id: str | None = None
+    reason: str = ""
+
+
+class AuditRequestChanges(ORMBase):
+    """Send a reviewed audit back to the auditor to fix the queried questions."""
+    note: str = ""
+
+
+class IssueDecision(ORMBase):
+    """The audit manager's call on the action taken: approve closes the issue,
+    deny reopens it and needs a reason; evidence is optional."""
+    decision: str                     # approve | deny
+    reason: str = ""
+    evidence: list[Any] = Field(default_factory=list)
 
 
 class ResponseReply(ORMBase):

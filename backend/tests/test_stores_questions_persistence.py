@@ -68,8 +68,15 @@ def test_auditor_question_is_pending_and_manager_can_decide(client, tokens):
     r = client.post("/api/questions", headers=tokens["auditor1"], json={"text": "Auditor idea", "process": "EHS"})
     assert r.status_code == 201 and r.json()["approval_status"] == "PENDING"
     qid = r.json()["id"]
+    # Rejecting needs a reason.
     r = client.post(f"/api/questions/{qid}/approve", headers=tokens["manager"], json={"decision": "REJECTED"})
+    assert r.status_code == 400
+    r = client.post(f"/api/questions/{qid}/approve", headers=tokens["manager"],
+                    json={"decision": "REJECTED", "reason": "Duplicate of Q012"})
     assert r.status_code == 200 and r.json()["approval_status"] == "REJECTED"
+    assert r.json()["meta"]["review"]["reason"] == "Duplicate of Q012"
+    titles = [n["title"] for n in client.get("/api/notifications", headers=tokens["auditor1"]).json()]
+    assert any("was rejected: Duplicate of Q012" in t for t in titles)
 
 
 def test_auditor_refused_on_manager_only_question_actions(client, tokens):

@@ -41,13 +41,19 @@ export function scheduleErrorMessage(e) {
 
 // Schedule a new checklist audit or edit a planned one: start, end, auditor,
 // notes. Warns live when the auditor is away or already booked.
-// open: {} for a new audit, { row } to edit one.
+// open: {} for a new audit, { store_id } for a new audit at that store, { row } to edit one.
+// With a store picked, the store's own auditors come first (one is filled in),
+// and the form warns when the store has no auditor or no auditee.
 export default function ScheduleAuditModal({ open, onClose, onSaved, stores, auditors, checklists }) {
   const toast = useToast();
   const editRow = open?.row || null;
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(null);
+  const [hints, setHints] = useState(null);          // /audits/suggestions for the store
+  const [assignToStore, setAssignToStore] = useState(false);
+  const [added, setAdded] = useState([]);            // auditors created from this form
+  const [newAuditor, setNewAuditor] = useState(null); // { name, email, password } while adding
 
   useEffect(() => {
     if (!open) return;
@@ -61,9 +67,49 @@ export default function ScheduleAuditModal({ open, onClose, onSaved, stores, aud
         end_date: end.slice(0, 10), end_time: end.slice(11, 16) || '18:00', notes: editRow.notes || '',
       });
     } else {
-      setForm(EMPTY_FORM);
+      setForm({ ...EMPTY_FORM, store_id: open?.store_id || '' });
     }
+    setHints(null);
+    setAssignToStore(false);
+    setNewAuditor(null);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The store's auditors and auditees, for the auditor list and the warnings.
+  const hintStore = editRow ? editRow.store_id : form.store_id;
+  useEffect(() => {
+    if (!open || !hintStore) { setHints(null); return undefined; }
+    let cancelled = false;
+    api.schedulingSuggestions(hintStore).then((h) => {
+      if (cancelled) return;
+      setHints(h);
+      // A new audit gets the store's only auditor filled in.
+      if (!editRow && h.suggested_auditor_id) {
+        setForm((f) => (f.auditor_id ? f : { ...f, auditor_id: h.suggested_auditor_id }));
+      }
+    }).catch(() => { if (!cancelled) setHints(null); });
+    return () => { cancelled = true; };
+  }, [open, hintStore]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const storeAuditorIds = new Set((hints?.store_auditors || []).map((a) => a.id));
+  const otherAuditors = [...auditors, ...added].filter((a) => !storeAuditorIds.has(a.id));
+  const pickedOutsideStore = !!form.auditor_id && !!hints && !storeAuditorIds.has(form.auditor_id);
+
+  async function createAuditor() {
+    const n = newAuditor || {};
+    if (!n.name?.trim() || !n.email?.trim() || !n.password) { toast.error('Fill in name, login and password'); return; }
+    try {
+      const person = await api.createAuditor({
+        name: n.name.trim(), email: n.email.trim(), password: n.password, phone: n.phone || null,
+      });
+      setAdded((prev) => [...prev, person]);
+      setForm((f) => ({ ...f, auditor_id: person.id }));
+      setAssignToStore(true);
+      setNewAuditor(null);
+      toast.success(`Auditor ${person.name} added`);
+    } catch (e) {
+      toast.error(e.message || 'Could not add the auditor');
+    }
+  }
 
   // Live clash hint while the form is open.
   const canCheck = !!open && form.auditor_id && form.date && (form.store_id || editRow);
@@ -98,16 +144,20 @@ export default function ScheduleAuditModal({ open, onClose, onSaved, stores, aud
         if (form.auditor_id) body.auditor_id = form.auditor_id;
         await scheduleApi.patch(editRow.id, body);
         toast.success('Schedule updated');
+        onClose();
+        await onSaved();
       } else {
-        await api.scheduleAudit({
+        const created = await api.scheduleAudit({
           store_id: form.store_id, scheduled_at: startAt, due_at: endAt || null,
           auditor_id: form.auditor_id || null, audit_type: form.audit_type,
           notes: form.notes || null, checklist_id: form.checklist_id || null,
+          assign_to_store: !!form.auditor_id && pickedOutsideStore && assignToStore,
         });
-        toast.success('Audit scheduled');
+        const when = new Date(startAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        toast.success(`Audit ${created.id} scheduled for ${created.store || 'the store'} on ${when}`);
+        onClose();
+        await onSaved(created);
       }
-      onClose();
-      await onSaved();
     } catch (e) {
       toast.error(scheduleErrorMessage(e));
     } finally {
@@ -153,13 +203,60 @@ export default function ScheduleAuditModal({ open, onClose, onSaved, stores, aud
             </div>
           )}
           <div>
-            <label className={labelClass}>Auditor</label>
+            <div className="flex items-center justify-between">
+              <label className={labelClass}>Auditor</label>
+              {!newAuditor && (
+                <button type="button" className="mb-1 text-[11.5px] font-semibold text-primary hover:underline" onClick={() => setNewAuditor({ name: '', email: '', password: '' })}>+ Add auditor</button>
+              )}
+            </div>
             <select className={fieldClass} value={form.auditor_id} onChange={(e) => setForm({ ...form, auditor_id: e.target.value })}>
               <option value="">Unassigned</option>
-              {auditors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              {hints?.store_auditors?.length > 0 && (
+                <optgroup label="This store's auditors">
+                  {hints.store_auditors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </optgroup>
+              )}
+              <optgroup label={hints?.store_auditors?.length ? 'Other auditors' : 'Auditors'}>
+                {otherAuditors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </optgroup>
             </select>
+            {hints && form.auditor_id && storeAuditorIds.has(form.auditor_id) && (
+              <div className="mt-1 text-[11.5px] text-emerald-700">Assigned auditor for this store</div>
+            )}
           </div>
         </div>
+
+        {newAuditor && (
+          <div className="rounded-lg border border-border bg-muted/40 p-3">
+            <div className="mb-2 text-[12.5px] font-semibold">New auditor</div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Input placeholder="Full name" value={newAuditor.name} onChange={(e) => setNewAuditor({ ...newAuditor, name: e.target.value })} />
+              <Input placeholder="Login (username or email)" value={newAuditor.email} onChange={(e) => setNewAuditor({ ...newAuditor, email: e.target.value })} />
+              <Input type="password" placeholder="Password" value={newAuditor.password} onChange={(e) => setNewAuditor({ ...newAuditor, password: e.target.value })} />
+              <Input placeholder="Phone (optional)" value={newAuditor.phone || ''} onChange={(e) => setNewAuditor({ ...newAuditor, phone: e.target.value })} />
+            </div>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button size="sm" variant="outline" onClick={() => setNewAuditor(null)}>Cancel</Button>
+              <Button size="sm" onClick={createAuditor}>Add auditor</Button>
+            </div>
+          </div>
+        )}
+
+        {!editRow && pickedOutsideStore && (
+          <label className="flex items-center gap-2 text-[12.5px]">
+            <input type="checkbox" checked={assignToStore} onChange={(e) => setAssignToStore(e.target.checked)} />
+            Also assign this auditor to the store, so the next audit here suggests them
+          </label>
+        )}
+
+        {hints?.warnings?.length > 0 && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-[12.5px] text-amber-900">
+            {hints.warnings.map((w) => <div key={w}>{w}.</div>)}
+          </div>
+        )}
+        {hints && hints.auditees?.length > 0 && (
+          <div className="text-[11.5px] text-muted-foreground">Auditees notified about this store: {hints.auditees.map((a) => a.name).join(', ')}</div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <div><label className={labelClass}>Start date <span className="text-destructive">*</span></label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>

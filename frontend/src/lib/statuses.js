@@ -1,7 +1,11 @@
 // Audit statuses and the "stage" vocabulary. A stage is the bucket a status
 // maps onto, so scheduling, status and dashboards talk about audits in one
 // language.
-export const AUDIT_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Approved']
+export const AUDIT_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Changes Requested', 'Approved']
+
+// The audit manager sent the audit back; the auditor fixes the queried questions
+// and resubmits. Counted with the audits in progress.
+export const CHANGES_REQUESTED = 'Changes Requested'
 
 // An issue the assignee has answered and the auditor has not checked yet.
 export const needsReview = (issue) => issue.status === 'Resolved' && !issue.meta?.review
@@ -21,6 +25,7 @@ const STAGE_OF_STATUS = {
   Planned: 'scheduled',
   Ongoing: 'in_progress',
   Completed: 'completed',
+  'Changes Requested': 'in_progress',
   Approved: 'approved',
   Cancelled: 'cancelled',
 }
@@ -32,8 +37,15 @@ export function stageOf(status) {
   return /^planned/i.test(status || '') ? 'scheduled' : 'in_progress'
 }
 
-// Statuses in which the assigned auditor may still edit answers.
-export const AUDITOR_EDITABLE = ['Planned', 'Ongoing']
+// Statuses in which the assigned auditor may still edit answers. With changes
+// requested only the questions the manager queried can change (lockedForChanges).
+export const AUDITOR_EDITABLE = ['Planned', 'Ongoing', 'Changes Requested']
+
+// True when a question cannot be edited because the audit was sent back for
+// changes and this question was not one of the queried ones.
+export function lockedForChanges(audit, response) {
+  return audit?.status === 'Changes Requested' && response?.review_status !== 'query'
+}
 
 export function isAuditorEditable(status) {
   return AUDITOR_EDITABLE.includes(status)

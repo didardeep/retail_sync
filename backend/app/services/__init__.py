@@ -4,7 +4,7 @@ import datetime as dt
 from sqlalchemy import func
 
 from ..models import (
-    ROLE_AUDITEE, UNASSIGNED_BRAND, Audit, AuditLog, AuditorAvailability, Brand,
+    ROLE_AUDITEE, ROLE_AUDITOR, UNASSIGNED_BRAND, Audit, AuditLog, AuditorAvailability, Brand,
     Store, StoreScore, User, UserStore,
 )
 
@@ -81,9 +81,59 @@ def get_or_create_brand(session, name) -> Brand:
 
 def linked_auditee_ids(session, store_id) -> set[str]:
     """Ids of the active auditees linked to a store."""
+    return _linked_ids(session, store_id, ROLE_AUDITEE)
+
+
+def linked_auditor_ids(session, store_id) -> set[str]:
+    """Ids of the active auditors assigned to a store (its default auditors)."""
+    return _linked_ids(session, store_id, ROLE_AUDITOR)
+
+
+def _linked_ids(session, store_id, role) -> set[str]:
     rows = session.query(UserStore.user_id).join(User, User.id == UserStore.user_id).filter(
-        UserStore.store_id == store_id, User.role == ROLE_AUDITEE, User.active.is_(True)).all()
+        UserStore.store_id == store_id, User.role == role, User.active.is_(True)).all()
     return {r[0] for r in rows}
+
+
+def linked_people(session, store_id, role) -> list[User]:
+    """The active people of one role linked to a store, by name."""
+    ids = _linked_ids(session, store_id, role)
+    if not ids:
+        return []
+    return session.query(User).filter(User.id.in_(ids)).order_by(User.name).all()
+
+
+def link_person(session, user, store_id) -> bool:
+    """Link a person to a store. False when they already were."""
+    if session.query(UserStore.id).filter_by(user_id=user.id, store_id=store_id).first():
+        return False
+    session.add(UserStore(user_id=user.id, store_id=store_id))
+    session.flush()
+    return True
+
+
+# Store formats (who owns and who runs the store) and store types (its size).
+# The frontend shows the full forms and notes; the codes are what is stored.
+STORE_FORMATS = [
+    {"code": "COCO", "name": "Company Owned, Company Operated",
+     "note": "The company owns the store and runs it."},
+    {"code": "COFO", "name": "Company Owned, Franchise Operated",
+     "note": "The company owns the store; a franchisee runs it."},
+    {"code": "FOCO", "name": "Franchise Owned, Company Operated",
+     "note": "A franchisee owns the store; the company runs it."},
+    {"code": "FOFO", "name": "Franchise Owned, Franchise Operated",
+     "note": "A franchisee owns the store and runs it."},
+]
+STORE_TYPES = [
+    {"code": "Flagship", "name": "Flagship",
+     "note": "The brand's largest showcase store, usually in a prime location, with the full range."},
+    {"code": "Standard", "name": "Standard",
+     "note": "A regular full-size store with the usual range and staffing."},
+    {"code": "Compact", "name": "Compact",
+     "note": "A smaller store with a reduced range, often in a neighbourhood or high street."},
+    {"code": "Kiosk", "name": "Kiosk",
+     "note": "A small counter or stall, for example in a mall or station, with a few lines."},
+]
 
 
 def log_action(session, user_id, action, entity_type, entity_id=None, details=None):

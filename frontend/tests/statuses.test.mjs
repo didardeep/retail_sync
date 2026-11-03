@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  AUDITOR_EDITABLE, AUDIT_STATUSES, STAGES, isAuditorEditable, stageBadgeClass, stageOf,
+  AUDITOR_EDITABLE, AUDIT_STATUSES, STAGES, isAuditorEditable, lockedForChanges, stageBadgeClass,
+  stageOf,
 } from '../src/lib/statuses.js';
 
 test('stageOf maps every status', () => {
@@ -25,9 +26,10 @@ test('every status maps to a known stage', () => {
 });
 
 test('isAuditorEditable', () => {
-  assert.deepEqual(AUDITOR_EDITABLE, ['Planned', 'Ongoing']);
+  assert.deepEqual(AUDITOR_EDITABLE, ['Planned', 'Ongoing', 'Changes Requested']);
   assert.equal(isAuditorEditable('Planned'), true);
   assert.equal(isAuditorEditable('Ongoing'), true);
+  assert.equal(isAuditorEditable('Changes Requested'), true);
   for (const s of ['Completed', 'Approved', 'Cancelled', undefined]) {
     assert.equal(isAuditorEditable(s), false);
   }
@@ -39,4 +41,12 @@ test('stageBadgeClass colours', () => {
   assert.match(stageBadgeClass('approved'), /emerald/);
   assert.match(stageBadgeClass('scheduled'), /muted/);
   assert.match(stageBadgeClass('cancelled'), /muted/);
+});
+
+test('changes requested: in progress, only queried questions open', () => {
+  assert.equal(stageOf('Changes Requested'), 'in_progress');
+  const audit = { status: 'Changes Requested' };
+  assert.equal(lockedForChanges(audit, { review_status: 'query' }), false);
+  assert.equal(lockedForChanges(audit, { review_status: 'approved' }), true);
+  assert.equal(lockedForChanges({ status: 'Ongoing' }, {}), false);
 });

@@ -64,8 +64,8 @@ export const api = {
   users: (role) => request('/users' + (role ? `?role=${role}` : '')),
   questions: (q = '') => request('/questions' + q),
   createQuestion: (body) => request('/questions', { method: 'POST', body }),
-  approveQuestion: (id, decision) =>
-    request(`/questions/${id}/approve`, { method: 'POST', body: { decision } }),
+  approveQuestion: (id, decision, reason = '') =>
+    request(`/questions/${id}/approve`, { method: 'POST', body: { decision, reason } }),
   checklists: () => request('/checklists'),
   audits: (q = '') => request('/audits' + q),
   audit: (id) => request(`/audits/${id}`),
@@ -148,6 +148,41 @@ export const api = {
     if (!res.ok) await throwFor(res, 'Could not load file')
     return res.blob()
   },
+  // ---- Audit manager workflows (backend ready; the pages are still to build) ----
+  // Brand onboarding: details beyond the name, and one brand with its stores.
+  brand: (id) => request(`/brands/${id}`),
+  // Store formats with full forms and store types with a note.
+  storeCatalog: () => request('/stores/catalog'),
+  // Store view: details, auditors, auditees, last and next audit, open issues.
+  storeDetails: (id) => request(`/stores/${id}`),
+  storeAuditors: (storeId) => request(`/stores/${storeId}/auditors`),
+  addStoreAuditor: (storeId, userId) =>
+    request(`/stores/${storeId}/auditors`, { method: 'POST', body: { user_id: userId } }),
+  addStoreAuditee: (storeId, userId) =>
+    request(`/stores/${storeId}/auditees`, { method: 'POST', body: { user_id: userId } }),
+  // body: { reassign_to } for an auditor, { move_issues_to } for an auditee.
+  removeStoreAuditor: (storeId, userId, body = {}) =>
+    request(`/stores/${storeId}/auditors/${userId}/remove`, { method: 'POST', body }),
+  removeStoreAuditee: (storeId, userId, body = {}) =>
+    request(`/stores/${storeId}/auditees/${userId}/remove`, { method: 'POST', body }),
+  // Auditors and auditees the audit manager can add, list, edit and deactivate.
+  people: (q = '') => request('/people' + q),
+  createAuditor: (body) => request('/people/auditors', { method: 'POST', body }),
+  createAuditee: (body) => request('/people/auditees', { method: 'POST', body }),
+  // body may carry { active: false, hand_over_to } to deactivate with open work.
+  updatePerson: (id, body) => request(`/people/${id}`, { method: 'PATCH', body }),
+  // Scheduling: the store's auditors first, a suggestion, and warnings.
+  schedulingSuggestions: (storeId) =>
+    request(`/audits/suggestions?store_id=${encodeURIComponent(storeId)}`),
+  // auditorId null takes the auditor off the audit.
+  reassignAudit: (id, auditorId, reason = '') =>
+    request(`/audits/${id}/reassign`, { method: 'POST', body: { auditor_id: auditorId, reason } }),
+  // Send a reviewed audit back; query the questions first with reviewResponse.
+  requestChanges: (id, note = '') =>
+    request(`/audits/${id}/request-changes`, { method: 'POST', body: { note } }),
+  // Audit manager's call on the action taken: approve closes, deny reopens.
+  decideIssue: (id, decision, reason = '', evidence = []) =>
+    request(`/issues/${id}/decision`, { method: 'POST', body: { decision, reason, evidence } }),
   // File upload
   uploadFile: async (file, section) => {
     const fd = new FormData()

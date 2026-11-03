@@ -89,6 +89,7 @@ function IssueContext({ issue, showAudit }) {
             <div key={idx} className="border-t border-border py-1 first:border-0">
               <b>{h.by}</b> set <b>{h.status}</b> <span className="text-muted-foreground">{(h.at || '').substring(0, 16).replace('T', ' ')}</span>
               {h.reply ? <div className="text-foreground/80">{h.reply}</div> : null}
+              {h.evidence?.length > 0 && <div className="mt-1"><EvidenceList items={h.evidence} /></div>}
             </div>
           ))}
         </div>
@@ -130,6 +131,11 @@ export default function Issues() {
   // Cluster heads and HO follow issues without changing them.
   const isViewer = role === 'CLUSTER_HEAD' || role === 'HO_OPERATIONS';
   const [reviewNote, setReviewNote] = useState('');
+  const isManager = role === 'ADMIN' || role === 'AUDIT_MANAGER';
+  // The audit manager approves or denies the action taken.
+  const [decision, setDecision] = useState({ reason: '', evidence: [] });
+  // Auditees of the issue's store, listed first in the assignee picker.
+  const [storeAuditees, setStoreAuditees] = useState([]);
   const canDelete = role === 'ADMIN' || role === 'AUDIT_MANAGER';
   const canCreate = !isLimited && !isAuditor && !isViewer;
   const statusChoices = isAuditee ? ['Open', 'In Progress', 'On Hold', 'Resolved'] : ['Open', 'In Progress', 'On Hold', 'Resolved', 'Closed'];
@@ -155,6 +161,31 @@ export default function Issues() {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!isManager || !modalOpen || !form.storeId) { setStoreAuditees([]); return undefined; }
+    let cancelled = false;
+    api.storeAuditees(form.storeId).then(list => { if (!cancelled) setStoreAuditees(list || []); })
+      .catch(() => { if (!cancelled) setStoreAuditees([]); });
+    return () => { cancelled = true; };
+  }, [isManager, modalOpen, form.storeId]);
+
+  async function decideIssue(kind) {
+    if (kind === 'deny' && !decision.reason.trim()) { toast.error('Say why the action taken is denied'); return; }
+    if (kind === 'approve' && !window.confirm('Approve the action taken and close this issue?')) return;
+    setSaving(true);
+    try {
+      const saved = normalizeIssue(await api.decideIssue(editId, kind, decision.reason.trim(), decision.evidence));
+      setIssues(prev => prev.map(x => (x.id === saved.id ? saved : x)));
+      setForm(f => ({ ...f, status: saved.status }));
+      setDecision({ reason: '', evidence: [] });
+      toast(kind === 'approve' ? 'Approved; the issue is closed' : 'Denied; the issue is open again and the assignee was told');
+    } catch (e) {
+      toast.error(e.message || 'Could not save the decision');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   /* ── derived data ── */
   const storeOpts = [...new Set(issues.map(i => i.store).filter(Boolean))];
@@ -216,6 +247,7 @@ export default function Issues() {
       actionTaken: i.actionTaken || '',
       evidence: i.evidence
     });
+    setDecision({ reason: '', evidence: [] });
     setModalOpen(true);
   }
 
@@ -548,6 +580,35 @@ export default function Issues() {
                 <EvidenceList items={editIssue.evidence} />
               </div>
             )}
+            {isManager && editIssue && editIssue.actionTaken && editIssue.status !== 'Closed' && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                <div className="mb-1 text-[12.5px] font-semibold text-foreground">Action taken by {editIssue.assignee}</div>
+                <div className="mb-2 whitespace-pre-wrap text-[12.5px] text-foreground/80">{editIssue.actionTaken}</div>
+                <label className={labelClass} htmlFor="decision-reason">Reason (needed to deny)</label>
+                <textarea id="decision-reason" className={cn(fieldClass, 'min-h-[56px] resize-y')} placeholder="What is still not right" value={decision.reason} onChange={e => setDecision(d => ({ ...d, reason: e.target.value }))} />
+                <div className="mt-2">
+                  <div className={labelClass}>Evidence for a denial (optional)</div>
+                  <EvidencePicker value={decision.evidence} onChange={next => setDecision(d => ({ ...d, evidence: next }))} />
+                </div>
+                <div className="mt-2 flex justify-end gap-2">
+                  <Button variant="outline" className="border-red-200 text-destructive" disabled={saving} onClick={() => decideIssue('deny')}>Deny</Button>
+                  <Button disabled={saving} onClick={() => decideIssue('approve')}>Approve &amp; close</Button>
+                </div>
+              </div>
+            )}
+            {editIssue?.meta?.decisions?.length > 0 && (
+              <div className="rounded-lg border border-border p-3 text-[12px]">
+                <div className="mb-1 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Decisions</div>
+                {editIssue.meta.decisions.map((d, idx) => (
+                  <div key={idx} className="border-t border-border py-1.5 first:border-0">
+                    <Badge className={d.decision === 'approved' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}>{d.decision === 'approved' ? 'Approved' : 'Denied'}</Badge>
+                    <span className="ml-1.5"><b>{d.by}</b> <span className="text-muted-foreground">{(d.at || '').substring(0, 16).replace('T', ' ')}</span></span>
+                    {d.reason && <div className="mt-0.5 text-foreground/80">{d.reason}</div>}
+                    {d.evidence?.length > 0 && <div className="mt-1"><EvidenceList items={d.evidence} /></div>}
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>Title <span className="text-destructive">*</span></label>
@@ -584,7 +645,14 @@ export default function Issues() {
                 <label className={labelClass}>Assignee</label>
                 <select className={fieldClass} value={form.assigneeId} onChange={e => setForm(f => ({ ...f, assigneeId: e.target.value }))}>
                   <option value="">Unassigned</option>
-                  {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  {storeAuditees.length > 0 && (
+                    <optgroup label="Auditees of this store">
+                      {storeAuditees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    </optgroup>
+                  )}
+                  <optgroup label={storeAuditees.length ? 'Everyone else' : 'People'}>
+                    {users.filter(u => !storeAuditees.some(a => a.id === u.id)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </optgroup>
                 </select>
               </div>
             </div>

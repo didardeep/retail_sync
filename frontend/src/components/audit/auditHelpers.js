@@ -91,6 +91,7 @@ export const isMine = (row, userId) => !!userId && row.auditor_id === userId
 export function rowAction(row, userId) {
   if (!isMine(row, userId)) return 'view'
   if (row.stage !== 'scheduled' && row.stage !== 'in_progress') return 'view'
+  if (row.status === 'Changes Requested') return 'fix'
   return row.stage === 'scheduled' ? 'start' : 'resume'
 }
 
@@ -177,4 +178,4 @@ export function optionStateLine(option) {
   }
 }
 
-export const ACTION_LABELS = { start: 'Start', resume: 'Resume', view: 'View' }
+export const ACTION_LABELS = { start: 'Start', resume: 'Resume', fix: 'Fix changes', view: 'View' }

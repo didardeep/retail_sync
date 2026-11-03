@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Line } from 'react-chartjs-2'
 import { useToast } from '../components/Toast'
@@ -13,11 +13,16 @@ import { Modal, ModalTitle, ModalActions } from '../components/Modal'
 import FormatLegend from '@/components/FormatLegend'
 import { storeScorecardLink } from '@/lib/links'
 import { storesApi } from '../api/storesApi'
+import StorePeople from '@/components/StorePeople'
+import AddPersonModal from '@/components/AddPersonModal'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { BRAND_CATEGORIES, STORE_FORMATS, STORE_TYPES, formatLabel, formatNote, typeNote } from '@/lib/storeCatalog'
 
 const PP = 7
-const FORMATS = ['COCO', 'COFO', 'FOCO', 'FOFO']
+const FORMATS = STORE_FORMATS.map(f => f.code)
 const REGIONS = ['North India', 'South India', 'East India', 'West India']
-const TYPES = ['Flagship', 'Standard', 'Compact', 'Kiosk']
+const TYPES = STORE_TYPES.map(t => t.code)
+const EMPTY_BRAND = { name: '', code: '', legal_name: '', category: '', contact_name: '', contact_email: '', contact_phone: '', regions: [], notes: '' }
 const EMPTY_FORM = { name: '', city: '', brandId: '', format: 'COCO', type: 'Standard', region: 'North India', status: 'Operating' }
 
 function normalizeStore(st) {
@@ -57,7 +62,14 @@ export default function Stores() {
   const [brandFilter, setBrandFilter] = useState('')
   const [brands, setBrands] = useState([])
   const [brandOpen, setBrandOpen] = useState(false)
-  const [brandName, setBrandName] = useState('')
+  const [brandForm, setBrandForm] = useState(EMPTY_BRAND)
+  // Where the brand form was opened: 'header' (onboarding) or 'store' (inside Add Store).
+  const [brandFrom, setBrandFrom] = useState('header')
+  const [addStoreFor, setAddStoreFor] = useState(null)   // brand just onboarded
+  const [nextSteps, setNextSteps] = useState(null)       // store just added
+  const [peopleFilter, setPeopleFilter] = useState('')
+  const [peopleFocus, setPeopleFocus] = useState(null)
+  const [addPerson, setAddPerson] = useState(null)       // 'auditor' | 'auditee'
   const [page, setPage] = useState(1)
 
   /* modals */
@@ -115,6 +127,8 @@ export default function Stores() {
     if (regionFilter && s.region !== regionFilter) return false
     if (formatFilter && s.format !== formatFilter) return false
     if (brandFilter && s.brand_id !== brandFilter) return false
+    if (peopleFilter === 'no_auditor' && s.auditor_count !== 0) return false
+    if (peopleFilter === 'no_auditee' && s.auditee_count !== 0) return false
     return true
   })
   const regionOptions = options(REGIONS, stores.map(s => s.region))
@@ -135,18 +149,30 @@ export default function Stores() {
     setPage(1)
   }
 
-  function openInsight(id) {
+  function openInsight(id, tab = 'info', focus = null) {
     const s = stores.find(x => x.id === id)
     if (!s) return
     setInsightStore(s)
-    setSiTab('info')
+    setSiTab(tab)
+    setPeopleFocus(focus)
     setInsightOpen(true)
   }
 
-  function openAdd() {
+  // The People tab reports the store's counts back, so the list stays right.
+  const updateCounts = useCallback((id, auditors, auditees) => {
+    setStores(prev => prev.map(x => x.id === id ? { ...x, auditor_count: auditors, auditee_count: auditees } : x))
+  }, [])
+
+  function openAdd(brandId) {
     setEditId(null)
-    setForm({ ...EMPTY_FORM, brandId: brands.find(b => b.name !== 'Unassigned')?.id || brands[0]?.id || '' })
+    setForm({ ...EMPTY_FORM, brandId: brandId || brands.find(b => b.name !== 'Unassigned')?.id || brands[0]?.id || '' })
     setFormOpen(true)
+  }
+
+  function openBrand(from) {
+    setBrandFrom(from)
+    setBrandForm(EMPTY_BRAND)
+    setBrandOpen(true)
   }
 
   function openEdit(id) {
@@ -167,27 +193,35 @@ export default function Stores() {
       ? storesApi.update(editId, fields)
       : storesApi.create({ id: nextStoreId(stores), ...fields })
     call.then(saved => {
-      const st = normalizeStore(saved)
-      setStores(prev => editId ? prev.map(x => x.id === editId ? st : x) : [...prev, st])
+      const st = normalizeStore(editId ? saved : { auditor_count: 0, auditee_count: 0, ...saved })
+      setStores(prev => editId ? prev.map(x => x.id === editId ? { ...x, ...st } : x) : [...prev, st])
       toast(editId ? 'Store updated' : 'Store added')
       setFormOpen(false)
+      // A new store: offer the next steps of onboarding.
+      if (!editId) setNextSteps(st)
       setEditId(null)
     }).catch(e => {
       toast.error(e.message || 'Could not save the store')
     }).finally(() => setSaving(false))
   }
 
-  // Creating a brand refreshes the list and selects it in the store form.
+  // Onboard a brand. From the header it then offers to add the brand's first
+  // store; from inside Add Store it just selects the new brand.
   function saveBrand() {
-    const name = brandName.trim()
+    const name = brandForm.name.trim()
     if (!name) { toast.error('Enter a brand name'); return }
-    api.createBrand({ name }).then(b => {
+    api.createBrand({ ...brandForm, name }).then(b => {
       setBrands(prev => [...prev, b].sort((x, y) => x.name.localeCompare(y.name)))
       setForm(f => ({ ...f, brandId: b.id }))
-      setBrandName('')
+      setBrandForm(EMPTY_BRAND)
       setBrandOpen(false)
       toast('Brand added')
+      if (brandFrom === 'header') setAddStoreFor(b)
     }).catch(e => toast.error(e.message || 'Could not add the brand'))
+  }
+
+  function toggleRegion(r) {
+    setBrandForm(f => ({ ...f, regions: f.regions.includes(r) ? f.regions.filter(x => x !== r) : [...f.regions, r] }))
   }
 
   function dehireStore(id) {
@@ -249,7 +283,18 @@ export default function Stores() {
             <Button key={q} size="sm" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
           ))}
           <Button size="sm" variant="outline" onClick={handleExport}>&#x2B07; Export</Button>
-          <Button size="sm" onClick={openAdd}>+ Add Store</Button>
+          {/* One Add button; the menu says what to add, in onboarding order. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm">+ Add &#x25BE;</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[160px]">
+              <DropdownMenuItem className="cursor-pointer" onSelect={() => openBrand('header')}>Brand</DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onSelect={() => openAdd()}>Store</DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onSelect={() => setAddPerson('auditor')}>Auditor</DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onSelect={() => setAddPerson('auditee')}>Auditee</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -282,7 +327,12 @@ export default function Stores() {
           <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === '' && 'border-primary bg-primary text-primary-foreground')} onClick={() => handleTabFilter('')}>All</button>
           <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === 'Operating' && 'border-primary bg-primary text-primary-foreground')} onClick={() => handleTabFilter('Operating')}>Operating</button>
           <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === 'Dehired' && 'border-primary bg-primary text-primary-foreground')} onClick={() => handleTabFilter('Dehired')}>Dehired</button>
-          <button className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-card text-[13px]" onClick={() => { setSearch(''); setStatusFilter(''); setRegionFilter(''); setFormatFilter(''); setBrandFilter(''); setPage(1) }}>&#x1F504;</button>
+          <select aria-label="People" className={cn(fieldClass, 'h-[30px] w-auto cursor-pointer py-0 text-xs', peopleFilter && 'border-primary bg-primary/10 font-semibold text-primary')} value={peopleFilter} onChange={e => { setPeopleFilter(e.target.value); setPage(1) }}>
+            <option value="">All people</option>
+            <option value="no_auditor">Without an auditor</option>
+            <option value="no_auditee">Without an auditee</option>
+          </select>
+          <button className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-card text-[13px]" onClick={() => { setSearch(''); setStatusFilter(''); setRegionFilter(''); setFormatFilter(''); setBrandFilter(''); setPeopleFilter(''); setPage(1) }}>&#x1F504;</button>
         </div>
       </div>
 
@@ -294,6 +344,7 @@ export default function Stores() {
               <TableHead>Status</TableHead>
               <TableHead>{selectedQ.toUpperCase()} Score</TableHead>
               <TableHead>Manager</TableHead>
+              <TableHead>People</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -326,6 +377,12 @@ export default function Stores() {
                   <div className="flex items-center gap-1.5">
                     <div className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(s.manager||'U'))}>{(s.manager || 'U')[0]}</div>
                     <span className="text-[12.5px]">{s.manager}</span>
+                  </div>
+                </TableCell>
+                <TableCell onClick={e => { e.stopPropagation(); openInsight(s.id, 'people') }}>
+                  <div className="flex flex-col items-start gap-1 text-[11.5px]">
+                    {s.auditor_count ? <span>{s.auditor_count} auditor{s.auditor_count === 1 ? '' : 's'}</span> : <span className="rounded bg-red-50 px-1.5 font-semibold text-red-700">No auditor</span>}
+                    {s.auditee_count ? <span>{s.auditee_count} auditee{s.auditee_count === 1 ? '' : 's'}</span> : <span className="rounded bg-amber-50 px-1.5 font-semibold text-amber-800">No auditee</span>}
                   </div>
                 </TableCell>
                 <TableCell onClick={e => e.stopPropagation()}>
@@ -366,13 +423,15 @@ export default function Stores() {
           <div className="flex border-b border-border px-5">
             <div className={cn('cursor-pointer border-b-2 border-transparent px-4 py-2.5 text-[12.5px] font-semibold text-muted-foreground', siTab === 'info' && 'border-primary text-primary')} onClick={() => setSiTab('info')}>General Info</div>
             <div className={cn('cursor-pointer border-b-2 border-transparent px-4 py-2.5 text-[12.5px] font-semibold text-muted-foreground', siTab === 'perf' && 'border-primary text-primary')} onClick={() => setSiTab('perf')}>Performance</div>
+            <div className={cn('cursor-pointer border-b-2 border-transparent px-4 py-2.5 text-[12.5px] font-semibold text-muted-foreground', siTab === 'people' && 'border-primary text-primary')} onClick={() => setSiTab('people')}>People</div>
           </div>
           <div className="px-5 pb-1.5 pt-4">
             {siTab === 'info' && (
               <div>
                 <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Brand</span><span className="font-semibold text-foreground">{insightStore.brand || '--'}</span></div>
                 <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Manager</span><span className="font-semibold text-foreground">{insightStore.manager || '—'}</span></div>
-                <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Type of Store</span><span className="font-semibold text-foreground">{insightStore.type || '—'}</span></div>
+                <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Format</span><span className="font-semibold text-foreground">{insightStore.format ? formatLabel(insightStore.format) : '—'}</span></div>
+                <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Type of Store</span><span className="font-semibold text-foreground">{insightStore.type || '—'}{typeNote(insightStore.type) && <span className="mt-0.5 block text-[11.5px] font-normal text-muted-foreground">{typeNote(insightStore.type)}</span>}</span></div>
                 <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Location</span><span className="font-semibold text-foreground">{insightStore.city}{insightStore.region ? ', ' + insightStore.region : ''}</span></div>
                 <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Contact</span><span className="font-semibold text-foreground">{insightStore.contact || '—'}</span></div>
                 <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Email</span><span className="font-semibold text-foreground">{insightStore.email || '—'}</span></div>
@@ -382,19 +441,46 @@ export default function Stores() {
             {siTab === 'perf' && (
               <div className="relative w-full" style={{ height: 170 }}><Line data={perfChartData(insightStore)} options={chartOpts} /></div>
             )}
+            {siTab === 'people' && <StorePeople storeId={insightStore.id} focus={peopleFocus} onCounts={updateCounts} />}
           </div>
           <ModalActions>
+            <Button size="sm" variant="outline" onClick={() => navigate(`/audits?new=1&store=${encodeURIComponent(insightStore.id)}`)}>Schedule audit</Button>
             <Button size="sm" variant="outline" onClick={() => setInsightOpen(false)}>Close</Button>
           </ModalActions>
         </Modal>
       )}
 
-      <Modal open={brandOpen} onClose={() => setBrandOpen(false)}>
-        <ModalTitle>New Brand</ModalTitle>
-        <div><label className={labelClass}>Brand name (banner / chain)</label><Input placeholder="e.g. FreshMart" value={brandName} onChange={e => setBrandName(e.target.value)} /></div>
+      <AddPersonModal
+        kind={addPerson}
+        stores={stores.filter(st => st.status !== 'Dehired')}
+        onClose={() => setAddPerson(null)}
+        onSaved={person => {
+          // Count the new person on each store they were linked to.
+          const key = person.role === 'AUDITOR' ? 'auditor_count' : 'auditee_count'
+          const linked = new Set(person.store_ids || [])
+          setStores(prev => prev.map(x => linked.has(x.id) ? { ...x, [key]: (x[key] || 0) + 1 } : x))
+        }}
+      />
+
+      <Modal open={!!addStoreFor} onClose={() => setAddStoreFor(null)}>
+        <ModalTitle>Brand {addStoreFor?.name} added</ModalTitle>
+        <p className="text-[13px] text-foreground/80">Add the first store for this brand now?</p>
         <ModalActions>
-          <Button variant="outline" onClick={() => setBrandOpen(false)}>Cancel</Button>
-          <Button onClick={saveBrand}>Add Brand</Button>
+          <Button variant="outline" onClick={() => setAddStoreFor(null)}>Later</Button>
+          <Button onClick={() => { const b = addStoreFor; setAddStoreFor(null); openAdd(b.id) }}>+ Add a store to {addStoreFor?.name}</Button>
+        </ModalActions>
+      </Modal>
+
+      <Modal open={!!nextSteps} onClose={() => setNextSteps(null)}>
+        <ModalTitle>Store {nextSteps?.name} added</ModalTitle>
+        <p className="mb-3 text-[13px] text-foreground/80">Next steps for this store:</p>
+        <div className="grid gap-2">
+          <Button variant="outline" className="justify-start" onClick={() => { const st = nextSteps; setNextSteps(null); openInsight(st.id, 'people', 'auditor') }}>1. Assign an auditor</Button>
+          <Button variant="outline" className="justify-start" onClick={() => { const st = nextSteps; setNextSteps(null); openInsight(st.id, 'people', 'auditee') }}>2. Add an auditee</Button>
+          <Button variant="outline" className="justify-start" onClick={() => { const st = nextSteps; setNextSteps(null); navigate(`/audits?new=1&store=${encodeURIComponent(st.id)}`) }}>3. Schedule an audit</Button>
+        </div>
+        <ModalActions>
+          <Button variant="outline" onClick={() => setNextSteps(null)}>Done</Button>
         </ModalActions>
       </Modal>
 
@@ -405,16 +491,21 @@ export default function Stores() {
           <div><label className={labelClass}>City</label><Input placeholder="e.g. Mumbai" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} /></div>
           <div>
             <label className={labelClass}>Brand</label>
-            <div className="flex gap-2">
-              <select className={fieldClass} value={form.brandId} onChange={e => setForm(f => ({ ...f, brandId: e.target.value }))}>
-                <option value="">Select brand</option>
-                {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-              <Button type="button" variant="outline" size="sm" onClick={() => setBrandOpen(true)}>+ New brand</Button>
-            </div>
+            <select className={fieldClass} value={form.brandId} onChange={e => setForm(f => ({ ...f, brandId: e.target.value }))}>
+              <option value="">Select brand</option>
+              {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
           </div>
-          <div><label className={labelClass}>Format</label><select className={fieldClass} value={form.format} onChange={e => setForm(f => ({ ...f, format: e.target.value }))}>{formatOptions.map(o => <option key={o}>{o}</option>)}</select></div>
-          <div><label className={labelClass}>Type of Store</label><select className={fieldClass} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>{typeOptions.map(o => <option key={o}>{o}</option>)}</select></div>
+          <div>
+            <label className={labelClass}>Format</label>
+            <select className={fieldClass} value={form.format} onChange={e => setForm(f => ({ ...f, format: e.target.value }))}>{formatOptions.map(o => <option key={o} value={o}>{formatLabel(o)}</option>)}</select>
+            {formatNote(form.format) && <p className="mt-1 text-[11.5px] text-muted-foreground">{formatNote(form.format)}</p>}
+          </div>
+          <div>
+            <label className={labelClass}>Type of Store</label>
+            <select className={fieldClass} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>{typeOptions.map(o => <option key={o}>{o}</option>)}</select>
+            {typeNote(form.type) && <p className="mt-1 text-[11.5px] text-muted-foreground">{typeNote(form.type)}</p>}
+          </div>
           <div><label className={labelClass}>Region</label><select className={fieldClass} value={form.region} onChange={e => setForm(f => ({ ...f, region: e.target.value }))}>{regionOptions.map(o => <option key={o}>{o}</option>)}</select></div>
           <div><label className={labelClass}>Status</label><select className={fieldClass} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}><option>Operating</option><option>Dehired</option></select></div>
         </div>
@@ -423,6 +514,46 @@ export default function Stores() {
           <Button onClick={saveStore} disabled={saving}>{editId ? 'Save Changes' : 'Add Store'}</Button>
         </ModalActions>
       </Modal>
+
+      {/* After the store form: "+ New brand" inside it must open on top. */}
+      <Modal open={brandOpen} onClose={() => setBrandOpen(false)} className="w-[560px]">
+        <ModalTitle>Onboard a Brand</ModalTitle>
+        <div className="grid gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
+            <div><label className={labelClass}>Brand name (banner / chain) <span className="text-destructive">*</span></label><Input placeholder="e.g. FreshMart" value={brandForm.name} onChange={e => setBrandForm(f => ({ ...f, name: e.target.value }))} /></div>
+            <div><label className={labelClass}>Short code</label><Input placeholder="e.g. FM" value={brandForm.code} onChange={e => setBrandForm(f => ({ ...f, code: e.target.value }))} /></div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div><label className={labelClass}>Legal / company name</label><Input placeholder="e.g. FreshMart Retail Pvt Ltd" value={brandForm.legal_name} onChange={e => setBrandForm(f => ({ ...f, legal_name: e.target.value }))} /></div>
+            <div>
+              <label className={labelClass}>Category</label>
+              <select className={fieldClass} value={brandForm.category} onChange={e => setBrandForm(f => ({ ...f, category: e.target.value }))}>
+                <option value="">Select category</option>
+                {BRAND_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div><label className={labelClass}>Contact person</label><Input placeholder="Name" value={brandForm.contact_name} onChange={e => setBrandForm(f => ({ ...f, contact_name: e.target.value }))} /></div>
+            <div><label className={labelClass}>Contact email</label><Input placeholder="name@brand.com" value={brandForm.contact_email} onChange={e => setBrandForm(f => ({ ...f, contact_email: e.target.value }))} /></div>
+            <div><label className={labelClass}>Contact phone</label><Input placeholder="Phone" value={brandForm.contact_phone} onChange={e => setBrandForm(f => ({ ...f, contact_phone: e.target.value }))} /></div>
+          </div>
+          <div>
+            <div className={labelClass}>Regions where it operates</div>
+            <div className="flex flex-wrap gap-1.5">
+              {REGIONS.map(r => (
+                <button key={r} type="button" onClick={() => toggleRegion(r)} className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', brandForm.regions.includes(r) && 'border-primary bg-primary text-primary-foreground')}>{r}</button>
+              ))}
+            </div>
+          </div>
+          <div><label className={labelClass}>Notes</label><textarea className={cn(fieldClass, 'min-h-[60px] resize-y')} placeholder="Anything the audit team should know" value={brandForm.notes} onChange={e => setBrandForm(f => ({ ...f, notes: e.target.value }))} /></div>
+        </div>
+        <ModalActions>
+          <Button variant="outline" onClick={() => setBrandOpen(false)}>Cancel</Button>
+          <Button onClick={saveBrand}>Add Brand</Button>
+        </ModalActions>
+      </Modal>
+
     </>
   )
 }

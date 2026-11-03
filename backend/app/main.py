@@ -9,7 +9,8 @@ from fastapi.responses import JSONResponse
 from .db import init_db
 from .routers import (
     admin, annexures, audit_log, audits, auth, availability, brands, checklists, chat, dashboard,
-    data, evidence, exceptions, issues, notifications, observations, questions, stores, uploads,
+    data, evidence, exceptions, issues, notifications, observations, people, questions, stores,
+    uploads,
 )
 from .services.alerts import alert_loop
 
@@ -35,7 +36,7 @@ for router in (
     auth.router, admin.router, brands.router, stores.router, questions.router, checklists.router,
     audits.router, availability.router, issues.router, observations.router,
     data.router, dashboard.router, uploads.router, evidence.router, audit_log.router,
-    chat.router, exceptions.router, notifications.router, annexures.router,
+    chat.router, exceptions.router, notifications.router, annexures.router, people.router,
 ):
     app.include_router(router)
 

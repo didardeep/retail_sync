@@ -42,6 +42,15 @@ test('auditRows sorts newest first and puts undated rows last', () => {
     ['AUD-1001', 'AUD-1002', 'AUD-1003', 'AUD-1004', 'AUD-1005'])
 })
 
+test('auditRows puts the most recently booked audit first', () => {
+  const rows = auditRows([
+    { id: 'AUD-2001', scheduled_at: '2031-09-01T09:00:00', created_at: '2031-01-01T08:00:00' },
+    { id: 'AUD-2002', scheduled_at: '2030-01-01T09:00:00', created_at: '2031-01-02T08:00:00' },
+    { id: 'AUD-2003', scheduled_at: '2031-12-01T09:00:00' },
+  ])
+  assert.deepEqual(rows.map((r) => r.id), ['AUD-2002', 'AUD-2001', 'AUD-2003'])
+})
+
 test('kpiCounts counts per stage and unassigned', () => {
   const rows = auditRows(audits)
   assert.deepEqual(kpiCounts(rows), {

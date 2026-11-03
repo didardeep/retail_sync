@@ -5,7 +5,8 @@ import { request } from './client'
 export const questionsApi = {
   create: (body) => request('/questions', { method: 'POST', body }),
   edit: (id, body) => request(`/questions/${id}`, { method: 'PUT', body }),
-  approve: (id, decision) =>
-    request(`/questions/${id}/approve`, { method: 'POST', body: { decision } }),
+  // Rejecting needs a reason (the API refuses REJECTED without one).
+  approve: (id, decision, reason = '') =>
+    request(`/questions/${id}/approve`, { method: 'POST', body: { decision, reason } }),
   deactivate: (id) => request(`/questions/${id}`, { method: 'DELETE' }),
 }

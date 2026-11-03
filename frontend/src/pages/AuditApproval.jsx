@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Check, MessageCircleQuestion } from 'lucide-react';
+import { Check, MessageCircleQuestion, Undo2 } from 'lucide-react';
 
 import { api, loadSession } from '@/api/client';
 import { issuesLink } from '@/lib/links';
@@ -12,6 +12,7 @@ import { EvidenceList } from '@/components/Evidence';
 import { ErrorNote, Loading } from '@/components/Loader';
 import { useToast } from '@/components/Toast';
 import AnnexurePanel from '@/components/AnnexurePanel';
+import { Modal, ModalActions, ModalTitle } from '@/components/Modal';
 
 const ANSWER_CLASS = {
   Yes: 'bg-emerald-50 text-emerald-700',
@@ -22,15 +23,24 @@ const REVIEW_BADGE = {
   query: ['Waiting for auditor', 'bg-amber-50 text-amber-800'],
   replied: ['Auditor replied', 'bg-blue-50 text-blue-800'],
 };
+// What is wrong with an answer (same values as the API).
+const QUERY_CATEGORIES = [
+  { value: 'wrong_answer', label: 'Wrong answer' },
+  { value: 'missing_evidence', label: 'Missing evidence' },
+  { value: 'unclear_photo', label: 'Unclear photo' },
+  { value: 'other', label: 'Other' },
+];
+const categoryLabel = (v) => QUERY_CATEGORIES.find((c) => c.value === v)?.label;
 
 function QuestionCard({ row, canReview, busy, onDecide }) {
   const navigate = useNavigate();
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState('');
+  const [category, setCategory] = useState('wrong_answer');
   const badge = REVIEW_BADGE[row.review_status];
 
   async function ask() {
-    if (await onDecide(row, 'query', note)) { setAsking(false); setNote(''); }
+    if (await onDecide(row, 'query', note, category)) { setAsking(false); setNote(''); }
   }
 
   return (
@@ -59,7 +69,10 @@ function QuestionCard({ row, canReview, busy, onDecide }) {
       )}
       {row.review_note && (
         <div className="mt-3 rounded-md bg-muted/50 p-2.5 text-[12.5px]">
-          <div><span className="text-muted-foreground">{row.reviewed_by || 'Audit manager'} asked: </span>{row.review_note}</div>
+          <div>
+            <span className="text-muted-foreground">{row.reviewed_by || 'Audit manager'} asked: </span>{row.review_note}
+            {categoryLabel(row.review_category) && <Badge className="ml-1.5 bg-amber-50 text-amber-800">{categoryLabel(row.review_category)}</Badge>}
+          </div>
           {row.review_reply && <div className="mt-1"><span className="text-muted-foreground">Auditor replied: </span>{row.review_reply}</div>}
         </div>
       )}
@@ -67,7 +80,11 @@ function QuestionCard({ row, canReview, busy, onDecide }) {
         <div className="mt-3 border-t border-border pt-3">
           {asking ? (
             <>
-              <label className={labelClass} htmlFor={`ask-${row.id}`}>Your question for the auditor</label>
+              <label className={labelClass} htmlFor={`cat-${row.id}`}>What is wrong</label>
+              <select id={`cat-${row.id}`} className={cn(fieldClass, 'mb-2')} value={category} onChange={(e) => setCategory(e.target.value)}>
+                {QUERY_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+              <label className={labelClass} htmlFor={`ask-${row.id}`}>What you did not like (the auditor and the auditee are told)</label>
               <textarea id={`ask-${row.id}`} className={cn(fieldClass, 'min-h-[64px] resize-y')} value={note} onChange={(e) => setNote(e.target.value)} />
               <div className="mt-2 flex justify-end gap-2">
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => setAsking(false)}>Cancel</Button>
@@ -97,6 +114,7 @@ export default function AuditApproval() {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
   const [busy, setBusy] = useState(false);
+  const [returning, setReturning] = useState(null); // note text while the dialog is open
   const allowed = role === 'ADMIN' || role === 'AUDIT_MANAGER';
 
   useEffect(() => {
@@ -113,10 +131,25 @@ export default function AuditApproval() {
   const progress = reviewProgress(responses);
   const canReview = audit.status === 'Completed';
 
-  async function decide(row, decision, note = '') {
+  const queried = responses.filter((r) => r.review_status === 'query').length;
+
+  async function returnForChanges() {
     setBusy(true);
     try {
-      const updated = await api.reviewResponse(audit.id, row.id, { decision, note });
+      setAudit(await api.requestChanges(audit.id, returning || ''));
+      setReturning(null);
+      toast('Sent back to the auditor. The auditor and the auditee were notified.');
+    } catch (e) {
+      toast.error(e.message || 'Could not send the audit back');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function decide(row, decision, note = '', category = null) {
+    setBusy(true);
+    try {
+      const updated = await api.reviewResponse(audit.id, row.id, { decision, note, category: decision === 'query' ? category : null });
       setAudit(updated);
       if (updated.status === 'Approved') toast('Every question is approved, so the audit is approved');
       return true;
@@ -137,12 +170,26 @@ export default function AuditApproval() {
           <p className="mt-0.5 text-xs text-muted-foreground">Auditor: {audit.auditor || 'Unassigned'}{audit.score != null ? ` • Score ${audit.score}%` : ''}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className={audit.status === 'Approved' ? 'bg-emerald-600 text-white' : 'bg-muted text-foreground'}>{audit.status === 'Completed' ? 'Awaiting review' : audit.status}</Badge>
+          <Badge className={audit.status === 'Approved' ? 'bg-emerald-600 text-white' : audit.status === 'Changes Requested' ? 'bg-amber-500 text-white' : 'bg-muted text-foreground'}>{audit.status === 'Completed' ? 'Awaiting review' : audit.status}</Badge>
+          {canReview && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy || !queried}
+              title={queried ? 'Send the queried questions back to the auditor to fix' : 'Ask about at least one question first'}
+              onClick={() => setReturning('')}
+            >
+              <Undo2 /> Return for changes{queried ? ` (${queried})` : ''}
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={() => navigate('/audits')}>Back to audits</Button>
         </div>
       </div>
 
-      {!canReview && audit.status !== 'Approved' && (
+      {audit.status === 'Changes Requested' && (
+        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Sent back to the auditor. The queried questions come back here when they resubmit.</div>
+      )}
+      {!canReview && audit.status !== 'Approved' && audit.status !== 'Changes Requested' && (
         <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Questions can be reviewed once the auditor submits this audit.</div>
       )}
 
@@ -168,6 +215,19 @@ export default function AuditApproval() {
       </div>
 
       <AnnexurePanel auditId={audit.id} />
+
+      <Modal open={returning !== null} onClose={() => setReturning(null)}>
+        <ModalTitle>Return for changes?</ModalTitle>
+        <p className="mb-3 text-[12.5px] text-muted-foreground">
+          {queried} queried question{queried === 1 ? '' : 's'} go back to {audit.auditor || 'the auditor'}. Only those can be changed; the rest stay as they are. The auditor and the store's auditees are notified.
+        </p>
+        <label className={labelClass} htmlFor="return-note">Note for the auditor (optional)</label>
+        <textarea id="return-note" className={cn(fieldClass, 'min-h-[70px] resize-y')} value={returning || ''} onChange={(e) => setReturning(e.target.value)} />
+        <ModalActions>
+          <Button variant="outline" onClick={() => setReturning(null)}>Cancel</Button>
+          <Button disabled={busy} onClick={returnForChanges}>Send back</Button>
+        </ModalActions>
+      </Modal>
     </div>
   );
 }

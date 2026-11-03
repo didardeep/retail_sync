@@ -10,8 +10,9 @@ from ..models import (
     ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_CLUSTER_HEAD,
     ROLE_HO_OPERATIONS, ROLE_STORE_MANAGER, Audit, Issue, Store, User,
 )
-from ..schemas import IssueCreate, IssueReview, IssueUpdate
+from ..schemas import IssueCreate, IssueDecision, IssueReview, IssueUpdate
 from ..services import linked_auditee_ids, log_action
+from ..services.alerts import notify
 
 router = APIRouter(prefix="/api/issues", tags=["issues"])
 
@@ -148,6 +149,7 @@ def update_issue(
             raise _bad("an auditee cannot close an issue; mark it Resolved")
 
     _check_refs(db, d, d.get("store_id") or i.store_id)
+    old_assignee = i.assignee_id
     for field in ("title", "description", "priority", "status",
                   "assignee_id", "action_taken", "store_id"):
         if field in d:
@@ -169,6 +171,71 @@ def update_issue(
     if "status" in d:
         log_action(db, user.id, "update_issue_status", "issue", i.id,
                    {"status": i.status})
+    if i.assignee_id and i.assignee_id != old_assignee:
+        # Reassigned (for example to another auditee of the same store).
+        new = db.get(User, i.assignee_id)
+        notify(db, new, "issue_assigned", f"Issue assigned to you: {i.title}",
+               f"/my-issues?id={i.id}" if new and new.role == ROLE_AUDITEE else f"/issues?id={i.id}",
+               f"issue_assign:{i.id}:{i.assignee_id}:{dt.datetime.utcnow().isoformat()}")
+        log_action(db, user.id, "reassign_issue", "issue", i.id,
+                   {"from": old_assignee, "to": i.assignee_id})
+    db.commit()
+    return i.to_dict()
+
+
+@router.post("/{iid}/decision")
+def decide_issue(
+    iid: str,
+    body: IssueDecision,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
+):
+    """The audit manager's call on the action taken. Approve closes the issue.
+    Deny reopens it for the assignee and needs a reason; evidence (photos or
+    files from /api/evidence) is optional. The question and answer the issue
+    came from are never edited here. Every decision goes into the history."""
+    i = db.get(Issue, iid)
+    if not i:
+        raise HTTPException(status_code=404, detail={"error": "not found"})
+    if i.status == "Closed":
+        raise HTTPException(status_code=409, detail={"error": "issue is already closed"})
+    if body.decision not in ("approve", "deny"):
+        raise _bad("decision must be approve or deny")
+    reason = body.reason.strip()
+    if body.decision == "deny" and not reason:
+        raise _bad("say why the action taken is denied")
+    if not (i.action_taken or "").strip():
+        raise HTTPException(status_code=409, detail={
+            "error": "no action has been recorded on this issue yet"})
+
+    now = dt.datetime.utcnow()
+    approved = body.decision == "approve"
+    entry = {"decision": "approved" if approved else "denied", "by": user.name,
+             "at": now.isoformat(), "reason": reason, "evidence": body.evidence or []}
+    meta = {k: v for k, v in (i.meta or {}).items() if k != "review"}
+    meta["decisions"] = [*meta.get("decisions", []), entry]
+    if approved:
+        i.status = "Closed"
+        i.closed_at = now
+    else:
+        i.status = "Open"
+        i.closed_at = None
+    label = "Approved" if approved else "Denied"
+    meta["history"] = [*meta.get("history", []), {
+        "at": now.isoformat(), "by": user.name, "status": i.status,
+        "reply": f"{label}: {reason}" if reason else label,
+        "evidence": body.evidence or []}]
+    i.meta = meta
+    if i.assignee_id:
+        assignee = db.get(User, i.assignee_id)
+        notify(db, assignee, "issue_decision",
+               f"Action on '{i.title}' was {label.lower()}" + (f": {reason}" if reason else ""),
+               f"/my-issues?id={i.id}" if assignee and assignee.role == ROLE_AUDITEE
+               else f"/issues?id={i.id}",
+               f"decision:{i.id}:{now.isoformat()}")
+    log_action(db, user.id, "decide_issue", "issue", i.id,
+               {"decision": body.decision, "reason": reason,
+                "evidence": len(body.evidence or [])})
     db.commit()
     return i.to_dict()
 

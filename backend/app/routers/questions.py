@@ -1,3 +1,5 @@
+import datetime as dt
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -7,6 +9,9 @@ from ..db import get_db
 from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, Question, User
 from ..schemas import QuestionApprove, QuestionCreate, QuestionEdit
 from ..services import log_action
+from ..services.alerts import notify
+
+QUESTION_DECISIONS = ("APPROVED", "REJECTED")
 
 router = APIRouter(prefix="/api/questions", tags=["questions"])
 
@@ -59,13 +64,29 @@ def approve_question(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
+    """Approve or reject a proposed question. Rejecting needs a reason, which is
+    kept on the question and sent to whoever proposed it."""
     q = db.get(Question, qid)
     if not q:
         raise HTTPException(status_code=404, detail={"error": "not found"})
+    if body.decision not in QUESTION_DECISIONS:
+        raise HTTPException(status_code=400, detail={
+            "error": f"decision must be one of {', '.join(QUESTION_DECISIONS)}"})
+    reason = body.reason.strip()
+    if body.decision == "REJECTED" and not reason:
+        raise HTTPException(status_code=400, detail={"error": "say why the question is rejected"})
     q.approval_status = body.decision
     q.approved_by_id = user.id
+    q.meta = {**(q.meta or {}), "review": {
+        "decision": body.decision, "reason": reason, "by": user.name,
+        "at": dt.datetime.utcnow().isoformat()}}
+    if q.proposed_by_id and q.proposed_by_id != user.id:
+        word = "approved" if body.decision == "APPROVED" else "rejected"
+        notify(db, db.get(User, q.proposed_by_id), "question_review",
+               f"Your question {q.code} was {word}" + (f": {reason}" if reason else ""),
+               "/questions", f"question:{q.id}:{body.decision}")
     log_action(db, user.id, "approve_question", "question", q.id,
-               {"decision": body.decision, "code": q.code})
+               {"decision": body.decision, "code": q.code, "reason": reason})
     db.commit()
     return q.to_dict()
 

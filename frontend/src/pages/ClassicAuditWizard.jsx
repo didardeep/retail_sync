@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 
 import { loadSession } from '@/api/client';
+import { lockedForChanges } from '@/lib/statuses';
 import { cn, fieldClass, labelClass } from '@/lib/utils';
 import {
   RISKS, firstUnansweredIndex, isAuditorEditable, orderedQuestions,
@@ -68,8 +69,12 @@ export default function ClassicAuditWizard({ initialAudit }) {
         const total = (a.responses || []).length;
         const fromLink = parseQuestionParam(search.get('q'), total);
         const firstOpen = firstUnansweredIndex(a);
+        // Sent back for changes: start at the first question the manager queried.
+        const firstQueried = a.status === 'Changes Requested'
+          ? orderedQuestions(a).findIndex((r) => r.review_status === 'query') : -1;
         setAudit(a);
-        setIdx(fromLink ?? (firstOpen >= 0 ? firstOpen : Math.max(0, total - 1)));
+        setIdx(fromLink ?? (firstQueried >= 0 ? firstQueried
+          : firstOpen >= 0 ? firstOpen : Math.max(0, total - 1)));
       } catch (e) {
         if (!cancelled) setError(e);
       }
@@ -174,6 +179,9 @@ export default function ClassicAuditWizard({ initialAudit }) {
 
   const { answered, total, percent } = progress(audit);
   const isLast = idx === questions.length - 1;
+  const locked = lockedForChanges(audit, q);
+  const queriedLeft = audit.status === 'Changes Requested'
+    ? questions.filter((r) => r.review_status === 'query') : [];
 
   return (
     <div ref={topRef} className="mx-auto max-w-2xl scroll-mt-4">
@@ -197,6 +205,22 @@ export default function ClassicAuditWizard({ initialAudit }) {
       </div>
 
       <OnlineBanner online={online} saveError={saveError} />
+
+      {audit.status === 'Changes Requested' && (
+        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-[12.5px] text-amber-900" role="status">
+          <b>Changes requested.</b> Fix the {queriedLeft.length} queried question{queriedLeft.length === 1 ? '' : 's'}, then go to Review and resubmit. The other answers are locked.
+          {queriedLeft.length > 1 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {queriedLeft.map((r) => (
+                <button key={r.id} type="button" onClick={() => setIdx(r.index)}
+                  className={cn('rounded border border-amber-300 bg-white px-1.5 py-0.5 text-[11px] font-semibold', r.index === idx && 'border-amber-600')}>
+                  {r.question_code || `Q${r.index + 1}`}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {online && (
         <details className="mb-3">
@@ -237,10 +261,19 @@ export default function ClassicAuditWizard({ initialAudit }) {
           {q.question_code && <span className="font-mono">{q.question_code}</span>}
         </div>
 
+        {q.review_status === 'query' && q.review_note && (
+          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-[12.5px] text-amber-900">
+            <span className="font-semibold">{q.reviewed_by || 'Audit manager'}: </span>{q.review_note}
+          </div>
+        )}
+        {locked && (
+          <div className="mt-3 rounded-md bg-muted px-2.5 py-2 text-[12px] text-muted-foreground">Locked: only the queried questions can be changed.</div>
+        )}
+
         <div className="mt-4">
-          <AnswerButtons value={q.answer} onPick={pickAnswer} />
+          <AnswerButtons value={q.answer} onPick={pickAnswer} disabled={locked} />
         </div>
-        <RaiseIssue audit={audit} question={q} onRaised={markRaised} />
+        {!locked && <RaiseIssue audit={audit} question={q} onRaised={markRaised} />}
 
         <div className="mt-4">
           <label className={labelClass} htmlFor="classic-remarks">Remarks</label>
@@ -251,6 +284,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
             onBlur={flush}
             placeholder="What did you observe?"
             rows={3}
+            disabled={locked}
           />
         </div>
 
@@ -260,6 +294,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
             id="classic-risk"
             className={cn(fieldClass, 'h-11')}
             value={q.risk || ''}
+            disabled={locked}
             onChange={(e) => save(q.id, { risk: e.target.value })}
           >
             {RISKS.map((x) => <option key={x} value={x}>{x || 'None'}</option>)}
@@ -272,7 +307,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
             key={q.id}
             value={q.evidence}
             onChange={(next) => save(q.id, { evidence: next })}
-            disabled={!online}
+            disabled={!online || locked}
           />
           {!online && (
             <p className="mt-1 text-xs text-muted-foreground">Evidence needs a connection. Add it once you are back online.</p>

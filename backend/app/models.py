@@ -79,6 +79,7 @@ class User(Base):
     designation = Column(String(120))                   # "Senior Field Auditor"
     region = Column(String(60))
     notify_email = Column(String(200))                  # where alert mail goes; logins are usernames
+    phone = Column(String(40))
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=dt.datetime.utcnow)
 
@@ -90,7 +91,7 @@ class User(Base):
             "id": self.id, "name": self.name, "email": self.email,
             "role": self.role, "designation": self.designation,
             "region": self.region, "active": self.active,
-            "notify_email": self.notify_email,
+            "notify_email": self.notify_email, "phone": self.phone,
         }
 
 
@@ -169,17 +170,36 @@ class Brand(Base):
 
     id = Column(String(12), primary_key=True, default=_uid)
     name = Column(String(120), nullable=False, unique=True)
+    # Onboarding details; all optional so brands created by import still work.
+    code = Column(String(20))
+    legal_name = Column(String(200))
+    category = Column(String(80))                       # Grocery / Fashion / Electronics ...
+    contact_name = Column(String(120))
+    contact_email = Column(String(200))
+    contact_phone = Column(String(40))
+    regions = Column(JSON, default=list)                # where the brand operates
+    status = Column(String(20), default="Active")       # Active / Inactive
+    notes = Column(Text)
     created_at = Column(DateTime, default=dt.datetime.utcnow)
 
     stores = relationship("Store", back_populates="brand")
 
     def to_dict(self):
-        return {"id": self.id, "name": self.name, "store_count": len(self.stores)}
+        return {
+            "id": self.id, "name": self.name, "store_count": len(self.stores),
+            "code": self.code, "legal_name": self.legal_name, "category": self.category,
+            "contact_name": self.contact_name, "contact_email": self.contact_email,
+            "contact_phone": self.contact_phone, "regions": self.regions or [],
+            "status": self.status or "Active", "notes": self.notes,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
 
 
 class UserStore(Base):
-    """Links an auditee to a store. Many auditees per store, many stores per
-    auditee. (Store managers keep using Store.manager_id.)"""
+    """Links a person to a store: auditees (who follow up its issues) and
+    auditors (who audit it by default). Many people per store, many stores per
+    person; the user's role says which kind of link it is. (Store managers keep
+    using Store.manager_id.)"""
     __tablename__ = "user_stores"
     __table_args__ = (UniqueConstraint("user_id", "store_id"),)
 
@@ -482,6 +502,7 @@ class AuditResponse(Base):
     # The audit manager's review: approved, query (asked the auditor), replied.
     review_status = Column(String(20))
     review_note = Column(Text)
+    review_category = Column(String(30))  # what is wrong: wrong_answer / missing_evidence / ...
     review_reply = Column(Text)
     reviewed_by_id = Column(String(12), ForeignKey("users.id"))
     reviewed_at = Column(DateTime)
@@ -508,7 +529,7 @@ class AuditResponse(Base):
             "answer": self.answer, "remarks": self.remarks, "risk": self.risk,
             "evidence": self.evidence or [],
             "review_status": self.review_status, "review_note": self.review_note,
-            "review_reply": self.review_reply,
+            "review_category": self.review_category, "review_reply": self.review_reply,
             "reviewed_by": self.reviewed_by.name if self.reviewed_by else None,
         }
 

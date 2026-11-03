@@ -1,18 +1,19 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  AlarmClock, BadgeCheck, CalendarDays, CheckCircle2, ClipboardList, Eye, Loader2, Pencil, Plus, UserX, X, XCircle,
+  AlarmClock, BadgeCheck, CalendarDays, CheckCircle2, ClipboardList, Eye, Loader2, Pencil, Plus, UserCog, UserX, X,
+  XCircle,
 } from 'lucide-react';
 
 import { api, loadSession } from '../api/client';
 import { scheduleApi } from '../api/scheduleApi';
 import { avC, prC, stC } from '../utils/helpers';
-import { cn, fieldClass } from '@/lib/utils';
+import { cn, fieldClass, labelClass } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Drawer } from '../components/Modal';
+import { Drawer, Modal, ModalActions, ModalTitle } from '../components/Modal';
 import { useToast } from '../components/Toast';
 import AuditRowStatus from '@/components/AuditRowStatus';
 import Tile from '@/components/Tile';
@@ -45,6 +46,16 @@ const STATUS_OPTIONS = [...STAGES, { value: 'overdue', label: 'Overdue' }];
 const EDIT_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Approved', 'Cancelled'];
 const MANAGER_ROLES = ['AUDIT_MANAGER', 'ADMIN'];
 const PER_PAGE = 10;
+// Audits booked this recently get a "New" badge at the top of the list.
+const NEW_FOR_MS = 24 * 60 * 60 * 1000;
+// Open audits whose auditor can still be changed or taken off.
+const REASSIGNABLE = ['Planned', 'Ongoing', 'Changes Requested'];
+
+function isNew(row, justAdded) {
+  if (row.id === justAdded) return true;
+  const t = row.scheduled_on ? new Date(row.scheduled_on).getTime() : NaN;
+  return !Number.isNaN(t) && Date.now() - t < NEW_FOR_MS;
+}
 
 // Progress bar and "x% done" for an audit that is in progress (only when known).
 function RowProgress({ row }) {
@@ -148,6 +159,8 @@ export default function Audit() {
   const [stores, setStores] = useState([]);
   const [checklists, setChecklists] = useState([]);
   const [schedule, setSchedule] = useState(null); // {} new, { row } edit
+  const [justAdded, setJustAdded] = useState(null);
+  const [reassign, setReassign] = useState(null); // { row, auditor_id, reason }
 
   const loadRemote = useCallback(async () => {
     try {
@@ -199,7 +212,8 @@ export default function Audit() {
   // ?new=1 opens the schedule form once the data is in, then leaves the URL clean.
   useEffect(() => {
     if (loading || !filters.new) return;
-    if (canEdit) setSchedule({});
+    // ?new=1&store=<id> (from Store Management) opens the form for that store.
+    if (canEdit) setSchedule(filters.store ? { store_id: filters.store } : {});
     setFilter('new', '');
   }, [loading, filters.new]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -275,6 +289,30 @@ export default function Audit() {
 
   const anyFilter = FILTER_KEYS.some((k) => k !== 'id' && k !== 'new' && filters[k]) || startDate || endDate;
   const canChange = (r) => canEdit && r.stage === 'scheduled';
+  const canReassign = (r) => canEdit && REASSIGNABLE.includes(r.status);
+
+  async function afterSchedule(created) {
+    if (created?.id) {
+      setJustAdded(created.id);
+      setPage(1);
+    }
+    await loadRemote();
+  }
+
+  // Reassign (auditor_id set) or take the auditor off (auditor_id '').
+  async function saveReassign(remove = false) {
+    const { row, auditor_id: to, reason } = reassign;
+    if (!remove && !to) { toast.error('Pick the new auditor'); return; }
+    if (remove && !window.confirm(`Take ${row.auditor || 'the auditor'} off ${row.id}? It stays unassigned until you pick someone.`)) return;
+    try {
+      await api.reassignAudit(row.id, remove ? null : to, reason);
+      toast.success(remove ? 'Auditor removed; the audit is unassigned' : 'Audit reassigned; both auditors were notified');
+      setReassign(null);
+      await loadRemote();
+    } catch (e) {
+      toast.error(scheduleErrorMessage(e));
+    }
+  }
 
   function openEdit(row) {
     setFilter('id', '');
@@ -477,9 +515,12 @@ export default function Audit() {
               const duration = durationLabel(s.start, s.due_at);
               const action = rowAction(s, ws.userId);
               return (
-                <TableRow key={s.key} className={cn(overdue && 'bg-red-50/40')}>
+                <TableRow key={s.key} className={cn(overdue && 'bg-red-50/40', s.id === justAdded && 'bg-blue-50/60')}>
                   <TableCell>
-                    <div className="text-[12.5px] font-semibold">{s.id}</div>
+                    <div className="flex items-center gap-1.5 text-[12.5px] font-semibold">
+                      {s.id}
+                      {canEdit && isNew(s, justAdded) && <Badge className="border-transparent bg-blue-600 px-1.5 py-0 text-[10px] text-white hover:bg-blue-600">New</Badge>}
+                    </div>
                     <div className="text-[11px] text-muted-foreground">{s.tool}</div>
                   </TableCell>
                   <TableCell>
@@ -521,6 +562,7 @@ export default function Audit() {
                       )}
                       {canReview(s) && <Button size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => navigate(`/audits/${s.id}/approve`)}>Review</Button>}
                       {canChange(s) && <button className={iconBtn} onClick={() => openEdit(s)} title="Reschedule or edit" aria-label="Reschedule or edit"><Pencil className="size-3.5" /></button>}
+                      {canReassign(s) && <button className={iconBtn} onClick={() => setReassign({ row: s, auditor_id: '', reason: '' })} title="Reassign auditor" aria-label="Reassign auditor"><UserCog className="size-3.5" /></button>}
                       {canChange(s) && <button className={iconBtn} onClick={() => cancelRow(s)} title="Cancel audit" aria-label="Cancel audit"><XCircle className="size-3.5 text-destructive" /></button>}
                     </div>
                   </TableCell>
@@ -576,6 +618,11 @@ export default function Audit() {
                 <div className="text-[12.5px] font-semibold">{detailRow.auditor}</div>
               </div>
             ) : <Badge className="bg-muted text-muted-foreground border border-border">Unassigned</Badge>}
+            {canReassign(detailRow) && (
+              <Button size="sm" variant="outline" className="mt-2" onClick={() => setReassign({ row: detailRow, auditor_id: '', reason: '' })}>
+                <UserCog className="size-3.5" /> Reassign / remove auditor
+              </Button>
+            )}
           </Section>
           {scoreLabel(detailRow) !== '--' && (
             <div className="mb-4 text-[12.5px]"><span className="text-muted-foreground">Score: </span><b>{scoreLabel(detailRow)}</b></div>
@@ -663,12 +710,41 @@ export default function Audit() {
         <ScheduleAuditModal
           open={schedule}
           onClose={() => setSchedule(null)}
-          onSaved={loadRemote}
+          onSaved={afterSchedule}
           stores={stores}
           auditors={auditors}
           checklists={checklists}
         />
       )}
+
+      <Modal open={!!reassign} onClose={() => setReassign(null)}>
+        {reassign && <>
+          <ModalTitle>Reassign {reassign.row.id}</ModalTitle>
+          <p className="mb-3 text-[12.5px] text-muted-foreground">
+            {reassign.row.store} - now with <b className="text-foreground">{reassign.row.auditor || 'nobody'}</b>. Answers already given stay with the audit.
+          </p>
+          <div className="grid gap-3">
+            <div>
+              <label className={labelClass} htmlFor="reassign-to">New auditor</label>
+              <select id="reassign-to" className={fieldClass} value={reassign.auditor_id} onChange={(e) => setReassign({ ...reassign, auditor_id: e.target.value })}>
+                <option value="">Select auditor</option>
+                {auditors.filter((a) => a.id !== reassign.row.auditor_id).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="reassign-reason">Reason (optional, sent to both auditors)</label>
+              <Input id="reassign-reason" placeholder="e.g. On leave that week" value={reassign.reason} onChange={(e) => setReassign({ ...reassign, reason: e.target.value })} />
+            </div>
+          </div>
+          <ModalActions>
+            {reassign.row.auditor_id && (
+              <Button variant="outline" className="mr-auto border-red-200 text-destructive" onClick={() => saveReassign(true)}>Remove auditor</Button>
+            )}
+            <Button variant="outline" onClick={() => setReassign(null)}>Cancel</Button>
+            <Button onClick={() => saveReassign(false)}>Reassign</Button>
+          </ModalActions>
+        </>}
+      </Modal>
     </>
   );
 }

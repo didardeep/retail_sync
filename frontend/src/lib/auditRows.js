@@ -42,22 +42,28 @@ export function normalizeAudit(audit) {
   }
 }
 
-function time(row) {
-  const t = row.date ? new Date(row.date).getTime() : NaN
+function time(value) {
+  const t = value ? new Date(value).getTime() : NaN
   return Number.isNaN(t) ? null : t
 }
 
-// Newest first; rows without a date go last. Ties keep a stable order by key.
+// Later first; a missing value goes last. 0 when both are missing or equal.
+function newestFirst(ta, tb) {
+  if (ta === null && tb === null) return 0
+  if (ta === null) return 1
+  if (tb === null) return -1
+  return tb - ta
+}
+
+// Newest booking first, so an audit just scheduled is at the top; then by the
+// audit's own date, newest first, with undated rows last. Ties keep a stable
+// order by key.
 export function auditRows(audits = []) {
   const rows = audits.map(normalizeAudit)
-  return rows.sort((a, b) => {
-    const ta = time(a)
-    const tb = time(b)
-    if (ta === null && tb === null) return a.key.localeCompare(b.key)
-    if (ta === null) return 1
-    if (tb === null) return -1
-    return tb - ta || a.key.localeCompare(b.key)
-  })
+  return rows.sort((a, b) =>
+    newestFirst(time(a.scheduled_on), time(b.scheduled_on))
+    || newestFirst(time(a.date), time(b.date))
+    || a.key.localeCompare(b.key))
 }
 
 // Counts per stage, plus total and rows with nobody assigned.
@@ -81,7 +87,7 @@ export function isOverdue(row, now = new Date()) {
     return !Number.isNaN(end) && now.getTime() > end
   }
   if (row.stage !== 'scheduled') return false
-  const t = time(row)
+  const t = time(row.date)
   if (t === null) return false
   const startOfToday = new Date(now)
   startOfToday.setHours(0, 0, 0, 0)

@@ -72,6 +72,7 @@ function QuestionBank() {
   const [procName, setProcName] = useState('')
 
   /* ── response-type modal state ── */
+  const [rejecting, setRejecting] = useState(null) // { id, reason }
   const [showRTModal, setShowRTModal] = useState(false)
   const [rtName, setRTName] = useState('')
 
@@ -166,6 +167,10 @@ function QuestionBank() {
       weight: parseInt(qForm.w) || 3,
       is_critical: qForm.crit,
     }
+    const confirmText = editId
+      ? 'Save changes to this question? A new version is created; finished audits keep the old wording.'
+      : 'Add this question to the question bank?'
+    if (!window.confirm(confirmText)) return
     setSaving(true)
     let call
     if (editId) {
@@ -235,10 +240,17 @@ function QuestionBank() {
       .catch(e => toast.error(e.message || 'Could not delete the question'))
   }
 
-  function decide(id, decision) {
-    questionsApi.approve(id, decision)
-      .then(saved => { replaceRow(id, saved); toast(decision === 'APPROVED' ? 'Question approved' : 'Question rejected') })
-      .catch(e => toast.error(e.message || 'Could not record the decision'))
+  function decide(id, decision, reason = '') {
+    return questionsApi.approve(id, decision, reason)
+      .then(saved => { replaceRow(id, saved); toast(decision === 'APPROVED' ? 'Question approved' : 'Question rejected'); return true })
+      .catch(e => { toast.error(e.message || 'Could not record the decision'); return false })
+  }
+
+  // Rejecting asks why; the reason is kept and sent to whoever proposed it.
+  function confirmReject() {
+    const reason = (rejecting?.reason || '').trim()
+    if (!reason) { toast.error('Say why the question is rejected'); return }
+    decide(rejecting.id, 'REJECTED', reason).then(ok => { if (ok) setRejecting(null) })
   }
 
   /* ────────────────── process select change in modal ────────────────── */
@@ -362,6 +374,9 @@ function QuestionBank() {
                   <TableCell>
                     <div className="flex flex-col items-start gap-1">
                       {isManager && <Badge className={cn('text-[10.5px]', statusClass)}>{statusLabel}</Badge>}
+                      {item.status === 'REJECTED' && item.meta?.review?.reason && (
+                        <span className="max-w-[180px] text-[11px] leading-snug text-muted-foreground" title={item.meta.review.reason}>Reason: {item.meta.review.reason}</span>
+                      )}
                       {item.crit && <Badge className="bg-red-50 text-[10.5px] text-red-700">Critical</Badge>}
                     </div>
                   </TableCell>
@@ -376,7 +391,7 @@ function QuestionBank() {
                         {item.status === 'PENDING' && (
                           <>
                             <button className={iconBtn} onClick={() => decide(item.id, 'APPROVED')} title="Approve" aria-label="Approve"><CheckCircle2 className="size-3.5 text-emerald-600" /></button>
-                            <button className={iconBtn} onClick={() => decide(item.id, 'REJECTED')} title="Reject" aria-label="Reject"><CircleOff className="size-3.5 text-destructive" /></button>
+                            <button className={iconBtn} onClick={() => setRejecting({ id: item.id, reason: '' })} title="Reject" aria-label="Reject"><CircleOff className="size-3.5 text-destructive" /></button>
                           </>
                         )}
                       </div>
@@ -446,6 +461,26 @@ function QuestionBank() {
         <ModalActions>
           <Button variant="outline" onClick={() => setShowQModal(false)}>Cancel</Button>
           <Button onClick={saveQuestion} disabled={saving}>{editId ? 'Save Changes' : 'Add Question'}</Button>
+        </ModalActions>
+      </Modal>
+
+      {/* ═══════════ REJECT MODAL ═══════════ */}
+      <Modal open={!!rejecting} onClose={() => setRejecting(null)} className="w-[420px]">
+        <ModalTitle>Reject this question?</ModalTitle>
+        <div>
+          <label className={labelClass} htmlFor="reject-reason">Reason <span className="text-destructive">*</span></label>
+          <textarea
+            id="reject-reason"
+            className={cn(fieldClass, 'min-h-[80px] resize-y')}
+            placeholder="e.g. Duplicate of Q012, or the wording is unclear"
+            value={rejecting?.reason || ''}
+            onChange={e => setRejecting(r => ({ ...r, reason: e.target.value }))}
+          />
+          <p className="mt-1 text-[11.5px] text-muted-foreground">The person who proposed it will see this reason.</p>
+        </div>
+        <ModalActions>
+          <Button variant="outline" onClick={() => setRejecting(null)}>Cancel</Button>
+          <Button variant="destructive" onClick={confirmReject}>Reject question</Button>
         </ModalActions>
       </Modal>
 

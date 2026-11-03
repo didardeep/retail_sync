@@ -7,17 +7,17 @@ from sqlalchemy.orm import Session
 from ..auth import get_staff_user, require_roles
 from ..db import get_db
 from ..models import (
-    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_STORE_MANAGER,
     Audit, AuditResponse, AuditorAvailability, Checklist, ChecklistItem, Issue, Store, User,
 )
 from ..schemas import (
-    AnswerQuestionRequest, AuditApproveRequest, AuditPatchRequest,
-    AuditRatingRequest, AuditScheduleRequest, AuditStartRequest, RaiseIssueRequest, ResponseReply,
-    ResponseReview,
+    AnswerQuestionRequest, AuditApproveRequest, AuditPatchRequest, AuditRatingRequest,
+    AuditReassign, AuditRequestChanges, AuditScheduleRequest, AuditStartRequest, RaiseIssueRequest,
+    ResponseReply, ResponseReview,
 )
 from ..services import (
-    SCORED_STATUSES, auditor_conflict, compute_audit_score, linked_auditee_ids, log_action,
-    next_audit_id, sync_store_score,
+    SCORED_STATUSES, auditor_conflict, compute_audit_score, link_person, linked_auditee_ids,
+    linked_people, log_action, next_audit_id, sync_store_score,
 )
 from ..services.alerts import notify
 
@@ -28,6 +28,33 @@ RISKS = ("None", "Low", "Medium", "High", "Critical")
 ISSUE_PRIORITIES = ("Critical", "High", "Medium", "Low")
 DEFAULT_ISSUE_DAYS = 7
 CLASSIC_AUDIT_TYPE = "Checklist based Audit"
+# The audit manager sent the audit back; the auditor fixes the queried questions.
+CHANGES_REQUESTED = "Changes Requested"
+QUERY_CATEGORIES = ("wrong_answer", "missing_evidence", "unclear_photo", "other")
+
+
+def _now_key():
+    return dt.datetime.utcnow().isoformat()
+
+
+def _active_auditor(db, auditor_id):
+    auditor = db.get(User, auditor_id)
+    if not auditor or not auditor.active or auditor.role != ROLE_AUDITOR:
+        raise HTTPException(status_code=422, detail={
+            "error": "auditor must be an active user with the AUDITOR role"})
+    return auditor
+
+
+def _notify_auditor(db, audit, kind, title, key, link=None):
+    if audit.auditor_id:
+        notify(db, db.get(User, audit.auditor_id), kind, title,
+               link or f"/audits?id={audit.id}", f"{key}:auditor")
+
+
+def _notify_auditees(db, audit, kind, title, key):
+    """Everyone who follows up this store's issues hears about its audit."""
+    for person in linked_people(db, audit.store_id, ROLE_AUDITEE):
+        notify(db, person, kind, title, "/my-issues", f"{key}:{person.id}")
 
 
 def _progress_by_audit(db, audit_ids):
@@ -66,7 +93,8 @@ def list_audits(
         q = q.filter(Audit.store_id.in_(store_ids))
     if status:
         q = q.filter(Audit.status == status)
-    audits = q.order_by(Audit.scheduled_at.desc()).all()
+    # Newest bookings first, so an audit just scheduled shows at the top.
+    audits = q.order_by(Audit.created_at.desc(), Audit.scheduled_at.desc()).all()
     progress = _progress_by_audit(db, [a.id for a in audits])
     out = []
     for a in audits:
@@ -93,6 +121,41 @@ def check_conflicts(
         raise HTTPException(status_code=422, detail={"error": "date must be YYYY-MM-DD"})
     return {"conflict": auditor_conflict(
         db, auditor_id, day, store_id, exclude_audit_id=exclude_audit_id)}
+
+
+@router.get("/suggestions")
+def scheduling_suggestions(
+    store_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
+):
+    """Who to put on an audit at this store. The store's own auditors come first
+    (with exactly one, it is suggested); every other active auditor follows.
+    Also says which auditees will be told, and warns when either list is empty."""
+    store = db.get(Store, store_id)
+    if not store:
+        raise HTTPException(status_code=404, detail={"error": "unknown store"})
+    own = linked_people(db, store_id, ROLE_AUDITOR)
+    own_ids = {u.id for u in own}
+    others = db.query(User).filter(
+        User.role == ROLE_AUDITOR, User.active.is_(True)).order_by(User.name).all()
+    auditees = linked_people(db, store_id, ROLE_AUDITEE)
+
+    def brief(u):
+        return {"id": u.id, "name": u.name, "region": u.region}
+
+    warnings = []
+    if not own:
+        warnings.append("No auditor assigned to this store")
+    if not auditees:
+        warnings.append("No auditee for this store; add one so they get notified")
+    return {
+        "suggested_auditor_id": own[0].id if len(own) == 1 else None,
+        "store_auditors": [brief(u) for u in own],
+        "other_auditors": [brief(u) for u in others if u.id not in own_ids],
+        "auditees": [brief(u) for u in auditees],
+        "warnings": warnings,
+    }
 
 
 @router.get("/{aid}")
@@ -134,8 +197,12 @@ def schedule_audit(
     when = dt.datetime.fromisoformat(body.scheduled_at)
     due = _parse_due(body.due_at, when)
     auditor_id = body.auditor_id
+    store = db.get(Store, body.store_id)
+    if not store:
+        raise HTTPException(status_code=404, detail={"error": "unknown store"})
 
     if auditor_id:
+        _active_auditor(db, auditor_id)
         conflict = auditor_conflict(db, auditor_id, when.date(), body.store_id)
         if conflict:
             raise HTTPException(status_code=409, detail=conflict)
@@ -151,8 +218,59 @@ def schedule_audit(
     db.flush()
 
     _copy_checklist_items(db, audit)
+    linked = False
+    if auditor_id and body.assign_to_store:
+        linked = link_person(db, db.get(User, auditor_id), audit.store_id)
+    _notify_auditor(db, audit, "audit_assigned",
+                    f"New audit {audit.id} at {store.name} on {when:%d %b %H:%M}",
+                    f"assign:{audit.id}:{auditor_id}")
     log_action(db, user.id, "schedule_audit", "audit", audit.id,
-               {"store_id": audit.store_id, "auditor_id": auditor_id})
+               {"store_id": audit.store_id, "auditor_id": auditor_id,
+                "assigned_to_store": linked})
+    db.commit()
+    return audit.to_dict()
+
+
+@router.post("/{aid}/reassign")
+def reassign_audit(
+    aid: str,
+    body: AuditReassign,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
+):
+    """Give a planned or ongoing audit to another auditor, or take the auditor off
+    it (auditor_id null). Answers already given stay with the audit."""
+    audit = db.get(Audit, aid)
+    if not audit:
+        raise HTTPException(status_code=404, detail={"error": "not found"})
+    if audit.status not in ("Planned", "Ongoing", CHANGES_REQUESTED):
+        raise HTTPException(status_code=409, detail={
+            "error": f"audit is {audit.status.lower()}; only an open audit can be reassigned",
+            "status": audit.status})
+    new_id = body.auditor_id or None
+    if new_id == audit.auditor_id:
+        raise HTTPException(status_code=400, detail={"error": "the audit already has this auditor"})
+    new = _active_auditor(db, new_id) if new_id else None
+    if new and audit.scheduled_at:
+        clash = auditor_conflict(db, new.id, audit.scheduled_at.date(), audit.store_id,
+                                 exclude_audit_id=audit.id)
+        if clash:
+            raise HTTPException(status_code=409, detail=clash)
+
+    old = db.get(User, audit.auditor_id) if audit.auditor_id else None
+    reason = body.reason.strip()
+    store = audit.store.name if audit.store else audit.store_id
+    suffix = f": {reason}" if reason else ""
+    key = f"reassign:{audit.id}:{_now_key()}"
+    if old:
+        notify(db, old, "audit_unassigned", f"Audit {audit.id} at {store} was taken off you{suffix}",
+               None, f"{key}:old")
+    audit.auditor_id = new.id if new else None
+    if new:
+        notify(db, new, "audit_assigned", f"Audit {audit.id} at {store} is now yours{suffix}",
+               f"/audits?id={audit.id}", f"{key}:new")
+    log_action(db, user.id, "reassign_audit" if new else "remove_auditor", "audit", audit.id,
+               {"from": old.id if old else None, "to": new.id if new else None, "reason": reason})
     db.commit()
     return audit.to_dict()
 
@@ -319,6 +437,8 @@ def cancel_audit(
     """A scheduled audit that will not happen. Kept for the record, never deleted."""
     audit = _planned_audit(db, aid)
     audit.status = "Cancelled"
+    _notify_auditor(db, audit, "audit_cancelled", f"Audit {audit.id} was cancelled",
+                    f"cancel:{audit.id}")
     log_action(db, user.id, "cancel_audit", "audit", audit.id,
                {"store_id": audit.store_id, "auditor_id": audit.auditor_id})
     db.commit()
@@ -342,6 +462,9 @@ def answer_question(
         raise HTTPException(status_code=403, detail={"error": "forbidden"})
     if audit.status in ("Completed", "Approved", "Cancelled"):
         raise HTTPException(status_code=409, detail={"error": "audit already submitted"})
+    if audit.status == CHANGES_REQUESTED and resp.review_status != "query":
+        raise HTTPException(status_code=409, detail={
+            "error": "only the questions the audit manager queried can be changed"})
 
     d = body.model_dump(exclude_unset=True)
     if d.get("answer") and d["answer"] not in ANSWERS:
@@ -409,6 +532,9 @@ def raise_issue(
     )
     db.add(issue)
     db.flush()
+    notify(db, db.get(User, issue.assignee_id), "issue_assigned",
+           f"New issue at {audit.store.name if audit.store else audit.store_id}: {issue.title}",
+           f"/my-issues?id={issue.id}", f"issue_new:{issue.id}")
     log_action(db, user.id, "raise_issue", "issue", issue.id,
                {"audit_id": audit.id, "assignee_id": issue.assignee_id})
     db.commit()
@@ -441,6 +567,9 @@ def review_response(
         raise HTTPException(status_code=400, detail={"error": "decision must be approve or query"})
     if body.decision == "query" and not note:
         raise HTTPException(status_code=400, detail={"error": "write your question first"})
+    if body.category and body.category not in QUERY_CATEGORIES:
+        raise HTTPException(status_code=400, detail={
+            "error": f"category must be one of {', '.join(QUERY_CATEGORIES)}"})
 
     now = dt.datetime.utcnow()
     resp.reviewed_by_id = user.id
@@ -451,18 +580,67 @@ def review_response(
         resp.review_status = "query"
         resp.review_note = note
         resp.review_reply = None
-        notify(db, db.get(User, audit.auditor_id) if audit.auditor_id else None, "review_query",
-               f"Question on audit {audit.id}: {note}", f"/audits/{audit.id}/review",
-               f"query:{rid}:{now.isoformat()}")
+        resp.review_category = body.category
+        key = f"query:{rid}:{now.isoformat()}"
+        _notify_auditor(db, audit, "review_query", f"Question on audit {audit.id}: {note}", key,
+                        link=f"/audits/{audit.id}/review")
+        code = resp.question.code if resp.question else "a question"
+        _notify_auditees(db, audit, "review_query",
+                         f"The audit manager queried {code} in audit {audit.id}: {note}", key)
     log_action(db, user.id, "review_response", "audit", audit.id,
-               {"response": rid, "decision": body.decision})
+               {"response": rid, "decision": body.decision, "category": body.category})
 
     db.flush()
     if all(r.review_status == "approved" for r in audit.responses):
         audit.status = "Approved"
         audit.approved_by_id = user.id
         sync_store_score(db, audit.store_id, audit.submitted_at)
+        _notify_approved(db, audit)
         log_action(db, user.id, "approve_audit", "audit", audit.id, {"score": audit.score})
+    db.commit()
+    return audit.to_dict(with_responses=True)
+
+
+def _notify_approved(db, audit):
+    score = f" (score {audit.score:g})" if audit.score is not None else ""
+    title = f"Audit {audit.id} was approved{score}"
+    _notify_auditor(db, audit, "audit_approved", title, f"approved:{audit.id}")
+    _notify_auditees(db, audit, "audit_approved", title, f"approved:{audit.id}")
+
+
+@router.post("/{aid}/request-changes")
+def request_changes(
+    aid: str,
+    body: AuditRequestChanges,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
+):
+    """Send a reviewed audit back to its auditor. Only the questions queried
+    (review_status "query") can then be changed; the auditor resubmits and the
+    audit comes back for review. The auditor and the store's auditees are told."""
+    audit = db.get(Audit, aid)
+    if not audit:
+        raise HTTPException(status_code=404, detail={"error": "not found"})
+    if audit.status != "Completed":
+        raise HTTPException(status_code=409, detail={"error": "audit is not waiting for review"})
+    queried = [r for r in audit.responses if r.review_status == "query"]
+    if not queried:
+        raise HTTPException(status_code=400, detail={
+            "error": "query at least one question first, saying what needs to change"})
+    if not audit.auditor_id:
+        raise HTTPException(status_code=409, detail={"error": "assign an auditor first"})
+    note = body.note.strip()
+    audit.status = CHANGES_REQUESTED
+    key = f"changes:{audit.id}:{_now_key()}"
+    n = len(queried)
+    summary = f"{n} question{'s' if n != 1 else ''}" + (f": {note}" if note else "")
+    _notify_auditor(db, audit, "changes_requested",
+                    f"Changes requested on audit {audit.id}, {summary}", key,
+                    link=f"/audits/{audit.id}")
+    _notify_auditees(db, audit, "changes_requested",
+                     f"Audit {audit.id} was sent back to the auditor for changes, {summary}", key)
+    log_action(db, user.id, "request_changes", "audit", audit.id,
+               {"responses": [r.id for r in queried], "note": note})
     db.commit()
     return audit.to_dict(with_responses=True)
 
@@ -503,7 +681,8 @@ def submit_audit(
     if not audit or audit.auditor_id != user.id:
         raise HTTPException(status_code=404, detail={"error": "not found"})
     unanswered = [r for r in audit.responses if not r.answer]
-    if audit.status not in ("Ongoing", "Planned"):
+    resubmitted = audit.status == CHANGES_REQUESTED
+    if audit.status not in ("Ongoing", "Planned", CHANGES_REQUESTED):
         raise HTTPException(status_code=409, detail={
             "error": f"audit is {audit.status.lower()}; it cannot be submitted again",
             "status": audit.status})
@@ -520,6 +699,18 @@ def submit_audit(
     audit.status = "Completed"
     audit.submitted_at = dt.datetime.utcnow()
     sync_store_score(db, audit.store_id, audit.submitted_at)
+    if resubmitted:
+        # The queried questions go back to the manager as answered.
+        reviewers = set()
+        for r in audit.responses:
+            if r.review_status == "query":
+                r.review_status = "replied"
+                r.review_reply = r.review_reply or "Answer updated"
+                if r.reviewed_by:
+                    reviewers.add(r.reviewed_by)
+        for m in reviewers:
+            notify(db, m, "audit_resubmitted", f"Audit {audit.id} was resubmitted after changes",
+                   f"/audits/{audit.id}/approve", f"resubmit:{audit.id}:{_now_key()}")
 
     # Issues are never raised automatically: the auditor chose them, per question,
     # while answering (see raise_issue below). Report how many that was.
@@ -545,6 +736,7 @@ def approve_audit(
     audit.status = "Approved"
     audit.approved_by_id = user.id
     sync_store_score(db, audit.store_id, audit.submitted_at)
+    _notify_approved(db, audit)
     log_action(db, user.id, "approve_audit", "audit", audit.id,
                {"score": audit.score})
     db.commit()

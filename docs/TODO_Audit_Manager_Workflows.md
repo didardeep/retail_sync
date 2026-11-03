@@ -5,6 +5,62 @@ Tick items as they are done.
 
 ---
 
+## Status (3 Nov 2026): backend done, views to do (Tanmay)
+
+The backend, API client functions and data logic below are built and tested
+(`backend/tests/test_audit_manager_workflows.py`). **No page or view was changed.**
+Every screen in this list is for Tanmay to build on top of these endpoints.
+The functions are in `frontend/src/api/client.js`, in the "Audit manager workflows" block.
+
+### Built
+| Area | Endpoint | `api.` function |
+|---|---|---|
+| Brand onboarding (code, legal name, category, contact, regions, status, notes) | `POST/PUT /api/brands`, `GET /api/brands/{id}` (with stores) | `createBrand`, `updateBrand`, `brand` |
+| Format full forms and store type notes | `GET /api/stores/catalog` | `storeCatalog` |
+| Store view (details, people, last and next audit, open issues) | `GET /api/stores/{id}` | `storeDetails` |
+| Stores list shows `auditor_count` and `auditee_count` (manager and admin) | `GET /api/stores` | `stores` |
+| Add or remove a store's auditor or auditee | `POST /api/stores/{id}/auditors` and `.../auditees`, `POST .../{uid}/remove` | `addStoreAuditor`, `addStoreAuditee`, `removeStoreAuditor`, `removeStoreAuditee` |
+| Audit Manager adds, lists, edits and deactivates auditors and auditees | `GET /api/people`, `POST /api/people/auditors` and `/auditees`, `PATCH /api/people/{id}` | `people`, `createAuditor`, `createAuditee`, `updatePerson` |
+| Scheduling suggestions (store's auditors first, warnings) | `GET /api/audits/suggestions?store_id=` | `schedulingSuggestions` |
+| "Also assign this auditor to the store" | `assign_to_store: true` on `POST /api/audits` | `scheduleAudit` |
+| Newest scheduled audit first | `GET /api/audits` order, and `auditRows()` sort | – |
+| Reassign or remove the auditor (planned, ongoing or changes requested) | `POST /api/audits/{id}/reassign` | `reassignAudit` |
+| Query a question with a category, notifying auditor and auditees | `POST /api/audits/{id}/responses/{rid}/review` (`category`) | `reviewResponse` |
+| Return for changes, fix only queried questions, resubmit | `POST /api/audits/{id}/request-changes`, then the existing answer and submit calls | `requestChanges` |
+| Reject a question with a required reason, notifying the proposer | `POST /api/questions/{id}/approve` (`reason`) | `approveQuestion`, `questionsApi.approve` |
+| Approve or deny an action taken (deny needs a reason, evidence optional) | `POST /api/issues/{id}/decision` | `decideIssue` |
+| Reassign an issue to another auditee notifies them | `PUT /api/issues/{id}` (`assignee_id`) | `updateIssue` |
+| Notifications: assigned, reassigned, removed, store link, changes requested, resubmitted, approved, cancelled, issue raised or decided, question decided | in the bell via `/api/notifications` | – |
+| New audit status `Changes Requested` (counted as in progress) | `lib/statuses.js` | – |
+| Migration 0011: brand fields, `users.phone`, `audit_responses.review_category` | runs on start | – |
+
+### Open questions: what the backend assumes (change if the answer differs)
+1. Brand fields: code, legal name, category, contact name/email/phone, regions, status (Active/Inactive), notes. No logo yet.
+2. Who adds users: the **Audit Manager can add auditors and auditees** (`/api/people`); every other role stays Admin-only.
+3. Reassigning keeps the answers already given.
+4. Only the auditor changes answers on a change request; the auditee is notified only.
+5. A store can have **more than one auditor**; with exactly one, scheduling suggests them.
+6. Removing an auditor from a store moves or unassigns their **planned** audits there; **ongoing** ones stay theirs.
+7. An auditee can cover stores of different brands.
+8. The manager picks who takes the open issues (`move_issues_to` / `hand_over_to`); nothing moves automatically.
+9. No limit on denials.
+
+### Views for Tanmay
+- [ ] Store Management: Add Brand / Add Store entry point, brand onboarding form, and "Add a store to this brand?" after saving
+- [ ] Add Store form: format dropdown with full forms and a note, store type note (from `storeCatalog`), next steps after saving (`next_steps`)
+- [ ] Store details view with a People section (add, remove, create new), plus confirm dialogs that use the 409 counts the API returns
+- [ ] Store list: auditor and auditee columns, and "Stores without an auditor / auditee"
+- [ ] Add Auditor / Add Auditee forms (`createAuditor` / `createAuditee`), and deactivate with hand-over
+- [ ] Schedule form: use `schedulingSuggestions` (fill in, store's auditors first, warnings, + Add auditor), an "Also assign to store" checkbox, and a confirmation toast
+- [ ] Highlight newly added audits in the Audit list (the order is already newest first)
+- [ ] Reassign / Remove auditor buttons and dialog (row, drawer, review page)
+- [ ] Pending Approval list page, category picker on query, Return for changes button, Changes Requested badge
+- [ ] Auditor side: open a `Changes Requested` audit with only the queried questions editable, then resubmit. *`isAuditorEditable` does not include it yet; add it when the wizard handles it.*
+- [ ] Questions: confirm before saving edits, and a **reason box when rejecting**. *The current Reject button now gets "say why the question is rejected" until this is added.*
+- [ ] Action Taken Tracking: Approve / Deny buttons, deny reason and evidence upload, and decisions history (`meta.decisions`)
+
+---
+
 ## Workflow 1: Onboard a brand → store → people → schedule → review
 
 ### 1. Add a brand (Store Management)
