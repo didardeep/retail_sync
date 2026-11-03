@@ -155,3 +155,12 @@ test('rowAction: start or resume own editable audits, otherwise view', () => {
   assert.equal(rowAction(row('scheduled', 'u2'), 'u1'), 'view');
   assert.equal(rowAction(row('scheduled'), ''), 'view');
 });
+
+test('the changes_requested filter keeps only audits sent back by the manager', async () => {
+  const { statusMatches, statusFilterLabel } = await import('../src/components/audit/auditHelpers.js')
+  const back = { status: 'Changes Requested', stage: 'in_progress' }
+  const running = { status: 'Ongoing', stage: 'in_progress' }
+  assert.equal(statusMatches(back, 'changes_requested'), true)
+  assert.equal(statusMatches(running, 'changes_requested'), false)
+  assert.equal(statusFilterLabel('changes_requested'), 'Changes requested')
+})

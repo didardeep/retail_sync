@@ -116,7 +116,6 @@ export default function Issues() {
     title: '', status: 'Open', desc: '', pri: 'Critical', storeId: '', assigneeId: '',
     due: '', aid: '', actionTaken: ''
   });
-  const [users, setUsers] = useState([]);
   const [saving, setSaving] = useState(false);
   const editIssue = editId ? issues.find(x => x.id === editId) : null;
   // Store managers may only change status and action taken, so the form shows just those.
@@ -134,8 +133,10 @@ export default function Issues() {
   const isManager = role === 'ADMIN' || role === 'AUDIT_MANAGER';
   // The manager does not edit an existing issue: they read the reply and evidence, then approve or deny.
   const managerReview = isManager && !!editId;
+  // An issue with an action recorded and not yet closed is waiting for the manager's decision.
+  const decidable = managerReview && !!editIssue && !!editIssue.actionTaken && editIssue.status !== 'Closed';
   // The audit manager approves or denies the action taken.
-  const [decision, setDecision] = useState({ reason: '', evidence: [] });
+  const [decision, setDecision] = useState({ reason: '' });
   // Auditees of the issue's store, listed first in the assignee picker.
   const [storeAuditees, setStoreAuditees] = useState([]);
   const canDelete = role === 'ADMIN' || role === 'AUDIT_MANAGER';
@@ -146,13 +147,10 @@ export default function Issues() {
     Promise.all([
       api.issues().catch(() => []),
       api.stores().catch(() => []),
-      // The users list is manager/admin only; store managers never pick an assignee.
-      isLimited || isAuditor || isViewer ? Promise.resolve([]) : api.users().catch(() => []),
-    ]).then(([i, s, u]) => {
+    ]).then(([i, s]) => {
       const normalized = (i || []).map(normalizeIssue);
       setIssues(normalized);
       setStores(s || []);
-      setUsers((u || []).filter(x => x.active !== false));
       setLoading(false);
       // open detail from ?id= query param
       const idParam = filters.id;
@@ -191,10 +189,10 @@ export default function Issues() {
     if (kind === 'approve' && !window.confirm('Approve the action taken and close this issue?')) return;
     setSaving(true);
     try {
-      const saved = normalizeIssue(await api.decideIssue(editId, kind, decision.reason.trim(), decision.evidence));
+      const saved = normalizeIssue(await api.decideIssue(editId, kind, decision.reason.trim()));
       setIssues(prev => prev.map(x => (x.id === saved.id ? saved : x)));
       setForm(f => ({ ...f, status: saved.status }));
-      setDecision({ reason: '', evidence: [] });
+      setDecision({ reason: '' });
       toast(kind === 'approve' ? 'Approved; the issue is closed' : 'Denied; the issue is open again and the assignee was told');
     } catch (e) {
       toast.error(e.message || 'Could not save the decision');
@@ -263,7 +261,7 @@ export default function Issues() {
       actionTaken: i.actionTaken || '',
       evidence: i.evidence
     });
-    setDecision({ reason: '', evidence: [] });
+    setDecision({ reason: '' });
     setModalOpen(true);
   }
 
@@ -543,15 +541,17 @@ export default function Issues() {
               <div className={labelClass}>Reply from {editIssue?.assignee}</div>
               <div className="text-[13px] text-foreground">{editIssue?.actionTaken || 'No reply yet.'}</div>
             </div>
-            <div>
-              <div className={labelClass}>
-                Follow-up evidence
-                <span className="ml-1 font-normal normal-case text-muted-foreground">
-                  ({editIssue?.evidence.length ? `${editIssue.evidence.length} ${editIssue.evidence.length === 1 ? 'item' : 'items'} attached` : 'none attached'})
-                </span>
+            {!decidable && (
+              <div>
+                <div className={labelClass}>
+                  Follow-up evidence
+                  <span className="ml-1 font-normal normal-case text-muted-foreground">
+                    ({editIssue?.evidence.length ? `${editIssue.evidence.length} ${editIssue.evidence.length === 1 ? 'item' : 'items'} attached` : 'none attached'})
+                  </span>
+                </div>
+                <EvidenceList items={editIssue?.evidence} />
               </div>
-              <EvidenceList items={editIssue?.evidence} />
-            </div>
+            )}
             {isViewer ? null : managerReview ? (
               <>
             {managerReview && editIssue && editIssue.status !== 'Closed' && storeAuditees.length > 0 && (
@@ -565,16 +565,21 @@ export default function Issues() {
                 <p className="mt-0.5 text-[11px] text-muted-foreground">Only auditees of this store can take it. The change is added to the history.</p>
               </div>
             )}
-            {isManager && editIssue && editIssue.actionTaken && editIssue.status !== 'Closed' && (
+            {decidable && (
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
                 <div className="mb-1 text-[12.5px] font-semibold text-foreground">Action taken by {editIssue.assignee}</div>
                 <div className="mb-2 whitespace-pre-wrap text-[12.5px] text-foreground/80">{editIssue.actionTaken}</div>
+                <div className="mb-2">
+                  <div className={labelClass}>
+                    Evidence provided
+                    <span className="ml-1 font-normal normal-case text-muted-foreground">
+                      ({editIssue.evidence.length ? `${editIssue.evidence.length} ${editIssue.evidence.length === 1 ? 'item' : 'items'} attached` : 'none attached'})
+                    </span>
+                  </div>
+                  <EvidenceList items={editIssue.evidence} />
+                </div>
                 <label className={labelClass} htmlFor="decision-reason">Reason (needed to deny)</label>
                 <textarea id="decision-reason" className={cn(fieldClass, 'min-h-[56px] resize-y')} placeholder="What is still not right" value={decision.reason} onChange={e => setDecision(d => ({ ...d, reason: e.target.value }))} />
-                <div className="mt-2">
-                  <div className={labelClass}>Evidence for a denial (optional)</div>
-                  <EvidencePicker value={decision.evidence} onChange={next => setDecision(d => ({ ...d, evidence: next }))} />
-                </div>
                 <div className="mt-2 flex justify-end gap-2">
                   <Button variant="outline" className="border-red-200 text-destructive" disabled={saving} onClick={() => decideIssue('deny')}>Deny</Button>
                   <Button disabled={saving} onClick={() => decideIssue('approve')}>Approve &amp; close</Button>
@@ -672,24 +677,21 @@ export default function Issues() {
               </div>
               <div>
                 <label className={labelClass}>Store <span className="text-destructive">*</span></label>
-                <select className={fieldClass} value={form.storeId} onChange={e => setForm(f => ({ ...f, storeId: e.target.value }))}>
+                <select className={fieldClass} value={form.storeId} onChange={e => setForm(f => ({ ...f, storeId: e.target.value, assigneeId: '' }))}>
                   <option value="">Select store</option>
                   {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className={labelClass}>Assignee</label>
-                <select className={fieldClass} value={form.assigneeId} onChange={e => setForm(f => ({ ...f, assigneeId: e.target.value }))}>
+                <select className={fieldClass} value={form.assigneeId} disabled={!form.storeId}
+                  onChange={e => setForm(f => ({ ...f, assigneeId: e.target.value }))}>
                   <option value="">Unassigned</option>
-                  {storeAuditees.length > 0 && (
-                    <optgroup label="Auditees of this store">
-                      {storeAuditees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                    </optgroup>
-                  )}
-                  <optgroup label={storeAuditees.length ? 'Everyone else' : 'People'}>
-                    {users.filter(u => !storeAuditees.some(a => a.id === u.id)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                  </optgroup>
+                  {storeAuditees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {!form.storeId ? 'Pick a store first.' : storeAuditees.length ? 'Only auditees linked to this store can be assigned.' : 'This store has no auditee yet: add one in Store Management.'}
+                </p>
               </div>
             </div>
 

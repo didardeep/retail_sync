@@ -46,6 +46,7 @@ test('auditorKpis counts stages, overdue, average and month', () => {
   assert.equal(k.total, 8);
   assert.equal(k.scheduled, 3); // L1, L4, L8
   assert.equal(k.in_progress, 1);
+  assert.equal(k.changes, 0);
   assert.equal(k.completed, 3); // L2, L6, L7
   assert.equal(k.cancelled, 1); // L3
   assert.equal(k.overdue, 1); // L4 only; L8 is today
@@ -180,3 +181,11 @@ test('storeLatestScores keeps the latest completed audit per store, best first',
   assert.deepEqual(out.map((s) => [s.store_id, s.percent]), [['S2', 90], ['S1', 85]]);
   assert.equal(out[1].date, '2031-05-01T10:00:00');
 });
+
+test('a returned audit counts as changes requested, not in progress', () => {
+  const returned = { id: 'R1', status: 'Changes Requested', stage: 'in_progress', date: '2026-05-01T10:00:00', due_at: null }
+  const running = { id: 'R2', status: 'Ongoing', stage: 'in_progress', date: '2026-05-01T10:00:00', due_at: null }
+  const k = auditorKpis([returned, running], NOW)
+  assert.equal(k.changes, 1)
+  assert.equal(k.in_progress, 1)
+})

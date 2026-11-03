@@ -16,8 +16,9 @@ export default function AnnexurePanel({ auditId }) {
   const [rows, setRows] = useState(null);
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
-  const canFile = !READ_ONLY_ROLES.includes(user?.role);
   const isManager = user?.role === 'ADMIN' || user?.role === 'AUDIT_MANAGER';
+  // The audit manager reviews what was filed; they do not file or remove files themselves.
+  const canFile = !READ_ONLY_ROLES.includes(user?.role) && !isManager;
 
   useEffect(() => {
     api.annexures(auditId).then(setRows).catch(() => setRows([]));

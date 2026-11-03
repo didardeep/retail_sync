@@ -41,7 +41,7 @@ import { useUrlFilters } from '@/lib/useUrlFilters';
 // rowMatchesStatusFilter); id opens the detail; new opens the schedule form
 // (old /scheduling links land here).
 const FILTER_KEYS = ['stage', 'status', 'view', 'brand', 'store', 'region', 'quarter', 'auditor', 'q', 'id', 'new'];
-const STATUS_OPTIONS = [...STAGES, { value: 'overdue', label: 'Overdue' }];
+const STATUS_OPTIONS = [...STAGES, { value: 'changes_requested', label: 'Changes requested' }, { value: 'overdue', label: 'Overdue' }];
 // Statuses a manager or admin may set by hand on a checklist audit (same list as the API).
 const EDIT_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Approved', 'Cancelled'];
 const MANAGER_ROLES = ['AUDIT_MANAGER', 'ADMIN'];

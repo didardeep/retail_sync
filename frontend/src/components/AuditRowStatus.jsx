@@ -5,6 +5,7 @@ import { isOverdue } from '@/lib/auditRows';
 // Status of an audit row in the same words as the filters. Past its end date a
 // scheduled or running audit says so in one red badge.
 export default function AuditRowStatus({ row }) {
+  if (row.status === 'Changes Requested') return <Badge className="border-transparent bg-amber-500 text-white hover:bg-amber-500">Changes requested</Badge>;
   if (isOverdue(row)) return <Badge variant="destructive">{stageLabel(row.stage)} but overdue</Badge>;
   return <Badge className={stageBadgeClass(row.stage)}>{stageLabel(row.stage)}</Badge>;
 }

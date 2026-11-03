@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
-import { AlertTriangle, CalendarDays, CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle2, Loader2, Undo2, XCircle } from 'lucide-react';
 
 import { api, loadSession } from '@/api/client';
 import { Loading } from '@/components/Loader';
@@ -188,8 +188,9 @@ export default function AuditorDashboard() {
         </p>
       </div>
 
-      <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <Tile icon={CalendarDays} tint="#e8eefa" label="Scheduled" value={kpis.scheduled} onClick={toStatus('scheduled')} />
+        <Tile icon={Undo2} tint="#fef3c7" label="Changes requested" value={kpis.changes} active={kpis.changes > 0} onClick={toStatus('changes_requested')} />
         <Tile icon={Loader2} tint="#fffbeb" label="In progress" value={kpis.in_progress} onClick={toStatus('in_progress')} />
         <Tile icon={CheckCircle2} tint="#ecfdf5" label="Submitted" value={kpis.completed} onClick={toStatus('completed')} />
         <Tile icon={XCircle} tint="#f1f5f9" label="Cancelled" value={kpis.cancelled} onClick={toStatus('cancelled')} />

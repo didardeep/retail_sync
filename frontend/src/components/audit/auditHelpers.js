@@ -23,7 +23,7 @@ export function normalizeView(view) {
 // (Planned, Ongoing, Completed ...); map those onto the stage they belong to.
 export function normalizeStatus(status) {
   if (!status) return ''
-  if (status === 'overdue') return status
+  if (status === 'overdue' || status === 'changes_requested') return status
   if (STAGES.some((s) => s.value === status)) return status
   return stageOf(status)
 }
@@ -35,13 +35,14 @@ export function statusMatches(row, status, now = new Date()) {
   const wanted = normalizeStatus(status)
   if (!wanted) return true
   if (wanted === 'overdue') return isOverdue(row, now)
+  if (wanted === 'changes_requested') return row.status === 'Changes Requested'
   if (wanted === 'completed') return row.stage === 'completed' || row.stage === 'approved'
   return row.stage === wanted
 }
 
 const STATUS_LABELS = {
   scheduled: 'Scheduled', in_progress: 'In progress', completed: 'Submitted',
-  approved: 'Approved', cancelled: 'Cancelled', overdue: 'Overdue',
+  approved: 'Approved', cancelled: 'Cancelled', overdue: 'Overdue', changes_requested: 'Changes requested',
 }
 
 // Label of the "Filter: ... (clear)" chip; '' when there is no status filter.

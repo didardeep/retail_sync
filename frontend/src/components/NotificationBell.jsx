@@ -32,7 +32,14 @@ export default function NotificationBell({ role }) {
           ]);
           const planned = (audits || []).filter(a => a.status === 'Planned');
           const toReview = (issues || []).filter(needsReview);
+          // Audits the manager sent back: this stays until the auditor resubmits.
+          const returned = (audits || []).filter(a => a.status === 'Changes Requested');
           setItems([
+            ...(returned.length ? [{
+              label: `${returned.length} audit${returned.length > 1 ? 's' : ''} sent back for changes: fix now`,
+              link: returned.length === 1 ? `/audits/${returned[0].id}` : auditsLink({ status: 'changes_requested' }),
+              urgent: true,
+            }] : []),
             ...(planned.length ? [{ label: `${planned.length} planned audit${planned.length > 1 ? 's' : ''} assigned`, link: auditsLink({ stage: 'scheduled' }) }] : []),
             ...(toReview.length ? [{ label: `${toReview.length} issue${toReview.length > 1 ? 's' : ''} to review`, link: issuesLink({ status: 'Resolved' }) }] : []),
           ]);
@@ -53,7 +60,7 @@ export default function NotificationBell({ role }) {
         }
         // Reminders and escalations sent to this person; these clear once opened.
         const alerts = await api.notifications().catch(() => []);
-        setItems((prev) => [...(alerts || []).map((n) => ({ id: n.id, label: n.title, link: n.link })), ...prev]);
+        setItems((prev) => [...(alerts || []).map((n) => ({ id: n.id, label: n.title, link: n.link, urgent: n.kind === 'changes_requested' || n.kind === 'audit_rejected' })), ...prev]);
       } catch {
         // silently ignore notification errors
       }
@@ -91,10 +98,13 @@ export default function NotificationBell({ role }) {
       </button>
       {open && (
         <div className="absolute right-0 top-[calc(100%+6px)] z-50 min-w-[240px] overflow-hidden rounded-lg border border-border bg-card shadow-lg">
-          {items.length ? items.map((item, i) => (
+          {items.length ? [...items].sort((a, b) => Number(!!b.urgent) - Number(!!a.urgent)).map((item, i) => (
             <button
               key={i}
-              className="block w-full px-4 py-2.5 text-left text-[12.5px] text-foreground hover:bg-accent"
+              className={cn(
+                'block w-full px-4 py-2.5 text-left text-[12.5px] text-foreground hover:bg-accent',
+                item.urgent && 'border-l-4 border-amber-500 bg-amber-50 font-semibold',
+              )}
               onClick={() => go(item)}
             >
               {item.label}

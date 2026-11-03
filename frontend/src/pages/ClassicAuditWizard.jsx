@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 
-import { loadSession } from '@/api/client';
+import { api, loadSession } from '@/api/client';
 import { lockedForChanges } from '@/lib/statuses';
+import { categoryLabel, fixProgress, flaggedQuestions, stepFlagged } from '@/lib/changesRequested';
 import { cn, fieldClass, labelClass } from '@/lib/utils';
 import {
   RISKS, firstUnansweredIndex, isAuditorEditable, orderedQuestions,
@@ -16,14 +17,17 @@ import { ErrorNote, Loading } from '@/components/Loader';
 import { EvidencePicker } from '@/components/Evidence';
 import ExceptionsCard from '@/components/ExceptionsCard';
 import AnswerButtons from '@/components/classic/AnswerButtons';
+import ChangesPanel from '@/components/classic/ChangesPanel';
 import ConflictPanel from '@/components/classic/ConflictPanel';
 import OnlineBanner from '@/components/classic/OnlineBanner';
+import QuestionRail from '@/components/classic/QuestionRail';
 import RaiseIssue from '@/components/classic/RaiseIssue';
 import SyncChip from '@/components/SyncChip';
 import { useOnline } from '@/lib/useOnline';
 import {
-  dismissConflict, loadAudit, saveChange, syncNow, useSyncState,
+  dismissConflict, flushAudit, forgetAudit, loadAudit, saveChange, syncNow, useSyncState,
 } from '@/lib/offlineSync';
+import { submitBlock } from '@/lib/offlineQueue';
 import { updateCachedResponse } from '@/lib/offlineStore';
 
 // One checklist question per screen. Works offline: every change is written to
@@ -43,6 +47,10 @@ export default function ClassicAuditWizard({ initialAudit }) {
   const [remarks, setRemarks] = useState('');
   const [saveError, setSaveError] = useState(null);
   const [dismissing, setDismissing] = useState(false);
+  // Sent back for changes: the flagged questions the auditor has changed so far.
+  const [changed, setChanged] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const changedRef = useRef([]);
   const sync = useSyncState();
   const conflict = sync.conflicts[id];
 
@@ -52,7 +60,26 @@ export default function ClassicAuditWizard({ initialAudit }) {
   const questions = useMemo(() => orderedQuestions(audit), [audit]);
   const sections = useMemo(() => processes(audit), [audit]);
   const q = questions[idx];
-  live.current = { q, remarks, conflict };
+  // The changes made since the audit came back are kept per return, so a second return starts fresh.
+  const fixKey = audit?.status === 'Changes Requested' ? `fix:${id}:${audit.decision_at || ''}` : null;
+  live.current = { q, remarks, conflict, fixKey };
+
+  useEffect(() => {
+    let saved = [];
+    if (fixKey) {
+      try { saved = JSON.parse(sessionStorage.getItem(fixKey) || '[]'); } catch { saved = []; }
+    }
+    changedRef.current = saved;
+    setChanged(saved);
+  }, [fixKey]);
+
+  const markChanged = useCallback((respId) => {
+    const key = live.current.fixKey;
+    if (!key || changedRef.current.includes(respId)) return;
+    changedRef.current = [...changedRef.current, respId];
+    setChanged(changedRef.current);
+    try { sessionStorage.setItem(key, JSON.stringify(changedRef.current)); } catch { /* storage can be unavailable */ }
+  }, []);
 
   // Load (unless the route wrapper already did) and pick the starting question.
   useEffect(() => {
@@ -101,13 +128,14 @@ export default function ClassicAuditWizard({ initialAudit }) {
       return false;
     }
     setSaveError(null);
+    markChanged(respId);
     setAudit((prev) => ({
       ...prev,
       status: prev.status === 'Planned' ? 'Ongoing' : prev.status,
       responses: prev.responses.map((r) => (r.id === respId ? { ...r, ...patch } : r)),
     }));
     return true;
-  }, [id]);
+  }, [id, markChanged]);
 
   // Write the remarks box if it changed. False means a save failed.
   const flush = useCallback(async () => {
@@ -145,6 +173,17 @@ export default function ClassicAuditWizard({ initialAudit }) {
 
   async function go(delta) {
     if (!(await flush())) return;
+    if (audit.status === 'Changes Requested') {
+      // Only the flagged questions can change, so Next and Back skip the locked ones.
+      const target = stepFlagged(flaggedQuestions(audit), idx, delta);
+      if (target !== null) {
+        setIdx(target);
+        topRef.current?.scrollIntoView({ block: 'start' });
+      } else if (delta > 0) {
+        await submitChanges();
+      }
+      return;
+    }
     const next = idx + delta;
     if (next < 0) return;
     if (next >= questions.length) {
@@ -153,6 +192,37 @@ export default function ClassicAuditWizard({ initialAudit }) {
     }
     setIdx(next);
     topRef.current?.scrollIntoView({ block: 'start' });
+  }
+
+  async function jumpTo(index) {
+    if (!(await flush())) return;
+    setIdx(index);
+    topRef.current?.scrollIntoView({ block: 'start' });
+  }
+
+  // Send the fixed audit straight back to the audit manager, without the review step.
+  async function submitChanges() {
+    if (!(await flush())) return;
+    const left = fixProgress(flaggedQuestions(audit), changedRef.current).left;
+    if (left > 0 && !window.confirm(`${left} flagged ${left === 1 ? 'question is' : 'questions are'} still unchanged. Submit anyway?`)) return;
+    setSubmitting(true);
+    try {
+      // Never submit with answers that are still only on this device.
+      const pending = await flushAudit(id);
+      const why = submitBlock({ online: navigator.onLine, ...pending });
+      if (why) {
+        toast.error(why);
+        return;
+      }
+      await api.submitAudit(id);
+      await forgetAudit(id);
+      toast('Changes submitted. The audit is back with the audit manager.');
+      navigate('/audits');
+    } catch (e) {
+      toast.error(e.offline ? 'You need a connection to submit. Reconnect and try again.' : (e.message || 'Could not submit the changes'));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function jumpToSection(name) {
@@ -180,11 +250,17 @@ export default function ClassicAuditWizard({ initialAudit }) {
   const { answered, total, percent } = progress(audit);
   const isLast = idx === questions.length - 1;
   const locked = lockedForChanges(audit, q);
-  const queriedLeft = audit.status === 'Changes Requested'
-    ? questions.filter((r) => r.review_status === 'query') : [];
+  const fixing = audit.status === 'Changes Requested';
+  const flagged = fixing ? flaggedQuestions(audit) : [];
+  const nextFlagged = fixing ? stepFlagged(flagged, idx, 1) : null;
+  const prevFlagged = fixing ? stepFlagged(flagged, idx, -1) : null;
+  const railItems = fixing
+    ? flagged.map((f) => ({ index: f.index, label: f.code.replace(/^Q0*/, 'Q'), state: changed.includes(f.id) ? 'flag-done' : 'flag' }))
+    : questions.map((r, i) => ({ index: i, label: String(i + 1), state: r.answer ? 'done' : 'todo' }));
 
   return (
-    <div ref={topRef} className="mx-auto max-w-2xl scroll-mt-4">
+    <div className="mx-auto flex max-w-4xl items-start gap-5">
+    <div ref={topRef} className="min-w-0 max-w-2xl flex-1 scroll-mt-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <Button
@@ -206,21 +282,9 @@ export default function ClassicAuditWizard({ initialAudit }) {
 
       <OnlineBanner online={online} saveError={saveError} />
 
-      {audit.status === 'Changes Requested' && (
-        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-[12.5px] text-amber-900" role="status">
-          <b>Changes requested.</b> Fix the {queriedLeft.length} queried question{queriedLeft.length === 1 ? '' : 's'}, then go to Review and resubmit. The other answers are locked.
-          {audit.decision_note && <div className="mt-1"><b>Audit manager:</b> {audit.decision_note}</div>}
-          {queriedLeft.length > 1 && (
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {queriedLeft.map((r) => (
-                <button key={r.id} type="button" onClick={() => setIdx(r.index)}
-                  className={cn('rounded border border-amber-300 bg-white px-1.5 py-0.5 text-[11px] font-semibold', r.index === idx && 'border-amber-600')}>
-                  {r.question_code || `Q${r.index + 1}`}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      {fixing && (
+        <ChangesPanel audit={audit} flagged={flagged} changed={changed} currentIndex={idx}
+          onJump={jumpTo} onSubmit={submitChanges} submitting={submitting} />
       )}
 
       {online && (
@@ -265,6 +329,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
         {q.review_status === 'query' && q.review_note && (
           <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-[12.5px] text-amber-900">
             <span className="font-semibold">{q.reviewed_by || 'Audit manager'}: </span>{q.review_note}
+            {categoryLabel(q.review_category) && <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium">{categoryLabel(q.review_category)}</span>}
           </div>
         )}
         {locked && (
@@ -320,16 +385,25 @@ export default function ClassicAuditWizard({ initialAudit }) {
         className="sticky -bottom-10 z-10 -mx-4 mt-4 flex items-center gap-2 border-t border-border bg-card px-4 py-3 md:mx-0 md:rounded-lg md:border"
         style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
       >
-        <Button type="button" variant="outline" className="h-11 w-11 shrink-0 px-0" onClick={() => go(-1)} disabled={idx === 0} aria-label="Previous question">
+        <Button type="button" variant="outline" className="h-11 w-11 shrink-0 px-0" onClick={() => go(-1)} disabled={fixing ? prevFlagged === null : idx === 0} aria-label="Previous question">
           <ChevronLeft />
         </Button>
         <Button type="button" variant="outline" className="h-11 flex-1" onClick={saveAndExit}>
           <Save /> Save &amp; exit
         </Button>
         <Button type="button" className="h-11 flex-1" onClick={() => go(1)}>
-          {isLast ? 'Review' : 'Next'} <ChevronRight />
+          {fixing ? (nextFlagged === null ? 'Submit changes' : 'Next flagged') : (isLast ? 'Review' : 'Next')} <ChevronRight />
         </Button>
       </div>
+    </div>
+    <QuestionRail
+      title={fixing ? 'Flagged' : 'Questions'}
+      items={railItems}
+      currentIndex={idx}
+      onJump={jumpTo}
+      endLabel={fixing ? 'Submit changes' : 'End: review'}
+      onEnd={fixing ? submitChanges : () => go(questions.length)}
+    />
     </div>
   );
 }

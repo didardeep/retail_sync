@@ -168,6 +168,19 @@ The functions are in `frontend/src/api/client.js`, in the "Audit manager workflo
 
 ---
 
+## Workflow 4: Store manager adds auditees to their own store
+- [ ] The store manager gets a **People** section for their own store only: the auditees (editable) and the auditors (read-only).
+- [ ] The store manager can **add an auditee to their store**: pick an existing auditee, or **+ Create new** (name, login, phone, designation).
+- [ ] The store manager must **define the auditee type** when adding one (see open questions 10 and 11).
+- [ ] The new auditee is linked to **that store only**; the store manager cannot link them to other stores or brands.
+- [ ] The store manager can **change the type** of the auditees in their store.
+- [ ] The auditee gets a welcome notification that names the store and their type.
+- [ ] The Audit Manager is notified when a store manager adds an auditee, and the Audit Log records who added them.
+- [ ] **Removing** an auditee stays with the Audit Manager, because their open issues must be handed over first.
+- [ ] *Today only the Audit Manager and Admin can add people, and an auditee has no "type" field, so this needs a new field and a defined list of types.*
+
+---
+
 ## Cross-cutting
 - [ ] Bell notifications (email later) for:
   - assigned, reassigned, removed
@@ -190,3 +203,5 @@ The functions are in `frontend/src/api/client.js`, in the "Audit manager workflo
 - [ ] 7. Can an auditee cover stores of **different brands**?
 - [ ] 8. When an auditee is deactivated, do their open issues **move automatically** to another auditee, or does the manager pick?
 - [ ] 9. Should a denied issue have a limit on resubmissions, or escalate after N denials?
+- [ ] 10. What are the auditee types: a fixed list the Audit Manager maintains (for example by area: cash, inventory, merchandising, HR), or free text the store manager types?
+- [ ] 11. Is the type stored on the person, or on the person-to-store link (so someone covering two stores can have a different type in each)? Recommended: on the link.

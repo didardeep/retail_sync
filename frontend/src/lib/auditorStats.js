@@ -29,14 +29,15 @@ export function progressPercent(row) {
 
 export function auditorKpis(rows, now = new Date()) {
   const k = {
-    scheduled: 0, in_progress: 0, completed: 0, cancelled: 0, overdue: 0,
+    scheduled: 0, in_progress: 0, changes: 0, completed: 0, cancelled: 0, overdue: 0,
     total: rows.length, avg_percent: null, audits_this_month: 0, stores_this_month: 0,
   }
   let sum = 0
   let n = 0
   const stores = new Set()
   for (const r of rows) {
-    if (r.stage === 'scheduled') k.scheduled += 1
+    if (r.status === 'Changes Requested') k.changes += 1
+    else if (r.stage === 'scheduled') k.scheduled += 1
     else if (r.stage === 'in_progress') k.in_progress += 1
     else if (isDone(r)) k.completed += 1
     else if (r.stage === 'cancelled') k.cancelled += 1
