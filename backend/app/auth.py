@@ -1,5 +1,6 @@
 """JWT auth + role guards."""
 import datetime as dt
+import logging
 import os
 
 import jwt
@@ -11,7 +12,14 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from .db import get_db
 from .models import ROLE_AUDITEE, User
 
-SECRET = os.getenv("JWT_SECRET", "dev-secret-change-me")
+DEFAULT_SECRET = "dev-secret-change-me"
+SECRET = os.getenv("JWT_SECRET", DEFAULT_SECRET)
+if SECRET == DEFAULT_SECRET:
+    # Dev convenience only. Anyone who knows this string can forge a login, so
+    # production must set JWT_SECRET (see docs/TODOS-for-Production.md).
+    logging.getLogger(__name__).warning(
+        "JWT_SECRET is not set: using the built-in development secret. "
+        "Do not run like this in production.")
 ALGO = "HS256"
 TOKEN_HOURS = 12
 

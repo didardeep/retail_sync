@@ -8,9 +8,12 @@
     "build": "vite build",
     "preview": "vite preview",
     "pwa": "vite build && vite preview",
-    "test": "node --test \"tests/*.test.mjs\""
+    "test": "node --test \"tests/*.test.mjs\"",
+    "apk:sync": "vite build && cap sync android",
+    "apk:open": "cap open android"
   },
   "dependencies": {
+    "@capacitor/core": "^8.6.0",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-dropdown-menu": "^2.1.24",
     "@radix-ui/react-label": "^2.1.15",
@@ -31,6 +34,8 @@
     "tailwind-merge": "^2.6.1"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.6.1",
     "postcss": "^8.5.28",
