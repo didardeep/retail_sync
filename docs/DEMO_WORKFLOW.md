@@ -81,3 +81,20 @@ Do not show: the Email page, the Power BI pop-up (sample data).
 | Windows keep logging each other out | Window B must be Incognito |
 | Phone window shows old audits | DevTools > Application > Clear site data |
 | Run it again from scratch | `python demo.py prepare`, clear site data in both windows |
+
+## 4. Optional scenario: an almost finished audit and issues waiting for the manager
+`cd backend && python demo_review_scenario.py` (safe to repeat; it resets only AUD-1007 and its issues).
+Amit's Pacific Hub audit (AUD-1007) has 33 of 34 questions answered (97%, the first question blank; the
+checklist has 34 questions, so that is as close to 100% as one blank gets). Three of his answers are "No",
+and each has an issue assigned to Pooja Iyer, the store's auditee, who has replied and attached evidence.
+If the phone already holds an older copy of the audit, clear the app's data (or sign out and back in).
+
+| Who | Do | Point to make |
+|---|---|---|
+| Amit (phone) | Dashboard > "Finish these" > Pacific Hub; answer the first question; Review; Submit | One blank left: the review step and the score preview before submitting |
+| Audit Manager | Action Taken Tracking: open issue 1 (Critical, till count) | Auditor's photo next to the auditee's reply and photo; **Approve & close** |
+| Audit Manager | Issue 2 (Critical, CMS pickup) | Same: reply and countersigned receipt; **Approve & close** |
+| Audit Manager | Issue 3 (High, deposits): the reply is "Fixed it." and the photo is blurry | **Deny**, with a reason: the issue goes back to the auditee |
+| Audit Manager | Pending Approval: open AUD-1007 (after Amit submits) | Question-by-question review, then **Approve audit** (or Return for fixing / Reject) |
+| Pooja (login `pooja`) | My Issues: the denied issue is back with the manager's reason | The loop closes: the auditee sees what is still wrong |
+

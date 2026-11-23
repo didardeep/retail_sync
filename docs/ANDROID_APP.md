@@ -72,7 +72,11 @@ goes through the same `BASE`.
 | `frontend/android/app/src/main/AndroidManifest.xml` | Android permissions (camera etc.) | When adding permissions |
 | `frontend/package.json` scripts | `apk:sync`, `apk:open` | Rarely |
 | `frontend/.env.apk.example` | Example of the server address to build with | Copy and edit |
-| `frontend/src/api/client.js` | Reads `VITE_API_BASE` | No |
+| `frontend/src/api/client.js` | Reads `VITE_API_BASE`; marks every app request; announces an expired login | No |
+| `frontend/src/lib/appClient.js` | Detects the Android app, builds the `X-App-Client` header, says which roles may stay signed in | No |
+| `frontend/src/lib/sessionExpiry.js` | The expired-login event and the resume rule | No |
+| `frontend/src/App.jsx` | Listens for the expiry, drops a leftover non-auditor login, lands on the right page after sign-in | No |
+| `backend/app/auth.py` | The auditor-only check (`blocked_in_auditor_app`) | No |
 | `backend/app/main.py` | CORS settings (line ~30) | At production time |
 | `backend/run.py` | Starts the server on all interfaces (0.0.0.0:5050) | No |
 
@@ -95,6 +99,10 @@ refreshed by `npm run apk:sync`. Never edit files there; they are overwritten.
 | C6 | Test on the Android Studio emulator (AVD), then a real phone. BlueStacks also works but is a separate install. | The emulator ships with Android Studio, so nothing extra to install. It reaches the laptop at `10.0.2.2`, which does not change when the Wi-Fi IP does. | BlueStacks: extra install; reaches the laptop by LAN IP like a phone. |
 | C7 | Install Android Studio (not command-line tools only). | It bundles the SDK and Gradle setup; easiest for a first build. | Command-line SDK: smaller but more manual setup. |
 | C8 | Build a DEBUG apk first. | Debug APKs install directly with no signing key. | Release APK / app bundle: needs a signing key; do this when publishing. |
+| C9 | The app is for AUDITORS ONLY, and the server enforces it. Chosen by the user. | A phone app for one job should not open the manager's screens, and hiding them is not security. Every request from the app carries `X-App-Client: auditor-app`; the server refuses any other role, at sign-in and on every later request (`backend/app/auth.py`). | Hide screens only: a manager's token would still work. Check only in the app: bypassable. |
+| C10 | An expired login sends the person to the sign-in screen with a message; the same person then carries on where they were. Only the token is cleared, never the offline audits. | Found by testing: a login older than 12 hours made every request fail, but the app kept showing normal screens with no data and nothing opened. | Lengthen the token: not needed to fix this; the idle/expiry policy waits for KPMG's numbers (P6). Wipe data on expiry: would lose an auditor's unsynced audit. |
+| C11 | Tap targets are 40 px or more on a phone (the old compact sizes return from the `md` breakpoint up); form fields have a 44 px minimum on a phone. | The pencil and view buttons were 22-26 px; the issues page had about 140 elements under 32 px. | A global rule for every button: breaks dense desktop layouts. |
+| C12 | The AI assistant button is not shown in the Android app. | It floated over the bottom-right of every page and its full-screen panel sat under the status bar; auditors do not use it on the phone, and it is off without a key. | Fix its placement only: kept for the website (its panel now respects the status-bar space). |
 
 ---
 
@@ -170,6 +178,8 @@ must be running. Log in with the seeded users (see `README.md`).
 
 | Symptom | Likely cause |
 |---------|--------------|
+| Manager or admin cannot sign in on the phone | By design: the app is for auditors (C9). Use the website |
+| Signed in but nothing loads or opens | The login expired. The app should now go to the sign-in screen; if it does not, check the build is current (`npm run apk:sync` and rebuild) |
 | App says "You appear to be offline" at login | Wrong IP, backend not running, firewall blocking 5050, or different Wi-Fi. If the server IS reachable (test with `adb shell toybox nc 10.0.2.2 5050` on the emulator), check `android.allowMixedContent` is true in `capacitor.config.json` and re-run `npm run apk:sync` |
 | Worked yesterday, not today | Laptop IP changed; rebuild with the new IP (or reserve a fixed IP in the router) |
 | Blank screen | Forgot `npm run apk:sync` after changing the code, or build error in `vite build` |
@@ -190,6 +200,37 @@ out (see the comment in `client.js`). The token expires server-side after
 The service worker (`frontend/public/sw.js`) registers in production builds
 and caches the app shell. Inside Capacitor the files are already local, so it
 is harmless but not essential.
+
+### Auditors only
+
+The Android app is for auditors. Everything else is the website's job.
+
+- **Server (the real rule):** inside the app every request carries
+  `X-App-Client: auditor-app` (added in one place, `send()` in `client.js`). In
+  `backend/app/auth.py`, `blocked_in_auditor_app` refuses any user whose role is
+  not AUDITOR: at sign-in (403 "This app is for auditors. Please use the
+  website.", and a `login_blocked_app` row in the audit log) and on every later
+  request, so a manager's token cannot be used from the phone either. The
+  website never sends the header, so it is unaffected. Tests:
+  `backend/tests/test_auditor_app.py`.
+- **App (friendly side):** the sign-in screen shows the message and keeps no
+  login; a login left over from another role is discarded when the app starts;
+  only the auditor demo account is listed. The auditor's menu is Dashboard,
+  Audit Management, Action Taken Tracking and Email Communications.
+- To change which role the app is for, change `AUDITOR_APP` handling in
+  `backend/app/auth.py` and `allowedInThisApp` in `frontend/src/lib/appClient.js`
+  together.
+
+### When the login expires
+
+Logins last 12 hours. A request with an expired token gets 401. The app now
+treats that as "sign in again": it clears the token only, shows the sign-in
+screen with "Your session expired. Please sign in again. Anything not yet sent is
+still saved on this phone.", and keeps the offline audit database untouched (the
+sync layer already treats 401 as "log in again", never as "rejected"). The same
+person signing back in lands on the page they were on; anyone else starts at
+their own home page. Before this, an expired login left normal-looking screens
+with no data and nothing that opened.
 
 ---
 
@@ -232,6 +273,10 @@ host changes, point the domain at the new host instead of rebuilding the app.
 - No release signing key and no Play Store listing.
 - No automated tests of the Android build itself; the frontend tests
   (`npm test`) and backend tests cover the logic only.
+- Idle timeout: only the 12-hour expiry exists. An inactivity timeout and a
+  shorter token with refresh wait for KPMG's numbers (`TODOS-for-Production.md`, P6).
+- Tested on the Android Studio emulator (touch taps through the WebView's
+  DevTools socket), not yet on a real phone, and not offline in airplane mode.
 - The app id `com.retailsync.app` is a placeholder; change it in
   `capacitor.config.json` BEFORE the first real release, because it identifies
   the app permanently once published.

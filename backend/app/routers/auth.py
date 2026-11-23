@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user, make_token, verify_password
+from ..auth import (
+    AUDITOR_APP_ONLY_MESSAGE, blocked_in_auditor_app, get_current_user, make_token, verify_password,
+)
 from ..db import get_db
 from ..models import User
 from ..schemas import LoginRequest, LoginResponse
@@ -29,6 +31,12 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
                    {"email": email[:120], **_client_details(request)})
         db.commit()
         raise HTTPException(status_code=401, detail={"error": "invalid credentials"})
+    if blocked_in_auditor_app(request, user):
+        # Right password, wrong app: say so, and keep a record of the attempt.
+        log_action(db, user.id, "login_blocked_app", "user", user.id,
+                   {"role": user.role, **_client_details(request)})
+        db.commit()
+        raise HTTPException(status_code=403, detail={"error": AUDITOR_APP_ONLY_MESSAGE})
     log_action(db, user.id, "login", "user", user.id, _client_details(request))
     db.commit()
     return {"token": make_token(user), "user": user.to_dict()}

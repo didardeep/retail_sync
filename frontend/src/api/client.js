@@ -1,3 +1,6 @@
+import { appHeaders } from '../lib/appClient'
+import { announceExpiredSession, isSessionExpiry } from '../lib/sessionExpiry'
+
 const BASE = import.meta.env.VITE_API_BASE || '/api'
 const SESSION_KEY = 'rs_session'
 
@@ -36,14 +39,21 @@ async function throwFor(res, fallback) {
   throw err
 }
 
-async function send(path, options) {
+async function send(path, options = {}) {
+  // The Android app marks every request so the server can keep non-auditors out.
+  const headers = { ...(options.headers || {}), ...appHeaders() }
+  let res
   try {
-    return await fetch(BASE + path, options)
+    res = await fetch(BASE + path, { ...options, headers })
   } catch {
     const err = new Error('You appear to be offline')
     err.offline = true
     throw err
   }
+  // A 401 on a request that carried a token means the login expired: send the
+  // person back to sign in instead of leaving a page where nothing loads.
+  if (isSessionExpiry(res.status, headers.Authorization, path)) announceExpiredSession()
+  return res
 }
 
 export async function request(path, { method = 'GET', body } = {}) {

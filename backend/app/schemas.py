@@ -187,6 +187,7 @@ class AnswerQuestionRequest(ORMBase):
     remarks: str | None = None
     risk: str | None = None
     evidence: list[Any] | None = None
+    annexure: dict[str, Any] | None = None
 
 
 class AuditStartRequest(ORMBase):

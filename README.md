@@ -29,7 +29,7 @@ not the security boundary.
 ```bash
 cd backend
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # runtime packages plus pytest; the server uses requirements.txt only
 python seed.py --reset          # creates the DB and loads placeholder data
 python run.py                   # http://127.0.0.1:5050
 ```
@@ -88,6 +88,15 @@ python import_excel.py
 ```
 
 SQLite works as a zero-config fallback — just omit `DATABASE_URL`.
+
+---
+
+## Deploying on the site server
+
+One process on one port (8199) serves the API and the built website, on Windows
+with PostgreSQL and no Docker. Build a zip with `scripts\make-release.bat`, then
+follow `docs/DEPLOYMENT.md`. Updates: `docs/PATCH_AND_PROD_RUNBOOK.md`. Decisions:
+`docs/decisions-site-deployment.md`. What is still open: `docs/TODOS-for-Production.md`.
 
 ---
 

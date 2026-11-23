@@ -15,6 +15,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/Toast';
 import { ErrorNote, Loading } from '@/components/Loader';
 import { EvidencePicker } from '@/components/Evidence';
+import AnnexureGrid from '@/components/AnnexureGrid';
+import { Modal, ModalTitle } from '@/components/Modal';
+import { filledCount } from '@/lib/annexureTable';
 import AnswerButtons from '@/components/classic/AnswerButtons';
 import ChangesPanel from '@/components/classic/ChangesPanel';
 import ConflictPanel from '@/components/classic/ConflictPanel';
@@ -44,6 +47,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
   const [error, setError] = useState(null);
   const [idx, setIdx] = useState(0);
   const [remarks, setRemarks] = useState('');
+  const [showAnnexure, setShowAnnexure] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [dismissing, setDismissing] = useState(false);
   // Sent back for changes: the flagged questions the auditor has changed so far.
@@ -114,6 +118,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
   useEffect(() => {
     if (!live.current.q) return;
     setRemarks(live.current.q.remarks || '');
+    setShowAnnexure(false);
   }, [qId]);
 
   // Store one change on this device and let the sync engine send it.
@@ -371,6 +376,29 @@ export default function ClassicAuditWizard({ initialAudit }) {
             <p className="mt-1 text-xs text-muted-foreground">Evidence needs a connection. Add it once you are back online.</p>
           )}
         </div>
+
+        {q.annexure_template && (
+          <div className="mt-3">
+            <div className={labelClass}>Annexure</div>
+            <Button type="button" variant="outline" className="h-11" onClick={() => setShowAnnexure(true)}>
+              {locked ? 'View annexure' : 'Fill annexure'}
+              {filledCount(q.annexure) > 0 && ` (${filledCount(q.annexure)} ${filledCount(q.annexure) === 1 ? 'row' : 'rows'})`}
+            </Button>
+            <Modal open={showAnnexure} onClose={() => setShowAnnexure(false)} className="w-[760px]">
+              <ModalTitle>Annexure for this question</ModalTitle>
+              <AnnexureGrid
+                key={q.id}
+                template={q.annexure_template}
+                value={q.annexure}
+                readOnly={locked}
+                onCancel={() => setShowAnnexure(false)}
+                onSave={async (data) => {
+                  if (await save(q.id, { annexure: data })) setShowAnnexure(false);
+                }}
+              />
+            </Modal>
+          </div>
+        )}
       </div>
 
       <div

@@ -10,6 +10,8 @@ from pathlib import Path
 
 _TMP = tempfile.mkdtemp(prefix="retail_sync_tests_")
 os.environ["DATABASE_URL"] = f"sqlite:///{Path(_TMP, 'test.db').as_posix()}"
+os.environ["LOG_DIR"] = _TMP  # keep the access log out of backend/logs
+os.environ.pop("APP_ENV", None)  # tests run in development mode
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

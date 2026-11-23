@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { canAccess } from '@/lib/rolesMap';
+import { isAuditorApp } from '@/lib/appClient';
 import { NAV_ITEMS, titleFor } from '@/lib/nav';
 import { Drawer } from '@/components/Modal';
 import { NAV_ICONS } from '@/components/navIcons';
@@ -131,10 +132,11 @@ export default function Layout({ user, onLogout, children }) {
             </div>
           </div>
         </div>
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 pb-10 pt-[18px] md:px-[22px]">{children}</div>
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 pb-24 pt-[18px] md:px-[22px] md:pb-10">{children}</div>
       </div>
-      {/* Not on the audit wizard / review screens: its floating button would sit over Next and Submit on a phone. */}
-      {!/^\/audits\/[^/]+/.test(loc.pathname) && user?.role !== 'AUDITEE' && <ChatAssistant user={user} />}
+      {/* Not on the audit wizard / review screens: its floating button would sit over Next and Submit on a phone.
+          Not in the Android app at all: auditors do not use it there, and it covered the page. */}
+      {!isAuditorApp() && !/^\/audits\/[^/]+/.test(loc.pathname) && user?.role !== 'AUDITEE' && <ChatAssistant user={user} />}
     </div>
   );
 }

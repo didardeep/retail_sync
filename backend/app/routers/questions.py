@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..auth import get_staff_user, require_roles
+from ..annexure_table import clean_template
 from ..db import get_db
 from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, Question, User
 from ..schemas import QuestionApprove, QuestionCreate, QuestionEdit
@@ -14,6 +15,20 @@ from ..services.alerts import notify
 QUESTION_DECISIONS = ("APPROVED", "REJECTED")
 
 router = APIRouter(prefix="/api/questions", tags=["questions"])
+
+
+def _meta_with_clean_annexure(meta):
+    """meta with its annexure layout checked and tidied (dropped when empty)."""
+    meta = dict(meta or {})
+    try:
+        template = clean_template(meta.get("annexure"))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail={"error": str(e)})
+    if template:
+        meta["annexure"] = template
+    else:
+        meta.pop("annexure", None)
+    return meta
 
 
 @router.get("")
@@ -51,7 +66,7 @@ def create_question(
         approval_status="APPROVED" if is_am else "PENDING",
         proposed_by_id=user.id,
         approved_by_id=user.id if is_am else None,
-        meta=body.meta,
+        meta=_meta_with_clean_annexure(body.meta),
     )
     db.add(q)
     db.commit()
@@ -114,7 +129,7 @@ def edit_question(
         is_critical=d.get("is_critical", old.is_critical),
         active=d.get("active", old.active),
         approval_status="APPROVED", approved_by_id=user.id,
-        meta=d.get("meta", old.meta),
+        meta=_meta_with_clean_annexure(d.get("meta", old.meta)),
     )
     db.add(new)
     log_action(db, user.id, "edit_question", "question", new.id,

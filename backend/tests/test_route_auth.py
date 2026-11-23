@@ -15,6 +15,10 @@ from app.models import AuditLog
 PUBLIC = {
     ("POST", "/api/auth/login"),
     ("GET", "/api/health"),
+    # The built website (app/spa.py). The browser needs the login page before it
+    # has a token. It is only registered when frontend/dist exists, and it never
+    # answers /api paths.
+    ("GET", "/{path:path}"),
 }
 
 

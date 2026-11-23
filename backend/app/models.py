@@ -505,6 +505,7 @@ class AuditResponse(Base):
     remarks = Column(Text)
     risk = Column(Text)                          # Risk description or level
     evidence = Column(JSON, default=list)       # [{"type":"photo","url":...}]
+    annexure = Column(JSON)                      # filled-in annexure table (app/annexure_table.py)
     # The audit manager's review: approved, query (asked the auditor), replied.
     review_status = Column(String(20))
     review_note = Column(Text)
@@ -534,6 +535,8 @@ class AuditResponse(Base):
             "process": q.process if q else None,
             "answer": self.answer, "remarks": self.remarks, "risk": self.risk,
             "evidence": self.evidence or [],
+            "annexure": self.annexure,
+            "annexure_template": (q.meta or {}).get("annexure") if q else None,
             "review_status": self.review_status, "review_note": self.review_note,
             "review_category": self.review_category, "review_reply": self.review_reply,
             "reviewed_by": self.reviewed_by.name if self.reviewed_by else None,
