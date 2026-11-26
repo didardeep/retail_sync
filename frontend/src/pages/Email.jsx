@@ -277,12 +277,15 @@ export default function Email() {
             )}
             {filtered.map(e => (
               <div key={e.id} className="flex items-start gap-2.5 border-b border-border px-3.5 py-2.5 transition-colors last:border-0 hover:bg-gray-50">
-                <input
-                  type="checkbox"
-                  checked={selected.includes(e.id)}
-                  onChange={() => toggleSelect(e.id)}
-                  className="mt-0.5 shrink-0"
-                />
+                {/* The padding makes the tick a finger-sized target; the negative margin keeps the layout. */}
+                <label className="-m-3 flex shrink-0 cursor-pointer p-3 md:m-0 md:p-0">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(e.id)}
+                    onChange={() => toggleSelect(e.id)}
+                    className="mt-0.5 h-5 w-5 md:h-auto md:w-auto"
+                  />
+                </label>
                 <span
                   className={cn('shrink-0 cursor-pointer text-[13px]', e.star ? 'text-amber-500' : 'text-gray-200')}
                   onClick={() => toggleStar(e.id)}

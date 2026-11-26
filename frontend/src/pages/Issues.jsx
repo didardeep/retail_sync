@@ -426,7 +426,7 @@ export default function Issues() {
           <option value="">Assignee</option>
           {assigneeOpts.map(a => <option key={a}>{a}</option>)}
         </select>
-        <button className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-card text-[13px]" onClick={clearFilters} title="Clear filters">&#x1F504;</button>
+        <button className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card text-[13px] md:h-[30px] md:w-[30px]" onClick={clearFilters} title="Clear filters">&#x1F504;</button>
       </div>
 
       {/* Table View */}
@@ -440,12 +440,12 @@ export default function Issues() {
                   {i.aid && isAuditee ? (
                     <span className="text-[11.5px] font-semibold text-muted-foreground">{i.aid}</span>
                   ) : i.aid ? (
-                    <button className="text-[11.5px] font-semibold text-primary hover:underline" onClick={e => { e.stopPropagation(); navigate(auditsLink({ id: i.aid })); }}>{i.aid}</button>
+                    <button className="-my-2.5 py-2.5 text-[11.5px] font-semibold text-primary hover:underline" onClick={e => { e.stopPropagation(); navigate(auditsLink({ id: i.aid })); }}>{i.aid}</button>
                   ) : <span />}
                   <div className="flex items-center gap-1.5">
                     {i.ov && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-800">Overdue</span>}
-                    <button className="flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border bg-card text-[10px]" onClick={e => { e.stopPropagation(); openEditIssue(i.id); }}>&#x270F;&#xFE0F;</button>
-                    {canDelete && <button className="flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border bg-card text-[10px] text-destructive" onClick={e => { e.stopPropagation(); deleteIssue(i.id); }}>&#x1F5D1;</button>}
+                    <button className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card text-base md:h-[22px] md:w-[22px] md:text-[10px]" onClick={e => { e.stopPropagation(); openEditIssue(i.id); }}>&#x270F;&#xFE0F;</button>
+                    {canDelete && <button className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card text-base text-destructive md:h-[22px] md:w-[22px] md:text-[10px]" onClick={e => { e.stopPropagation(); deleteIssue(i.id); }}>&#x1F5D1;</button>}
                   </div>
                 </div>
                 {/* title */}

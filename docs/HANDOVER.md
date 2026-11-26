@@ -44,7 +44,7 @@ Deeper detail lives in the other docs listed in section 14.
 - Score entry: the auditor **types a number** (0 to marks, steps of 0.5). Rubric points are guidance only.
 - One question per screen; Next saves; a review screen before submit.
 - Proof (comment/photo) is **configurable per question**.
-- Phone app: **Capacitor** wrapping the existing React app.
+- Phone app: **Capacitor** wrapping the existing React app. Set up and documented in `docs/ANDROID_APP.md`.
 - Dashboard placement: a new "SOP Audits" **tab inside Dashboard and Analytics** (the old page became "Overview").
 - Scheduling: on the **existing Audit Scheduling page**.
 - Questionnaire edits: **versioned** (old audits keep their marks). Editor scope: **everything** (wording, marks,

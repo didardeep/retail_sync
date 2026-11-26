@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
+from ..annexure_table import clean_data
 from ..auth import get_staff_user, require_roles
 from ..db import get_db
 from ..models import (
@@ -508,6 +509,12 @@ def answer_question(
             setattr(resp, field, d[field])
     if "evidence" in d:
         resp.evidence = d["evidence"]
+    if "annexure" in d:
+        template = (resp.question.meta or {}).get("annexure") if resp.question else None
+        try:
+            resp.annexure = clean_data(template, d["annexure"])
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail={"error": str(e)})
     resp.answered_at = dt.datetime.utcnow()
 
     if audit.status == "Planned":

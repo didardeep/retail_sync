@@ -12,6 +12,7 @@ import CriticalityBadge from '@/components/CriticalityBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EvidenceList } from '@/components/Evidence';
+import AnnexureGrid from '@/components/AnnexureGrid';
 import { ErrorNote, Loading } from '@/components/Loader';
 import { useToast } from '@/components/Toast';
 import AnnexurePanel from '@/components/AnnexurePanel';
@@ -68,6 +69,12 @@ function QuestionCard({ number, row, canReview, ticked, note, category, onTick, 
             <Badge className={cn('shrink-0', ANSWER_CLASS[row.answer] || 'bg-muted text-muted-foreground')}>{row.answer || 'Not answered'}</Badge>
           </div>
           {row.remarks && <div className="mt-2 text-[12.5px] text-foreground/80"><span className="text-muted-foreground">Auditor remarks: </span>{row.remarks}</div>}
+          {row.annexure_template && (
+            <div className="mt-3">
+              <div className={labelClass}>Annexure</div>
+              <AnnexureGrid template={row.annexure_template} value={row.annexure} readOnly />
+            </div>
+          )}
 
           <div className="mt-3">
             <div className={cn(labelClass, 'flex items-center gap-1')}>

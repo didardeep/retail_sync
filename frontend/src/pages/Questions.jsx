@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import Tile from '@/components/Tile'
 import { Modal, ModalTitle, ModalActions } from '../components/Modal'
+import AnnexureBuilder from '@/components/AnnexureBuilder'
+import { cleanTemplate, templateProblem } from '@/lib/annexureTable'
 
 const PER_PAGE = 10
 
@@ -58,7 +60,7 @@ function QuestionBank() {
   /* ── question modal state ── */
   const [showQModal, setShowQModal] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [qForm, setQForm] = useState({ proc: '', sp: '', text: '', at: '', level: 'Medium', tags: '' })
+  const [qForm, setQForm] = useState({ proc: '', sp: '', text: '', at: '', level: 'Medium', tags: '', annexure: null })
 
   /* ── process modal state ── */
   const [saving, setSaving] = useState(false)
@@ -124,7 +126,7 @@ function QuestionBank() {
   /* ────────────────── question modal helpers ────────────────── */
   function openAddQuestion() {
     setEditId(null)
-    setQForm({ proc: processes[0] || '', sp: '', text: '', at: responseTypes[0] || '', level: 'Medium', tags: '' })
+    setQForm({ proc: processes[0] || '', sp: '', text: '', at: responseTypes[0] || '', level: 'Medium', tags: '', annexure: null })
     setShowQModal(true)
   }
 
@@ -139,6 +141,7 @@ function QuestionBank() {
       at: item.at,
       level: item.level,
       tags: (item.tags || []).join(', '),
+      annexure: item.meta?.annexure || null,
     })
     setShowQModal(true)
   }
@@ -153,7 +156,14 @@ function QuestionBank() {
       toast.error('Please fill in mandatory fields (Process and Question)')
       return
     }
+    const problem = qForm.annexure ? templateProblem(qForm.annexure) : ''
+    if (problem) {
+      toast.error('Annexure: ' + problem)
+      return
+    }
     const parsedTags = qForm.tags.split(',').map(t => t.trim()).filter(Boolean)
+    // The annexure layout travels in meta; leaving it null removes it from the question.
+    const annexure = qForm.annexure ? cleanTemplate(qForm.annexure) : null
     const body = {
       text: qForm.text.trim(),
       process: qForm.proc,
@@ -169,9 +179,10 @@ function QuestionBank() {
     let call
     if (editId) {
       const old = questions.find(q => q.id === editId)
-      call = questionsApi.edit(editId, { ...body, meta: { ...(old?.meta || {}), tags: parsedTags } })
+      const { annexure: _dropped, ...rest } = old?.meta || {}
+      call = questionsApi.edit(editId, { ...body, meta: { ...rest, tags: parsedTags, ...(annexure ? { annexure } : {}) } })
     } else {
-      call = questionsApi.create({ ...body, meta: { tags: parsedTags } })
+      call = questionsApi.create({ ...body, meta: { tags: parsedTags, ...(annexure ? { annexure } : {}) } })
     }
     call.then(saved => {
       if (editId) replaceRow(editId, saved)
@@ -438,6 +449,11 @@ function QuestionBank() {
           <div>
             <label className={labelClass}>Tags (comma separated)</label>
             <Input placeholder="cash, reconciliation" value={qForm.tags} onChange={e => setQForm(f => ({ ...f, tags: e.target.value }))} />
+          </div>
+
+          <div>
+            <label className={labelClass}>Annexure (optional)</label>
+            <AnnexureBuilder value={qForm.annexure} onChange={annexure => setQForm(f => ({ ...f, annexure }))} />
           </div>
         </div>
 

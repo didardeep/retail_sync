@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
 import { clearSession, loadSession, saveSession } from './api/client'
 import Layout from './components/Layout'
 import RoleProtectedRoute from './components/RoleProtectedRoute'
 import ToastProvider from './components/Toast'
+import { allowedInThisApp } from './lib/appClient'
 import { firstAllowedPage } from './lib/rolesMap'
+import { SESSION_EXPIRED_EVENT, shouldResume, whoExpired } from './lib/sessionExpiry'
 import Login from './pages/Login'
 
 import Dashboard from './pages/Dashboard'
@@ -40,19 +42,48 @@ function SchedulingRedirect() {
 }
 
 export default function App() {
-  const [session, setSession] = useState(loadSession())
+  const [session, setSession] = useState(() => {
+    const saved = loadSession()
+    // A login left over from another role cannot stay in the auditor-only app.
+    if (saved && !allowedInThisApp(saved.user?.role)) {
+      clearSession()
+      return null
+    }
+    return saved
+  })
+  const [notice, setNotice] = useState('')
+  // Who was signed in when the login expired, so the same person can carry on.
+  const expiredFor = useRef(null)
+
+  useEffect(() => {
+    function onExpired() {
+      expiredFor.current = whoExpired(expiredFor.current, loadSession()?.user?.id)
+      clearSession() // only the token; audits not yet sent stay on the phone
+      setSession(null)
+      setNotice('Your session expired. Please sign in again. Anything not yet sent is still saved on this phone.')
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired)
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired)
+  }, [])
 
   function handleLogin(result) {
+    // The same person signing back in after an expiry carries on where they were.
+    // Anyone else starts at their own home page, not on the last person's page.
+    if (!shouldResume(expiredFor.current, result.user?.id)) window.history.replaceState(null, '', '/')
+    expiredFor.current = null
+    setNotice('')
     saveSession(result)
     setSession(result)
   }
 
   function handleLogout() {
+    expiredFor.current = null
+    setNotice('')
     clearSession()
     setSession(null)
   }
 
-  if (!session) return <Login onLogin={handleLogin} />
+  if (!session) return <Login onLogin={handleLogin} notice={notice} />
 
   const role = session.user?.role
   const isManager = role === 'ADMIN' || role === 'AUDIT_MANAGER'

@@ -283,7 +283,7 @@ export default function AuditorDashboard() {
                     key={r.key}
                     type="button"
                     onClick={() => open(r)}
-                    className="block w-full text-left"
+                    className="block w-full py-2 text-left"
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <div className="truncate text-sm font-medium text-foreground">{r.store || 'Store'} - {r.tool}</div>

@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { api } from '../api/client'
+import { AUDITOR_APP_ONLY_MESSAGE, allowedInThisApp, isAuditorApp } from '../lib/appClient'
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, notice }) {
+  const auditorApp = isAuditorApp()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
@@ -12,7 +14,12 @@ export default function Login({ onLogin }) {
     setBusy(true)
     setError(null)
     try {
-      onLogin(await api.login(email, password))
+      const result = await api.login(email, password)
+      if (!allowedInThisApp(result.user?.role)) {
+        setError(AUDITOR_APP_ONLY_MESSAGE)
+        return
+      }
+      onLogin(result)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -115,6 +122,7 @@ export default function Login({ onLogin }) {
             </div>
           </label>
 
+          {notice && !error && <div className="login-notice">{notice}</div>}
           {error && <div className="login-error">{error}</div>}
 
           <button className="login-btn" type="submit" disabled={busy}>

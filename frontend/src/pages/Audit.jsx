@@ -341,7 +341,7 @@ export default function Audit() {
     return <div className="flex h-[60vh] items-center justify-center text-muted-foreground">Loading audit data...</div>;
   }
 
-  const iconBtn = 'flex h-[26px] w-[26px] items-center justify-center rounded-md border border-border bg-card';
+  const iconBtn = 'flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card md:h-[26px] md:w-[26px]';
   const colCount = 7 + (isAuditor ? 0 : 1);
 
   return (
@@ -528,7 +528,7 @@ export default function Audit() {
                   <TableCell>
                     <div className="flex items-center gap-1">
                       {isAuditor && action !== 'view' ? (
-                        <Button size="sm" className="h-7 px-2.5 text-[11px]" disabled={ws.openingKey === s.key} onClick={() => ws.openRow(s)}>
+                        <Button size="sm" className="h-10 px-3 text-xs md:h-7 md:px-2.5 md:text-[11px]" disabled={ws.openingKey === s.key} onClick={() => ws.openRow(s)}>
                           {ACTION_LABELS[action]}
                         </Button>
                       ) : (
@@ -550,7 +550,7 @@ export default function Audit() {
       <div className="mt-3 flex flex-wrap items-center justify-end gap-1 text-xs text-muted-foreground">
         <span className="mr-2">{filtered.length} audits</span>
         {Array.from({ length: pages }, (_, i) => (
-          <button key={i} className={cn('flex h-[27px] w-[27px] items-center justify-center rounded-md border border-border bg-card text-xs text-foreground/80', pageNo === i + 1 && 'border-primary bg-primary text-primary-foreground')} onClick={() => setPage(i + 1)}>{i + 1}</button>
+          <button key={i} className={cn('flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card text-xs md:h-[27px] md:w-[27px] text-foreground/80', pageNo === i + 1 && 'border-primary bg-primary text-primary-foreground')} onClick={() => setPage(i + 1)}>{i + 1}</button>
         ))}
       </div>
 

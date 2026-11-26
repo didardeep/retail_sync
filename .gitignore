@@ -13,3 +13,13 @@ backend/uploads/annexures/
 .claude/worktrees/
 .demo_baseline.json
 .claude/settings.local.json
+
+# Server install
+venv/
+backend/logs/
+backend/backups/
+*.dump
+RetailSync-*.zip
+RetailSync-*.manifest.txt
+wheels/
+RetailSync-wheels-*.zip

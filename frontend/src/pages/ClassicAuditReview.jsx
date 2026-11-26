@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/Toast';
 import { ErrorNote, Loading } from '@/components/Loader';
 import { EvidenceList } from '@/components/Evidence';
+import AnnexureGrid from '@/components/AnnexureGrid';
 import AnnexurePanel from '@/components/AnnexurePanel';
 import ReviewQueries from '@/components/classic/ReviewQueries';
 import { Modal, ModalActions, ModalTitle } from '@/components/Modal';
@@ -251,6 +252,7 @@ export default function ClassicAuditReview() {
               <div className="min-w-0">
                 <div className="text-[13px] leading-snug text-foreground">{x.question_text}</div>
                 {x.evidence?.length > 0 && <div className="mt-2"><EvidenceList items={x.evidence} /></div>}
+                {x.annexure_template && <div className="mt-2"><AnnexureGrid template={x.annexure_template} value={x.annexure} readOnly /></div>}
               </div>
               <div className="shrink-0 text-sm font-bold">{x.answer || '--'}</div>
             </div>

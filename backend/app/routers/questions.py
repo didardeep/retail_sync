@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..auth import get_staff_user, require_roles
+from ..annexure_table import clean_template
 from ..db import get_db
 from ..models import CRITICALITIES, ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, Question, User
 from ..schemas import QuestionApprove, QuestionCreate, QuestionEdit
@@ -31,6 +32,20 @@ def _criticality(level, weight=None, is_critical=None, fallback="Low"):
     if is_critical is False and fallback == "High":
         return "Medium"
     return fallback
+
+
+def _meta_with_clean_annexure(meta):
+    """meta with its annexure layout checked and tidied (dropped when empty)."""
+    meta = dict(meta or {})
+    try:
+        template = clean_template(meta.get("annexure"))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail={"error": str(e)})
+    if template:
+        meta["annexure"] = template
+    else:
+        meta.pop("annexure", None)
+    return meta
 
 
 @router.get("")
@@ -67,7 +82,7 @@ def create_question(
         approval_status="APPROVED" if is_am else "PENDING",
         proposed_by_id=user.id,
         approved_by_id=user.id if is_am else None,
-        meta=body.meta,
+        meta=_meta_with_clean_annexure(body.meta),
     )
     q.set_criticality(_criticality(
         body.criticality, body.weight, body.is_critical))
@@ -130,7 +145,7 @@ def edit_question(
         audit_type=d.get("audit_type", old.audit_type),
         active=d.get("active", old.active),
         approval_status="APPROVED", approved_by_id=user.id,
-        meta=d.get("meta", old.meta),
+        meta=_meta_with_clean_annexure(d.get("meta", old.meta)),
     )
     new.set_criticality(_criticality(
         d.get("criticality"), d.get("weight"), d.get("is_critical"),

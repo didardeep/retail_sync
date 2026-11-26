@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { ErrorNote, Loading } from '../components/Loader'
 import { useApi } from '../components/useApi'
+import AnnexureGrid from '@/components/AnnexureGrid'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -269,6 +270,12 @@ export default function AuditExecution({ readOnly = false }) {
                     />
                   </div>
                 </div>
+                {r.annexure_template && (
+                  <div className="mt-3">
+                    <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Annexure</label>
+                    <AnnexureGrid template={r.annexure_template} value={r.annexure} readOnly />
+                  </div>
+                )}
               </div>
             )
           })}
