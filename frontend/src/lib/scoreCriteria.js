@@ -4,12 +4,6 @@ const AUDIT_SCORE = 'Audit score = weight of Yes answers ÷ weight of Yes and No
 const STORE_SCORE = "Store score = average of the store's Completed and Approved audits submitted in the quarter. With none, the imported score stays.";
 
 export const CRITERIA = {
-  trend: [
-    'Brand score for a quarter = sum of its store scores ÷ number of scored stores.',
-    STORE_SCORE,
-    AUDIT_SCORE,
-    'Stores with no score are left out. Benchmark is 90%.',
-  ],
   risk: [
     'Risk is not calculated by a formula: each observation carries the risk level recorded for it (Critical, High, Medium, Low). Blank or other text counts as Unrated.',
     'Share of a level = observations at that level ÷ all observations × 100.',
@@ -18,7 +12,7 @@ export const CRITERIA = {
   storeBars: [
     STORE_SCORE,
     AUDIT_SCORE,
-    'Green is 77 or above, amber is below 77.',
+    'Green is 77 or above, amber is 60 to under 77, red is under 60.',
   ],
   region: [
     'Share of a region = audits in the region ÷ all audits in the quarter × 100.',

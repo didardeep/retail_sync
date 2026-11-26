@@ -90,11 +90,6 @@ export const api = {
   // Structured data endpoints
   dataImports: () => request('/data-imports'),
   storeScores: (q = '') => request('/store-scores' + q),
-  // Brands (a store belongs to exactly one) and the per-brand score trend
-  brands: () => request('/brands'),
-  createBrand: (body) => request('/brands', { method: 'POST', body }),
-  updateBrand: (id, body) => request(`/brands/${id}`, { method: 'PUT', body }),
-  brandTrend: (q = '') => request('/dashboard/brand-trend' + q),
   // Auditees linked to a store, and the auditor's choice to raise an issue for one
   storeAuditees: (storeId) => request(`/stores/${storeId}/auditees`),
   raiseIssue: (auditId, respId, body) =>
@@ -135,9 +130,16 @@ export const api = {
   },
   deleteAnnexure: (auditId, id) => request(`/audits/${auditId}/annexures/${id}`, { method: 'DELETE' }),
   // Photo and video evidence
-  uploadEvidence: async (file) => {
+  // geo: { lat, lng, accuracy, captured_at } where the photo was taken, when the device shared it.
+  uploadEvidence: async (file, geo) => {
     const fd = new FormData()
     fd.append('file', file)
+    if (geo) {
+      fd.append('lat', String(geo.lat))
+      fd.append('lng', String(geo.lng))
+      if (geo.accuracy != null) fd.append('accuracy', String(geo.accuracy))
+      if (geo.captured_at) fd.append('captured_at', geo.captured_at)
+    }
     const res = await send('/evidence', { method: 'POST', headers: authHeaders(), body: fd })
     if (!res.ok) await throwFor(res, 'Upload failed')
     return res.json()
@@ -148,8 +150,6 @@ export const api = {
     return res.blob()
   },
   // ---- Audit manager workflows (backend ready; the pages are still to build) ----
-  // Brand onboarding: details beyond the name, and one brand with its stores.
-  brand: (id) => request(`/brands/${id}`),
   // Store formats with full forms and store types with a note.
   storeCatalog: () => request('/stores/catalog'),
   // Store view: details, auditors, auditees, last and next audit, open issues.

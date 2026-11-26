@@ -31,32 +31,6 @@ class LoginResponse(ORMBase):
 # --------------------------------------------------------------------------
 # Stores
 # --------------------------------------------------------------------------
-class BrandCreate(ORMBase):
-    name: str
-    code: str | None = None
-    legal_name: str | None = None
-    category: str | None = None
-    contact_name: str | None = None
-    contact_email: str | None = None
-    contact_phone: str | None = None
-    regions: list[str] = Field(default_factory=list)
-    status: str = "Active"
-    notes: str | None = None
-
-
-class BrandUpdate(ORMBase):
-    name: str | None = None
-    code: str | None = None
-    legal_name: str | None = None
-    category: str | None = None
-    contact_name: str | None = None
-    contact_email: str | None = None
-    contact_phone: str | None = None
-    regions: list[str] | None = None
-    status: str | None = None
-    notes: str | None = None
-
-
 class StorePersonLink(ORMBase):
     """Link an existing auditor or auditee to a store."""
     user_id: str
@@ -97,7 +71,6 @@ class PersonUpdate(ORMBase):
 class StoreCreate(ORMBase):
     id: str
     name: str
-    brand_id: str | None = None       # blank means the Unassigned brand
     city: str | None = None
     region: str | None = None
     format: str | None = None
@@ -112,7 +85,6 @@ class StoreCreate(ORMBase):
 
 class StoreUpdate(ORMBase):
     name: str | None = None
-    brand_id: str | None = None       # move the store to another brand
     city: str | None = None
     region: str | None = None
     format: str | None = None
@@ -133,7 +105,8 @@ class QuestionCreate(ORMBase):
     process: str | None = None
     sub_process: str | None = None
     audit_type: str | None = None
-    weight: int = 1
+    criticality: str | None = None    # High / Medium / Low; sets the scoring weight
+    weight: int = 1                   # older clients: used only when criticality is not given
     is_critical: bool = False
     meta: dict[str, Any] = Field(default_factory=dict)
 
@@ -148,6 +121,7 @@ class QuestionEdit(ORMBase):
     process: str | None = None
     sub_process: str | None = None
     audit_type: str | None = None
+    criticality: str | None = None
     weight: int | None = None
     is_critical: bool | None = None
     active: bool | None = None
@@ -159,9 +133,13 @@ class QuestionEdit(ORMBase):
 # --------------------------------------------------------------------------
 class ChecklistCreate(ORMBase):
     name: str
+    # Who it is for: {"format": [...], "type": [...], "category": [...], "stores": [ids]}.
+    # Empty lists mean every store; a stores list limits it to exactly those stores.
     conditions: dict[str, Any] = Field(default_factory=dict)
     question_ids: list[str] = Field(default_factory=list)
     is_active: bool = True
+    new_version: bool = False         # edit: always save as the next version
+    retire_previous: bool = True      # with new_version: switch the edited version off
 
 
 # --------------------------------------------------------------------------

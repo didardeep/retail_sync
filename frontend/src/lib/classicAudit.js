@@ -70,16 +70,35 @@ export function previewScore(audit) {
   return Math.round((earned / possible) * 10000) / 100
 }
 
-// What the review screen needs to flag. kind is 'unanswered' (blocks submit)
-// or 'critical_no' (a critical question answered No with no issue raised yet;
-// issues are never raised automatically, the auditor decides).
+// What a No answer still lacks: it must say what was wrong (remarks) and show
+// it (evidence). Empty for any other answer. Same rule as the server's submit.
+export function missingProof(q) {
+  if (q?.answer !== 'No') return []
+  const missing = []
+  if (!String(q.remarks || '').trim()) missing.push('remarks')
+  if (!q.evidence?.length) missing.push('evidence')
+  return missing
+}
+
+export function proofLabel(missing) {
+  return missing.length === 2 ? 'remarks and evidence' : missing.join('')
+}
+
+// What the review screen needs to flag. kind is 'unanswered' or 'no_proof'
+// (a No without remarks or evidence; both block submit), or 'critical_no' (a
+// critical question answered No with no issue raised yet; issues are never
+// raised automatically, the auditor decides).
 export function problems(audit) {
   const out = []
   for (const q of orderedQuestions(audit)) {
     const base = { index: q.index, id: q.id, code: q.question_code, text: q.question_text, process: q.process }
+    const missing = missingProof(q)
     if (!q.answer) {
       out.push({ kind: 'unanswered', ...base })
-    } else if (q.is_critical && q.answer === 'No' && !q.issue_id) {
+    } else if (missing.length) {
+      out.push({ kind: 'no_proof', missing, ...base })
+    }
+    if (q.is_critical && q.answer === 'No' && !q.issue_id) {
       out.push({ kind: 'critical_no', ...base })
     }
   }

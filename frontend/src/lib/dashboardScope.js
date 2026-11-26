@@ -1,48 +1,26 @@
-// Pure helpers for the Dashboard's scope (all brands / one brand / one store):
-// what the heading says, which records are in scope, the one wording set the
-// Overview and the single-store view share, and the two ranked lists. No React
-// and no network, so the rules can be unit tested.
+// Pure helpers for the Dashboard's scope (all stores / one store): what the
+// heading says, which records are in scope, the one wording set the Overview
+// and the single-store view share, and the two ranked lists. No React and no
+// network, so the rules can be unit tested.
 
 export const ALL = 'all'
-export const BRAND = 'brand'
 export const STORE = 'store'
 
-// The two header dropdowns, brand and store, are linked. `current` and `change`
-// hold { brand, store } ids ('' for all); the result is the new URL query.
-// Picking a store also picks its brand; picking a brand keeps the store only
-// when it belongs to that brand, so "All brands" clears the store too.
-export function pickerParams(stores = [], current = {}, change = {}) {
-  const next = { brand: '', store: '', ...current, ...change }
-  const store = stores.find((s) => s.id === next.store)
-  if ('store' in change && store?.brand_id) next.brand = store.brand_id
-  if ('brand' in change && store && store.brand_id !== next.brand) next.store = ''
-  const out = {}
-  if (next.brand) out.brand = next.brand
-  if (next.store) out.store = next.store
-  return out
-}
-
-// The scope in the URL: ?store=<id> (with or without ?brand) or ?brand=<id>,
-// otherwise everything.
+// The scope in the URL: ?store=<id>, otherwise everything.
 export function scopeFromParams(params) {
   const store = params.get('store')
   if (store) return { kind: STORE, id: store }
-  const brand = params.get('brand')
-  if (brand) return { kind: BRAND, id: brand }
   return { kind: ALL, id: '' }
 }
 
-
-// A scope that points at a store or brand that no longer exists falls back to all.
-export function resolveScope(scope, stores = [], brands = []) {
+// A scope that points at a store that no longer exists falls back to all.
+export function resolveScope(scope, stores = []) {
   if (scope.kind === STORE && !stores.some((s) => s.id === scope.id)) return { kind: ALL, id: '' }
-  if (scope.kind === BRAND && !brands.some((b) => b.id === scope.id)) return { kind: ALL, id: '' }
   return scope
 }
 
 export function storesInScope(stores = [], scope) {
   if (scope.kind === STORE) return stores.filter((s) => s.id === scope.id)
-  if (scope.kind === BRAND) return stores.filter((s) => s.brand_id === scope.id)
   return stores
 }
 
@@ -52,32 +30,29 @@ export function inScope(list = [], scopedStores = []) {
   return list.filter((x) => ids.has(x.store_id))
 }
 
-// "All brands, all stores" / the brand name / "Phoenix Mall - Mumbai, West India".
-export function scopeTitle(scope, stores = [], brands = []) {
+// "All stores" / "Phoenix Mall - Mumbai, West India".
+export function scopeTitle(scope, stores = []) {
   if (scope.kind === STORE) {
     const s = stores.find((x) => x.id === scope.id)
-    if (!s) return 'All brands, all stores'
+    if (!s) return 'All stores'
     const place = [s.city, s.region].filter(Boolean).join(', ')
     return place ? `${s.name} - ${place}` : s.name
   }
-  if (scope.kind === BRAND) {
-    return brands.find((b) => b.id === scope.id)?.name || 'All brands, all stores'
-  }
-  return 'All brands, all stores'
+  return 'All stores'
 }
 
-// Section titles. One set, shared by the Overview (all brands or one brand) and
-// the single-store view, so the same section never has two names. A title says
+// Section titles. One set, shared by the Overview (all stores) and the
+// single-store view, so the same section never has two names. A title says
 // what the numbers are, over what, and for which scope.
-export function wording(scope, brandName = '') {
+export function wording(scope) {
   const one = scope.kind === STORE
-  const where = one ? 'this store' : scope.kind === BRAND ? brandName : 'all stores'
+  const where = one ? 'this store' : 'all stores'
   return {
-    trend: 'Brand / Store Performance',
+    trend: 'Store Performance',
     storeBars: 'Store-wise Compliance Score (%)',
     format: 'Store Format Performance (Avg. Score)',
     distribution: 'Store Score Distribution',
-    risk: scope.kind === BRAND || one ? `Observations by Risk, ${where}` : 'All Observations by Risk',
+    risk: one ? `Observations by Risk, ${where}` : 'All Observations by Risk',
     region: 'Audit Distribution by Region',
     topBottom: 'Highest and lowest scoring stores',
     observations: one ? 'Most recent observations' : 'Most common observations',
@@ -121,29 +96,4 @@ export function recentObservations(observations = [], limit = 5) {
   return [...observations]
     .sort((a, b) => (b.sr_no ?? 0) - (a.sr_no ?? 0))
     .slice(0, limit)
-}
-
-// One colour per brand, fixed by the brand's place in the alphabetical list of
-// all brands, so hiding or filtering never repaints the lines that remain.
-// Order and values: the validated categorical palette (blue, orange, aqua,
-// magenta, violet, green, yellow, red).
-export const BRAND_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#e87ba4', '#6250d6', '#008300', '#eda100', '#e34948']
-export const BRAND_POINTS = ['circle', 'rectRot', 'triangle', 'rect', 'star', 'crossRot', 'rectRounded', 'cross']
-
-export function brandStyles(brands = []) {
-  const sorted = [...brands].sort((a, b) => a.name.localeCompare(b.name))
-  const out = {}
-  sorted.forEach((b, i) => {
-    out[b.id] = { color: BRAND_COLORS[i % BRAND_COLORS.length], point: BRAND_POINTS[i % BRAND_POINTS.length] }
-  })
-  return out
-}
-
-// The query for /api/dashboard/brand-trend. `storeIds` null means every store
-// of the scope; otherwise only the stores the user ticked.
-export function trendQuery({ brandIds = [], storeIds = null } = {}) {
-  const parts = []
-  if (brandIds.length) parts.push(`brand_ids=${encodeURIComponent(brandIds.join(','))}`)
-  if (storeIds) parts.push(`store_ids=${encodeURIComponent(storeIds.length ? storeIds.join(',') : '-')}`)
-  return parts.length ? `?${parts.join('&')}` : ''
 }

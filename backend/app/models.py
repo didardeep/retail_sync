@@ -159,42 +159,8 @@ class AuditorAvailability(Base):
 
 
 # --------------------------------------------------------------------------
-# Brands and stores
+# Stores
 # --------------------------------------------------------------------------
-UNASSIGNED_BRAND = "Unassigned"     # home of stores imported or migrated with no brand
-
-
-class Brand(Base):
-    """A banner / chain name. A brand has many stores; a store has exactly one."""
-    __tablename__ = "brands"
-
-    id = Column(String(12), primary_key=True, default=_uid)
-    name = Column(String(120), nullable=False, unique=True)
-    # Onboarding details; all optional so brands created by import still work.
-    code = Column(String(20))
-    legal_name = Column(String(200))
-    category = Column(String(80))                       # Grocery / Fashion / Electronics ...
-    contact_name = Column(String(120))
-    contact_email = Column(String(200))
-    contact_phone = Column(String(40))
-    regions = Column(JSON, default=list)                # where the brand operates
-    status = Column(String(20), default="Active")       # Active / Inactive
-    notes = Column(Text)
-    created_at = Column(DateTime, default=dt.datetime.utcnow)
-
-    stores = relationship("Store", back_populates="brand")
-
-    def to_dict(self):
-        return {
-            "id": self.id, "name": self.name, "store_count": len(self.stores),
-            "code": self.code, "legal_name": self.legal_name, "category": self.category,
-            "contact_name": self.contact_name, "contact_email": self.contact_email,
-            "contact_phone": self.contact_phone, "regions": self.regions or [],
-            "status": self.status or "Active", "notes": self.notes,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-        }
-
-
 class UserStore(Base):
     """Links a person to a store: auditees (who follow up its issues) and
     auditors (who audit it by default). Many people per store, many stores per
@@ -222,7 +188,6 @@ class Store(Base):
     store_type = Column(String(40))                     # Flagship / Standard / ...
     status = Column(String(20), default="Operating")    # Operating / Dehired
     manager_id = Column(String(12), ForeignKey("users.id"))
-    brand_id = Column(String(12), ForeignKey("brands.id"), nullable=False)
     contact = Column(String(40))
     email = Column(String(200))
     address = Column(Text)
@@ -236,13 +201,10 @@ class Store(Base):
     meta = Column(JSON, default=dict)                   # historic scores etc.
 
     manager = relationship("User", foreign_keys=[manager_id])
-    brand = relationship("Brand", back_populates="stores")
 
     def to_dict(self):
         return {
             "id": self.id, "name": self.name, "city": self.city,
-            "brand_id": self.brand_id,
-            "brand": self.brand.name if self.brand else None,
             "region": self.region, "format": self.store_format,
             "type": self.store_type, "status": self.status,
             "manager": self.manager.name if self.manager else None,
@@ -343,6 +305,26 @@ class StoreScore(Base):
 # --------------------------------------------------------------------------
 # Question bank + checklist versioning
 # --------------------------------------------------------------------------
+# A question's criticality sets how much it counts in the audit score. The
+# weight column always follows it (see Question.set_criticality).
+CRITICALITY_WEIGHT = {"High": 3, "Medium": 2, "Low": 1}
+CRITICALITIES = tuple(CRITICALITY_WEIGHT)
+
+
+def criticality_for(level=None, weight=None, critical=False) -> str:
+    """Read a criticality from a checklist file: the level text when it is one we
+    know ("High", "medium", "H", "Critical"), otherwise the old 1-5 weight and
+    critical flag (critical or 5 is High, 3-4 Medium, else Low)."""
+    text = str(level or "").strip().lower()
+    for name in CRITICALITIES:
+        if text in (name.lower(), name[0].lower()):
+            return name
+    if text == "critical" or critical:
+        return "High"
+    w = weight or 0
+    return "High" if w >= 5 else "Medium" if w >= 3 else "Low"
+
+
 class Question(Base):
     """
     One row per question *version*. Editing a question creates a new row with
@@ -360,8 +342,9 @@ class Question(Base):
     process = Column(String(80))                # Cashiering, EHS & Compliance...
     sub_process = Column(String(120))
     audit_type = Column(String(60))             # Store Visit / Structured data/DA / Unstructured data
-    weight = Column(Integer, default=1)
-    is_critical = Column(Boolean, default=False)
+    weight = Column(Integer, default=1)         # follows criticality
+    is_critical = Column(Boolean, default=False)  # True when criticality is High
+    criticality = Column(String(10), default="Low")  # High / Medium / Low
     active = Column(Boolean, default=True)
 
     # Photo/Video and Data Analyst columns from the client checklist
@@ -378,12 +361,19 @@ class Question(Base):
     meta = Column(JSON, default=dict)           # tags and anything client-specific
     created_at = Column(DateTime, default=dt.datetime.utcnow)
 
+    def set_criticality(self, level):
+        """Set the criticality and the scoring weight and critical flag that follow from it."""
+        self.criticality = level
+        self.weight = CRITICALITY_WEIGHT[level]
+        self.is_critical = level == "High"
+
     def to_dict(self):
         return {
             "id": self.id, "code": self.code, "version": self.version,
             "is_current": self.is_current, "text": self.text,
             "process": self.process, "sub_process": self.sub_process,
             "audit_type": self.audit_type, "weight": self.weight,
+            "criticality": self.criticality or "Low",
             "is_critical": self.is_critical, "active": self.active,
             "photo_video_enablement": self.photo_video_enablement,
             "data_analyst_enabled": self.data_analyst_enabled,
@@ -414,6 +404,7 @@ class Checklist(Base):
             "id": self.id, "name": self.name, "version": self.version,
             "is_active": self.is_active, "conditions": self.conditions or {},
             "question_count": len(self.items),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
         if with_items:
             d["questions"] = [i.question.to_dict() for i in self.items if i.question]
@@ -471,8 +462,6 @@ class Audit(Base):
             "store": self.store.name if self.store else None,
             "city": self.store.city if self.store else None,
             "region": self.store.region if self.store else None,
-            "brand_id": self.store.brand_id if self.store else None,
-            "brand": self.store.brand.name if self.store and self.store.brand else None,
             "checklist_id": self.checklist_id,
             "checklist_ids": self.checklist_ids or ([self.checklist_id] if self.checklist_id else []),
             "auditor_id": self.auditor_id,
@@ -530,6 +519,7 @@ class AuditResponse(Base):
             "question_code": q.code if q else None,
             "question_text": q.text if q else None,
             "weight": q.weight if q else None,
+            "criticality": (q.criticality or "Low") if q else None,
             "is_critical": q.is_critical if q else None,
             "process": q.process if q else None,
             "answer": self.answer, "remarks": self.remarks, "risk": self.risk,

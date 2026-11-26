@@ -18,7 +18,7 @@ from app.auth import hash_password  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import (  # noqa: E402
-    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_STORE_MANAGER, Brand,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_STORE_MANAGER,
     Store, User, UserStore,
 )
 
@@ -47,14 +47,10 @@ def client():
             _user(db, "sm2@test", "Store Manager Two", ROLE_STORE_MANAGER)
             ae1 = _user(db, "ae1@test", "Auditee One", ROLE_AUDITEE)
             ae2 = _user(db, "ae2@test", "Auditee Two", ROLE_AUDITEE)
-            brand_a = Brand(id="BRA", name="Alpha Mart")
-            brand_b = Brand(id="BRB", name="Beta Bazaar")
-            db.add_all([brand_a, brand_b])
-            db.flush()
             db.add(Store(id="T001", name="Test Store 1", city="Delhi",
-                         region="North India", manager_id=sm1.id, brand_id=brand_a.id))
+                         region="North India", manager_id=sm1.id))
             db.add(Store(id="T002", name="Test Store 2", city="Pune",
-                         region="West India", brand_id=brand_b.id))
+                         region="West India"))
             db.flush()
             # ae1 is linked to T001 only; ae2 to T002 only.
             db.add(UserStore(user_id=ae1.id, store_id="T001"))

@@ -5,7 +5,7 @@ import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { api, loadSession } from '@/api/client';
 import { cn } from '@/lib/utils';
 import {
-  isAuditorEditable, orderedQuestions, previewScore, problems, progress,
+  isAuditorEditable, orderedQuestions, previewScore, problems, progress, proofLabel,
 } from '@/lib/classicAudit';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/Toast';
@@ -38,6 +38,8 @@ function Row({ item, onClick, tone }) {
     >
       <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{item.process}</div>
       <div className="whitespace-pre-line text-[13px] font-medium leading-snug text-foreground">{item.text}</div>
+      {item.kind === 'unanswered' && <div className="mt-0.5 text-[11.5px] font-medium text-destructive">Not answered</div>}
+      {item.kind === 'no_proof' && <div className="mt-0.5 text-[11.5px] font-medium text-destructive">Answered No: add {proofLabel(item.missing)}</div>}
     </button>
   );
 }
@@ -80,7 +82,8 @@ export default function ClassicAuditReview() {
 
   const editable = isAuditorEditable(audit, user) && !result;
   const found = problems(audit);
-  const unanswered = found.filter((p) => p.kind === 'unanswered');
+  // Both block submitting: questions not answered, and No answers without remarks and evidence.
+  const unanswered = found.filter((p) => p.kind === 'unanswered' || p.kind === 'no_proof');
   const raising = found.filter((p) => p.kind === 'critical_no');
   const { answered, total } = progress(audit);
   const preview = previewScore(audit);
@@ -119,7 +122,9 @@ export default function ClassicAuditReview() {
           setError(e2);
         }
       } else if (e.status === 400) {
-        setSubmitError('Some questions are still unanswered. Answer them before submitting.');
+        setSubmitError(e.detail?.code === 'no_without_proof' || /answered No/.test(e.message || '')
+          ? 'Some questions answered No have no remarks or evidence. Add both before submitting.'
+          : 'Some questions are still unanswered. Answer them before submitting.');
         try {
           setAudit(await api.audit(id));
         } catch (e2) {
@@ -190,7 +195,7 @@ export default function ClassicAuditReview() {
           <div className={cn('mt-3 flex items-center gap-2 text-sm', unanswered.length ? 'text-destructive' : 'text-emerald-700')}>
             {unanswered.length
               ? <><AlertTriangle className="size-4" /> {unanswered.length} {unanswered.length > 1 ? 'items need' : 'item needs'} attention before you can submit</>
-              : <><CheckCircle2 className="size-4" /> Everything is answered. Ready to submit.</>}
+              : <><CheckCircle2 className="size-4" /> Everything is answered and every No has remarks and evidence. Ready to submit.</>}
           </div>
         )}
       </div>

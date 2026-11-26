@@ -7,12 +7,12 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user, get_staff_user, require_roles
 from ..db import get_db
 from ..models import (
-    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_STORE_MANAGER, Audit, Brand,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_STORE_MANAGER, Audit,
     Issue, Store, User, UserStore,
 )
 from ..schemas import StoreCreate, StorePersonLink, StorePersonRemove, StoreUpdate
 from ..services import (
-    STORE_FORMATS, STORE_TYPES, auditor_conflict, get_or_create_brand, link_person,
+    STORE_FORMATS, STORE_TYPES, auditor_conflict, link_person,
     linked_auditee_ids, linked_people, log_action,
 )
 from ..services.alerts import notify
@@ -24,17 +24,11 @@ _FIELD_MAP = [
     ("format", "store_format"), ("type", "store_type"),
     ("status", "status"), ("manager_id", "manager_id"),
     ("contact", "contact"), ("email", "email"), ("address", "address"),
-    ("brand_id", "brand_id"),
 ]
 _FORMAT_CODES = {f["code"] for f in STORE_FORMATS}
 # Issues still waiting on the auditee; Closed ones stay with whoever closed them.
 OPEN_ISSUE_STATUSES = ("Open", "In Progress", "On Hold", "Resolved")
 _ROLE_WORD = {ROLE_AUDITOR: "auditor", ROLE_AUDITEE: "auditee"}
-
-
-def _check_brand(db, brand_id):
-    if not db.get(Brand, brand_id):
-        raise HTTPException(status_code=400, detail={"error": "unknown brand"})
 
 
 def _check_format(value):
@@ -109,13 +103,8 @@ def create_store(
     if db.get(Store, d["id"]):
         raise HTTPException(status_code=409, detail={"error": "store id already exists"})
     _check_format(d.get("format"))
-    if d.get("brand_id"):
-        _check_brand(db, d["brand_id"])
-        brand_id = d["brand_id"]
-    else:
-        brand_id = get_or_create_brand(db, None).id
     s = Store(
-        id=d["id"], brand_id=brand_id, name=d["name"], city=d.get("city"), region=d.get("region"),
+        id=d["id"], name=d["name"], city=d.get("city"), region=d.get("region"),
         store_format=d.get("format"), store_type=d.get("type"),
         status=d.get("status", "Operating"), manager_id=d.get("manager_id"),
         contact=d.get("contact"), email=d.get("email"),
@@ -137,11 +126,6 @@ def update_store(
 ):
     s = _store(db, sid)
     d = body.model_dump(exclude_unset=True)
-    if "brand_id" in d:
-        # A store always has a brand: null or blank is not a way to clear it.
-        if not d["brand_id"]:
-            raise HTTPException(status_code=400, detail={"error": "a store must belong to a brand"})
-        _check_brand(db, d["brand_id"])
     if "format" in d:
         _check_format(d["format"])
     for field, attr in _FIELD_MAP:

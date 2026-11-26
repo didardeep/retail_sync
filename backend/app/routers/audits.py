@@ -57,6 +57,23 @@ def _notify_auditees(db, audit, kind, title, key):
         notify(db, person, kind, title, "/my-issues", f"{key}:{person.id}")
 
 
+def missing_proof(responses):
+    """Answers of No that still lack remarks or evidence. A No must say what was
+    wrong and show it, so these block submitting. Returns [(response, [what])]."""
+    out = []
+    for r in responses:
+        if r.answer != "No":
+            continue
+        missing = []
+        if not (r.remarks or "").strip():
+            missing.append("remarks")
+        if not r.evidence:
+            missing.append("evidence")
+        if missing:
+            out.append((r, missing))
+    return out
+
+
 def _progress_by_audit(db, audit_ids):
     """{audit_id: {"answered": n, "total": n}} in one grouped query."""
     if not audit_ids:
@@ -786,6 +803,15 @@ def submit_audit(
     if unanswered:
         raise HTTPException(status_code=400, detail={
             "error": "unanswered questions", "count": len(unanswered),
+        })
+    no_proof = missing_proof(audit.responses)
+    if no_proof:
+        raise HTTPException(status_code=400, detail={
+            "error": f"{len(no_proof)} question{'s' if len(no_proof) != 1 else ''} answered No "
+                     "without remarks and evidence; add both before submitting",
+            "code": "no_without_proof", "count": len(no_proof),
+            "questions": [{"id": r.id, "code": r.question.code if r.question else None,
+                           "missing": m} for r, m in no_proof],
         })
 
     audit.score = compute_audit_score(audit)

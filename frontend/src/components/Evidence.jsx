@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { ExternalLink, Paperclip, X } from 'lucide-react';
+import { ExternalLink, MapPin, Paperclip, X } from 'lucide-react';
 
 import { api } from '@/api/client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/Toast';
+import { currentPosition, geoLabel, mapLink } from '@/lib/geo';
 
 const isUploaded = (url) => (url || '').startsWith('/api/evidence/');
 
@@ -33,7 +34,29 @@ function useEvidenceSrc(url) {
   return { src, failed };
 }
 
+// Where the photo was taken, linked to a map. Older files have no location.
+function GeoLine({ geo }) {
+  const label = geoLabel(geo);
+  if (!label) return null;
+  const when = geo.captured_at ? new Date(geo.captured_at).toLocaleString() : '';
+  return (
+    <a href={mapLink(geo)} target="_blank" rel="noreferrer" title={when ? `Taken ${when}` : 'Open in maps'}
+      className="mt-1 flex w-32 items-start gap-0.5 text-[10px] leading-tight text-primary hover:underline">
+      <MapPin className="mt-px size-3 shrink-0" /> <span className="break-all">{label}</span>
+    </a>
+  );
+}
+
 function EvidenceItem({ item }) {
+  return (
+    <div>
+      <EvidenceThumb item={item} />
+      <GeoLine geo={item.geo} />
+    </div>
+  );
+}
+
+function EvidenceThumb({ item }) {
   const { src, failed } = useEvidenceSrc(item.url);
   const box = 'flex h-24 w-32 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/40 p-1 text-center text-[11px] text-muted-foreground';
 
@@ -80,10 +103,13 @@ export function EvidencePicker({ value, onChange, disabled }) {
     event.target.value = '';
     if (!files.length) return;
     setBusy(true);
+    // One position for the batch: the files are taken (or picked) here and now.
+    const geo = await currentPosition();
+    if (!geo) toast.error('Location is not available, so this photo is saved without where it was taken. Allow location access to add it.');
     const added = [];
     for (const file of files) {
       try {
-        added.push(await api.uploadEvidence(file));
+        added.push(await api.uploadEvidence(file, geo));
       } catch (e) {
         toast.error(`${file.name}: ${e.message || 'upload failed'}`);
       }

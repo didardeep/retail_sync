@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { AlertTriangle, CheckCircle2, CircleOff, ClipboardList, Clock, Pencil, Trash2 } from 'lucide-react'
+import { CheckCircle2, CircleOff, ClipboardList, Clock, Pencil, Trash2 } from 'lucide-react'
 import { useToast } from '../components/Toast'
 import { api, loadSession } from '../api/client'
 import { questionsApi } from '../api/questionsApi'
-import { wColor, qTypeLabel } from '../utils/helpers'
+import { qTypeLabel } from '../utils/helpers'
+import { CRITICALITIES, criticalityClass, criticalityOf } from '@/lib/criticality'
 import { cn, fieldClass, labelClass } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,14 +19,7 @@ const PER_PAGE = 10
 const STATUS_TEST = {
   active: q => q.on,
   inactive: q => !q.on,
-  critical: q => q.crit,
   pending: q => q.status === 'PENDING',
-}
-
-const APPROVAL_BADGE = {
-  APPROVED: ['Approved', 'bg-emerald-50 text-emerald-700'],
-  REJECTED: ['Rejected', 'bg-red-50 text-red-700'],
-  PENDING: ['Pending', 'bg-amber-50 text-amber-700'],
 }
 
 function normalizeQ(q) {
@@ -35,8 +29,7 @@ function normalizeQ(q) {
     proc: q.process || '',
     sp: q.sub_process || '',
     at: q.audit_type || '',
-    w: q.weight || 1,
-    crit: !!q.is_critical,
+    level: criticalityOf(q),
     on: q.active !== false,
     tags: (q.meta?.tags) || [],
     meta: q.meta || {},
@@ -59,12 +52,13 @@ function QuestionBank() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [levelFilter, setLevelFilter] = useState('')
   const [page, setPage] = useState(1)
 
   /* ── question modal state ── */
   const [showQModal, setShowQModal] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [qForm, setQForm] = useState({ proc: '', sp: '', text: '', at: '', w: 3, crit: false, tags: '' })
+  const [qForm, setQForm] = useState({ proc: '', sp: '', text: '', at: '', level: 'Medium', tags: '' })
 
   /* ── process modal state ── */
   const [saving, setSaving] = useState(false)
@@ -95,6 +89,7 @@ function QuestionBank() {
     if (procFilter && item.proc !== procFilter) return false
     if (qLower && !(item.text.toLowerCase().includes(qLower) || item.tags.some(t => t.toLowerCase().includes(qLower)))) return false
     if (typeFilter && item.at !== typeFilter) return false
+    if (levelFilter && item.level !== levelFilter) return false
     return true
   })
   const counts = {}
@@ -105,7 +100,7 @@ function QuestionBank() {
   const pages = Math.ceil(filtered.length / PER_PAGE)
   const pageNo = Math.min(page, Math.max(pages, 1))
   const paged = filtered.slice((pageNo - 1) * PER_PAGE, pageNo * PER_PAGE)
-  const hasFilters = procFilter || search || typeFilter || statusFilter
+  const hasFilters = procFilter || search || typeFilter || statusFilter || levelFilter
 
   function applyFilter(set, value) {
     setPage(1)
@@ -123,12 +118,13 @@ function QuestionBank() {
     setSearch('')
     setTypeFilter('')
     setStatusFilter('')
+    setLevelFilter('')
   }
 
   /* ────────────────── question modal helpers ────────────────── */
   function openAddQuestion() {
     setEditId(null)
-    setQForm({ proc: processes[0] || '', sp: '', text: '', at: responseTypes[0] || '', w: 3, crit: false, tags: '' })
+    setQForm({ proc: processes[0] || '', sp: '', text: '', at: responseTypes[0] || '', level: 'Medium', tags: '' })
     setShowQModal(true)
   }
 
@@ -141,8 +137,7 @@ function QuestionBank() {
       sp: item.sp || '',
       text: item.text,
       at: item.at,
-      w: item.w,
-      crit: !!item.crit,
+      level: item.level,
       tags: (item.tags || []).join(', '),
     })
     setShowQModal(true)
@@ -164,8 +159,7 @@ function QuestionBank() {
       process: qForm.proc,
       sub_process: qForm.sp,
       audit_type: qForm.at,
-      weight: parseInt(qForm.w) || 3,
-      is_critical: qForm.crit,
+      criticality: qForm.level,
     }
     const confirmText = editId
       ? 'Save changes to this question? A new version is created; finished audits keep the old wording.'
@@ -295,15 +289,13 @@ function QuestionBank() {
   /* ═══════════════════════ RENDER ═══════════════════════ */
   return (
     <>
-      <div className={cn('mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2', isManager ? 'lg:grid-cols-5' : 'lg:grid-cols-4')}>
+      <div className={cn('mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2', isManager ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
         <Tile icon={ClipboardList} tint="#e8eefa" label="Total Questions" value={forTiles.length}
           active={!statusFilter} onClick={() => applyFilter(setStatusFilter, '')} />
         <Tile icon={CheckCircle2} tint="#ecfdf5" label="Active" value={counts.active}
           active={statusFilter === 'active'} onClick={() => toggleStatus('active')} />
         <Tile icon={CircleOff} tint="#f3f4f6" label="Inactive" value={counts.inactive}
           active={statusFilter === 'inactive'} onClick={() => toggleStatus('inactive')} />
-        <Tile icon={AlertTriangle} tint="#fde8e8" label="Critical Risk" value={counts.critical}
-          active={statusFilter === 'critical'} onClick={() => toggleStatus('critical')} />
         {isManager && (
           <Tile icon={Clock} tint="#fffbeb" label="Pending Approval" value={counts.pending}
             active={statusFilter === 'pending'} onClick={() => toggleStatus('pending')} />
@@ -326,8 +318,11 @@ function QuestionBank() {
           <option value="">Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
-          <option value="critical">Critical risk</option>
           {isManager && <option value="pending">Pending approval</option>}
+        </select>
+        <select className={cn(fieldClass, 'w-auto cursor-pointer')} value={levelFilter} onChange={e => applyFilter(setLevelFilter, e.target.value)} aria-label="Filter by criticality">
+          <option value="">Criticality</option>
+          {CRITICALITIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         {hasFilters && <Button size="sm" variant="outline" onClick={clearAll}>Clear</Button>}
         {isManager && <Button size="sm" variant="outline" onClick={openNewProcess}>+ New Process</Button>}
@@ -340,28 +335,26 @@ function QuestionBank() {
             <TableRow>
               <TableHead>Question</TableHead>
               <TableHead>Process</TableHead>
-              <TableHead>Weight</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>Criticality</TableHead>
               <TableHead>Active</TableHead>
               {isManager && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {paged.length === 0 && (
-              <TableRow><TableCell colSpan={isManager ? 6 : 5} className="p-10 text-center text-muted-foreground">No questions match these filters</TableCell></TableRow>
+              <TableRow><TableCell colSpan={isManager ? 5 : 4} className="p-10 text-center text-muted-foreground">No questions match these filters</TableCell></TableRow>
             )}
             {paged.map(item => {
-              const [statusLabel, statusClass] = APPROVAL_BADGE[item.status] || APPROVAL_BADGE.PENDING
               return (
                 <TableRow key={item.id} className={cn(!item.on && 'opacity-60')}>
                   <TableCell className="max-w-[460px] whitespace-normal">
-                    <div className="flex items-start gap-1.5">
-                      {item.crit && <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-destructive" aria-label="Critical risk" />}
-                      <div className="text-[12.5px] font-semibold leading-snug">{item.text}</div>
-                    </div>
+                    <div className="text-[12.5px] font-semibold leading-snug">{item.text}</div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
                       <span>{qTypeLabel(item.at) || 'No type'}</span>
                       {(item.tags || []).map(t => <span className="rounded border border-border bg-muted px-1.5 text-[10.5px]" key={t}>{t}</span>)}
+                      {/* Proposed by an auditor: a manager approves or rejects it from the Actions column. */}
+                      {item.status === 'PENDING' && <span className="rounded bg-amber-50 px-1.5 text-[10.5px] font-semibold text-amber-700">Awaiting review</span>}
+                      {item.status === 'REJECTED' && <span className="rounded bg-red-50 px-1.5 text-[10.5px] font-semibold text-red-700" title={item.meta?.review?.reason || ''}>Rejected{item.meta?.review?.reason ? `: ${item.meta.review.reason}` : ''}</span>}
                     </div>
                   </TableCell>
                   <TableCell className="whitespace-normal">
@@ -369,16 +362,7 @@ function QuestionBank() {
                     <div className="text-[11px] text-muted-foreground">{item.sp}</div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex h-[22px] w-[22px] items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ background: wColor(item.w) }}>{item.w}</div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col items-start gap-1">
-                      {isManager && <Badge className={cn('text-[10.5px]', statusClass)}>{statusLabel}</Badge>}
-                      {item.status === 'REJECTED' && item.meta?.review?.reason && (
-                        <span className="max-w-[180px] text-[11px] leading-snug text-muted-foreground" title={item.meta.review.reason}>Reason: {item.meta.review.reason}</span>
-                      )}
-                      {item.crit && <Badge className="bg-red-50 text-[10.5px] text-red-700">Critical</Badge>}
-                    </div>
+                    <Badge className={cn('text-[10.5px]', criticalityClass(item.level))}>{item.level}</Badge>
                   </TableCell>
                   <TableCell>
                     <Toggle on={item.on} onClick={() => toggleQ(item.id)} disabled={!isManager} label={item.on ? 'Deactivate question' : 'Activate question'} />
@@ -434,7 +418,7 @@ function QuestionBank() {
             <textarea className={cn(fieldClass, 'min-h-[72px] resize-y')} placeholder="Whether..." value={qForm.text} onChange={e => setQForm(f => ({ ...f, text: e.target.value }))} />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_1fr] sm:items-end">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr] sm:items-end">
             <div>
               <label className={labelClass}>Question Type</label>
               <select className={fieldClass} value={qForm.at} onChange={e => handleRTSelectChange(e.target.value)}>
@@ -443,14 +427,13 @@ function QuestionBank() {
               </select>
             </div>
             <div>
-              <label className={labelClass}>Weights</label>
-              <Input type="number" min="1" max="5" value={qForm.w} onChange={e => setQForm(f => ({ ...f, w: e.target.value }))} />
-            </div>
-            <div className="flex items-center gap-2 pb-2">
-              <label className={cn(labelClass, 'mb-0')}>Critical Risk</label>
-              <Toggle on={qForm.crit} onClick={() => setQForm(f => ({ ...f, crit: !f.crit }))} />
+              <label className={labelClass} htmlFor="q-criticality">Criticality</label>
+              <select id="q-criticality" className={fieldClass} value={qForm.level} onChange={e => setQForm(f => ({ ...f, level: e.target.value }))}>
+                {CRITICALITIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
           </div>
+          <p className="-mt-1 text-[11.5px] text-muted-foreground">Criticality sets how much the question counts in the audit score: High 3, Medium 2, Low 1.</p>
 
           <div>
             <label className={labelClass}>Tags (comma separated)</label>

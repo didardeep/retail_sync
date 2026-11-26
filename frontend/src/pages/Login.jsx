@@ -123,32 +123,6 @@ export default function Login({ onLogin }) {
             ) : null}
             {busy ? 'Signing in...' : 'Sign In'}
           </button>
-
-          <div className="login-hint">
-            <div className="login-hint-title">Demo Credentials</div>
-            <div className="login-hint-row">
-              <span className="login-hint-badge am">AM</span>
-              <div>
-                <div className="login-hint-email">manager</div>
-                <div className="login-hint-role">Audit Manager</div>
-              </div>
-            </div>
-            <div className="login-hint-row">
-              <span className="login-hint-badge aud">AU</span>
-              <div>
-                <div className="login-hint-email">amit</div>
-                <div className="login-hint-role">Auditor</div>
-              </div>
-            </div>
-            <div className="login-hint-row">
-              <span className="login-hint-badge sm">SM</span>
-              <div>
-                <div className="login-hint-email">sharma</div>
-                <div className="login-hint-role">Store Manager</div>
-              </div>
-            </div>
-            <div className="login-hint-pw">Password for all: <code>pass</code></div>
-          </div>
         </form>
       </div>
     </div>

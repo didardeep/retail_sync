@@ -61,13 +61,37 @@ test('previewScore treats a missing weight as 1 and returns null when nothing is
   assert.equal(previewScore(audit([])), null);
 });
 
+const PROOF = { remarks: 'Till short', evidence: [{ type: 'photo', url: '/api/evidence/a.jpg' }] };
+
+test('a No without remarks or evidence is a problem that says what is missing', () => {
+  const a = audit([
+    r('1', 'A', 'No'),
+    r('2', 'A', 'No', { remarks: '  ', evidence: PROOF.evidence }),
+    r('3', 'A', 'No', { remarks: 'Seen' }),
+    r('4', 'A', 'No', PROOF),
+    r('5', 'A', 'Yes'),
+    r('6', 'A', 'NA'),
+  ]);
+  assert.deepEqual(problems(a).filter((x) => x.kind === 'no_proof').map((x) => [x.id, x.missing]),
+    [['1', ['remarks', 'evidence']], ['2', ['remarks']], ['3', ['evidence']]]);
+});
+
+test('missingProof and proofLabel', async () => {
+  const { missingProof, proofLabel } = await import('../src/lib/classicAudit.js');
+  assert.deepEqual(missingProof({ answer: 'Yes' }), []);
+  assert.deepEqual(missingProof({ answer: 'No' }), ['remarks', 'evidence']);
+  assert.deepEqual(missingProof({ answer: 'No', ...PROOF }), []);
+  assert.equal(proofLabel(['remarks', 'evidence']), 'remarks and evidence');
+  assert.equal(proofLabel(['evidence']), 'evidence');
+});
+
 test('problems lists unanswered and critical No that has no issue yet', () => {
   const a = audit([
     r('1', 'A', null),
-    r('2', 'A', 'No', { is_critical: true }),
-    r('3', 'A', 'No', { is_critical: false }),
+    r('2', 'A', 'No', { is_critical: true, ...PROOF }),
+    r('3', 'A', 'No', { is_critical: false, ...PROOF }),
     r('4', 'A', 'Yes', { is_critical: true }),
-    r('5', 'A', 'No', { is_critical: true, issue_id: 'ISS1' }),
+    r('5', 'A', 'No', { is_critical: true, issue_id: 'ISS1', ...PROOF }),
   ]);
   const p = problems(a);
   assert.deepEqual(p.map((x) => [x.kind, x.id, x.index]), [['unanswered', '1', 0], ['critical_no', '2', 1]]);

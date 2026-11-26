@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Doughnut, Bar } from 'react-chartjs-2';
+import { Pie, Bar } from 'react-chartjs-2';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, loadSession } from '../api/client';
 import { Loading } from '@/components/Loader';
@@ -7,407 +7,383 @@ import FormatLegend from '@/components/FormatLegend';
 import ScopePicker from '@/components/ScopePicker';
 import Tile from '@/components/Tile';
 import PowerBiSample from '@/components/PowerBiSample';
-import BrandTrendCard from '@/components/dashboard/BrandTrendCard';
 import ObservationsCard from '@/components/dashboard/ObservationsCard';
+import PlanningView from '@/components/dashboard/PlanningView';
+import Panel, { Empty } from '@/components/charts/Panel';
 import InfoButton from '@/components/InfoButton';
 import { StoreView } from '@/components/store-dashboard/StoreView';
-import { avC, sColor, sBadge, pbClass, prC, stC } from '../utils/helpers';
+import { avC, sColor, pbClass, prC, stC } from '../utils/helpers';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Drawer } from '../components/Modal';
-import { auditsLink, issuesLink, storesLink, storeScorecardLink } from '@/lib/links';
+import { issuesLink, storesLink, storeScorecardLink } from '@/lib/links';
 import { QUARTERS } from '@/lib/storeStats';
 import { CRITERIA } from '@/lib/scoreCriteria';
+import { COLORS, SCORE_TARGET, SERIES, scoreColor } from '@/lib/chartColors';
 import {
-  RISK_COLORS, UNASSIGNED_REGION, averageScore, bucketScoredStores, formatAverages, groupAuditsByRegion,
-  auditStageCounts, auditsInQuarter, groupObservationsByRisk, itemsOfAudits, latestAuditQuarter, rankScored, scoreStores,
+  ALL_QUARTERS, RISK_COLORS, averageScore, bucketScoredStores, formatAverages, auditsInQuarter,
+  groupObservationsByRisk, itemsOfAudits, quarterLabel, rankScored, scoreStores,
 } from '@/lib/overviewStats';
 import {
-  inScope, pickerParams, resolveScope, scopeFromParams, scopeTitle, storesInScope, wording,
+  inScope, resolveScope, scopeFromParams, scopeTitle, storesInScope, wording,
 } from '@/lib/dashboardScope';
 
-// The sections for all brands or for one brand. Everything passed in is already
-// limited to the stores in scope, so every number here equals the list it opens.
-function OverviewBody({ scope, brandName, brands, allBrands, stores, scoreMap, issues, observations, audits, selectedQ }) {
+const VIEWS = [
+  { key: 'planning', label: 'Audit Planning' },
+  { key: 'execution', label: 'Audit Execution' },
+];
+// The app's chart colours (lib/chartColors.js). Formats keep a fixed colour each;
+// score bands run from green (high) through amber to red (low), as elsewhere.
+const FORMAT_COLORS = { COCO: SERIES[0], COFO: SERIES[1], FOCO: SERIES[2], FOFO: SERIES[3] };
+const BUCKET_COLORS = [COLORS.green, '#84cc16', COLORS.amber, '#f97316', COLORS.red];
+const GRID_OFF = { grid: { display: false } };
+const PERCENT_AXIS = { min: 0, max: 100, ticks: { stepSize: 20, callback: (v) => `${v}%` } };
+
+const pointer = (event, elements) => {
+  const el = event.native?.target;
+  if (el) el.style.cursor = elements.length ? 'pointer' : 'default';
+};
+const pieOpts = (onPick) => ({
+  responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+  onClick: (_e, els) => { if (els.length && onPick) onPick(els[0].index); }, onHover: pointer,
+});
+
+// Colour, name, value and share in one row; also the way to open a slice.
+function LegendRows({ rows, onPick, value = (r) => r.count, extra }) {
+  return (
+    <ul className="min-w-0 space-y-1.5 text-[12px]">
+      {rows.map((r, i) => (
+        <li key={r.label}>
+          <button type="button" className="flex w-full items-center gap-2 text-left hover:underline" onClick={() => onPick?.(i)}>
+            <span className="inline-block size-2.5 shrink-0 rounded-sm" style={{ background: r.color }} />
+            <span className="min-w-0 flex-1 truncate text-foreground">{r.label}</span>
+            <span className="shrink-0 font-semibold text-foreground">{value(r)}</span>
+            {extra && <span className="w-9 shrink-0 text-right text-muted-foreground">{extra(r)}</span>}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Audit Execution: how the audits went - scores by store, format and over the
+// quarters, the observations by risk, and the issues raised. Everything passed
+// in is already limited to the stores in scope and the selected quarter.
+function ExecutionView({ scope, stores, scoreMap, issues, observations, audits, selectedQ }) {
   const navigate = useNavigate();
   const role = loadSession()?.user?.role;
-  const words = wording(scope, brandName);
-  const [drillOpen, setDrillOpen] = useState(false);
-  const [drillTitle, setDrillTitle] = useState('');
-  const [drillList, setDrillList] = useState([]);
-  const [drillLink, setDrillLink] = useState(null);
+  const words = wording(scope);
+  const [drill, setDrill] = useState(null); // { title, items, link }
 
   const { scored, unscored } = scoreStores(stores, scoreMap, selectedQ);
   const ranked = rankScored(scored);
-  const qLabel = selectedQ.toUpperCase();
+  const qLabel = quarterLabel(selectedQ);
 
-  // KPI tiles link to the Audit page filtered by the same brand and stage, so
-  // the tile number equals the number of rows shown there. Completed counts
-  // every audit whose checklist is filled in (completed or approved).
-  const stageCounts = auditStageCounts(audits);
-  const brandKey = scope.kind === 'brand' ? scope.id : undefined;
-  const quarterKey = selectedQ;
-  const kpiTiles = [
-    { label: 'Total audits', value: stageCounts.total, link: { brand: brandKey, quarter: quarterKey }, icon: '📊', tint: '#f3f4f6' },
-    { label: 'Planned', value: stageCounts.scheduled, link: { stage: 'scheduled', brand: brandKey, quarter: quarterKey }, icon: '📋', tint: '#e8eefa' },
-    { label: 'Ongoing', value: stageCounts.in_progress, link: { stage: 'in_progress', brand: brandKey, quarter: quarterKey }, icon: '⏳', tint: '#fffbeb' },
-    { label: 'Completed', value: stageCounts.done, link: { status: 'completed', brand: brandKey, quarter: quarterKey }, icon: '✅', tint: '#ecfdf5' },
+  // Headline numbers for the execution side.
+  const auditScores = audits.map((a) => a.score).filter((v) => typeof v === 'number');
+  const avgAudit = averageScore(auditScores);
+  const openIssues = issues.filter((i) => i.status !== 'Closed').length;
+  const tiles = [
+    { label: 'Average audit score', value: avgAudit !== null ? `${avgAudit}%` : '--', icon: '🎯', tint: '#ecfdf5' },
+    { label: 'Audits scored', value: auditScores.length, icon: '✅', tint: '#e8eefa' },
+    { label: 'Observations', value: observations.length, icon: '🔎', tint: '#fffbeb' },
+    { label: 'Open issues', value: openIssues, icon: '⚠️', tint: '#fde8e8', go: () => navigate('/issues') },
   ];
 
-  // Risk distribution: observations grouped by their risk level (four levels
-  // plus Unrated for blank/unrecognised text). The drawer lists the same group.
-  const riskD = groupObservationsByRisk(observations).map(g => ({...g, l:g.level, c:RISK_COLORS[g.level]}));
-  const riskData = { labels:riskD.map(d=>d.l), datasets:[{data:riskD.map(d=>d.count),backgroundColor:riskD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
-  const donutOpts = (cutout, onClick) => ({ responsive:true, maintainAspectRatio:false, cutout, plugins:{legend:{display:false},tooltip:{intersect:true,titleFont:{size:13},bodyFont:{size:13},padding:10,displayColors:true}}, onClick:(evt,els)=>{if(els.length && onClick) onClick(els[0].index);} });
+  // Observations by risk: a plain pie, the legend gives count and share.
+  const riskD = groupObservationsByRisk(observations).map((g) => ({ ...g, label: g.level, color: RISK_COLORS[g.level] }));
+  const riskData = { labels: riskD.map((d) => d.label), datasets: [{ data: riskD.map((d) => d.count), backgroundColor: riskD.map((d) => d.color) }] };
+  function openRisk(i) {
+    const g = riskD[i];
+    setDrill({ title: `${g.label} risk observations (${g.count})`, items: g.items.map((o) => ({ title: o.observation || '--', badges: [], sub: o.store || '' })) });
+  }
 
-  // Store bar chart: for one brand every scored outlet, otherwise the top 7.
-  const barStores = scope.kind === 'brand' ? ranked : ranked.slice(0,7);
-  const storeBarD = barStores.map(e => ({l: e.store.name?.substring(0,12) || e.store.id, v: e.score, id: e.store.id}));
-  const storeBarNote = scope.kind === 'brand' ? `${qLabel}, ${scored.length} of ${stores.length} outlets scored` : `${qLabel}, top ${storeBarD.length} of ${scored.length} scored`;
-  const storeBarData = { labels:storeBarD.map(d=>d.l), datasets:[{data:storeBarD.map(d=>d.v),backgroundColor:storeBarD.map(d=>d.v>=77?'#0e9f6e':'#f59e0b'),borderRadius:4}] };
-  const storeBarOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{min:50,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}, onClick:(evt,els)=>{ if(els.length){ const d=storeBarD[els[0].index]; if(d?.id) navigate(storeScorecardLink(d.id, role)); } } };
-
-  // Region distribution: counts classic audits per audit region. The slice,
-  // the legend count and the drawer list all come from the same group.
-  const regColors = ['#00338D','#0e9f6e','#f59e0b','#e02424','#8b5cf6','#06b6d4'];
-  const regD = groupAuditsByRegion(audits).map((g, i) => ({...g, l:g.region, c:regColors[i % regColors.length]}));
-  const regData = { labels:regD.map(d=>d.l), datasets:[{data:regD.map(d=>d.count),backgroundColor:regD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
-  // Centre figure: average of the scores of exactly those audits that have one.
-  const regionScores = audits.map(a => a.score).filter(v => typeof v === 'number');
-  const regionAvg = averageScore(regionScores);
+  // Store scores: the top 10. The axis runs 0 to 100 so bar lengths compare honestly.
+  const barStores = ranked.slice(0, 10);
+  const storeBarNote = `${qLabel}, top ${barStores.length} of ${scored.length} scored`;
+  const storeBarData = {
+    labels: barStores.map((e) => e.store.name?.substring(0, 12) || e.store.id),
+    datasets: [{ label: 'Score', data: barStores.map((e) => e.score), backgroundColor: barStores.map((e) => scoreColor(e.score)), maxBarThickness: 32 }],
+  };
+  const storeBarOpts = {
+    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => ` ${c.parsed.y}%` } } },
+    // Names stay level (never slanted); when they do not all fit some are skipped and the tooltip names the bar.
+    scales: { y: PERCENT_AXIS, x: { ...GRID_OFF, ticks: { maxRotation: 0, autoSkipPadding: 6 } } }, onHover: pointer,
+    onClick: (_e, els) => { if (els.length) navigate(storeScorecardLink(barStores[els[0].index].store.id, role)); },
+  };
 
   // Format averages over scored stores only (unscored stores are not zeros).
-  const fmtColors = {COCO:'#00338D',COFO:'#06b6d4',FOCO:'#f59e0b',FOFO:'#8b5cf6'};
-  const fmtD = formatAverages(stores, scoreMap, selectedQ).map(f => ({ l: f.format, v: f.avg, n: f.scoredCount, c: fmtColors[f.format] || '#6b7280' }));
-  const fmtScored = fmtD.filter(d => d.v !== null);
-  const fmtData = { labels:fmtScored.map(d=>d.l), datasets:[{data:fmtScored.map(d=>d.v),backgroundColor:fmtScored.map(d=>d.c),borderRadius:5}] };
-  const fmtOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{min:50,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}} };
+  const fmtD = formatAverages(stores, scoreMap, selectedQ).map((f) => ({ label: f.format, v: f.avg, n: f.scoredCount, color: FORMAT_COLORS[f.format] || COLORS.gray }));
+  const fmtScored = fmtD.filter((d) => d.v !== null);
+  const fmtData = { labels: fmtScored.map((d) => d.label), datasets: [{ label: 'Average score', data: fmtScored.map((d) => d.v), backgroundColor: fmtScored.map((d) => d.color), maxBarThickness: 40 }] };
+  const fmtOpts = {
+    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => ` ${c.parsed.y}%` } } },
+    scales: { y: PERCENT_AXIS, x: GRID_OFF }, onHover: pointer,
+    onClick: (_e, els) => { if (els.length) navigate(storesLink({ format: fmtScored[els[0].index].label })); },
+  };
 
-  // Score distribution: one bucket per scored store; unscored stores are
-  // excluded from the donut and listed separately as "Not scored".
-  const BUCKET_COLORS = ['#0e9f6e','#84cc16','#f59e0b','#f97316','#e02424'];
-  const distD = bucketScoredStores(scored).map((b, i) => ({...b, l:b.label, c:BUCKET_COLORS[i]}));
-  const distData = { labels:distD.map(d=>d.l), datasets:[{data:distD.map(d=>d.count),backgroundColor:distD.map(d=>d.c),borderWidth:2,borderColor:'#fff'}] };
+  // Score distribution: one bucket per scored store.
+  const distD = bucketScoredStores(scored).map((b, i) => ({ ...b, label: `${b.label}%`, color: BUCKET_COLORS[i] }));
+  const distData = { labels: distD.map((d) => d.label), datasets: [{ data: distD.map((d) => d.count), backgroundColor: distD.map((d) => d.color) }] };
+  const storeItem = (s, score) => ({ title: `${s.name}, ${s.city}`, badges: [], sub: score == null ? 'Not scored' : null, score, id: s.id });
+  function openDist(i) {
+    const b = distD[i];
+    setDrill({ title: `Stores scoring ${b.label} in ${qLabel} (${b.count})`, items: b.items.map((e) => storeItem(e.store, e.score)), link: storesLink({}) });
+  }
+  function openUnscored() {
+    setDrill({ title: `Stores not scored in ${qLabel} (${unscored.length})`, items: unscored.map((s) => storeItem(s, null)), link: storesLink({}) });
+  }
 
-  // Top/Bottom stores: scored stores only.
-  const toRow = e => ({n:`${e.store.name}, ${e.store.city}`, v:`${e.score}%`, id:e.store.id});
-  const t5 = ranked.slice(0,5).map(toRow);
+  const toRow = (e) => ({ n: `${e.store.name}, ${e.store.city}`, v: e.score, id: e.store.id });
+  const t5 = ranked.slice(0, 5).map(toRow);
   const b5 = ranked.slice(-5).reverse().map(toRow);
-
-  // Recent issues for the scope (the API returns them newest first).
   const recentIssues = issues.slice(0, 5);
 
-  // drill handlers
-  const BADGE_OPERATING = 'bg-emerald-50 text-emerald-700';
-  const BADGE_GRAY = 'bg-muted text-muted-foreground border border-border';
-  function openRiskDrill(idx) {
-    const g = riskD[idx];
-    setDrillTitle(`${g.l} Risk Observations (${g.count})`);
-    setDrillList(g.items.map(o => ({ title: o.observation || '--', badges:[], sub: o.store || '' })));
-    setDrillLink(null);
-    setDrillOpen(true);
-  }
-  function openRegionDrill(idx) {
-    const g = regD[idx];
-    setDrillTitle(`${g.l} Audits (${g.count})`);
-    setDrillList(g.items.map(a => ({ title:`${a.store}, ${a.city||''}`, badges:[{text:a.status,cls:sBadge(a.status)}], sub:a.scheduled_at, score:typeof a.score === 'number' ? a.score : null })));
-    setDrillLink(g.l === UNASSIGNED_REGION ? null : auditsLink({ region: g.l, quarter: selectedQ }));
-    setDrillOpen(true);
-  }
-  function storeDrillItem(s, score) {
-    return { title:`${s.name}, ${s.city}`, badges:[{text:s.status,cls:s.status==='Operating'?BADGE_OPERATING:BADGE_GRAY}], sub:score == null ? 'Not scored' : null, score, id:s.id };
-  }
-  function openDistDrill(idx) {
-    const b = distD[idx];
-    setDrillTitle(`Stores Scoring ${b.l}% in ${qLabel} (${b.count})`);
-    setDrillList(b.items.map(e => storeDrillItem(e.store, e.score)));
-    setDrillLink(storesLink({}));
-    setDrillOpen(true);
-  }
-  function openUnscoredDrill() {
-    setDrillTitle(`Stores Not Scored in ${qLabel} (${unscored.length})`);
-    setDrillList(unscored.map(s => storeDrillItem(s, null)));
-    setDrillLink(storesLink({}));
-    setDrillOpen(true);
-  }
+  const RankList = ({ title, rows, tone }) => (
+    <div className="min-w-0 flex-1">
+      <div className={cn('mb-1.5 text-[10.5px] font-bold uppercase tracking-wider', tone)}>{title}</div>
+      {!rows.length && <div className="py-2 text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
+      {rows.map((s) => (
+        <button type="button" key={s.id} className="flex w-full items-center justify-between gap-2 border-b border-border py-1.5 text-left text-xs last:border-0 hover:bg-accent/40" onClick={() => navigate(storeScorecardLink(s.id, role))}>
+          <span className="min-w-0 truncate">{s.n}</span>
+          <div className="flex min-w-[90px] items-center gap-1.5">
+            <div className="h-[6px] flex-1 overflow-hidden rounded-[3px] bg-gray-200"><div className={cn('h-full rounded-[3px]', pbClass(s.v))} style={{ width: `${s.v}%` }} /></div>
+            <span className="w-10 text-right text-[11.5px] font-bold text-foreground">{s.v}%</span>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <>
-      {/* KPIs: each opens the Audit page with the same brand and status, so it shows the same rows */}
       <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {kpiTiles.map(k => (
-          <Tile key={k.label} icon={k.icon} tint={k.tint} label={k.label} value={k.value} onClick={() => navigate(auditsLink(k.link))} />
-        ))}
+        {tiles.map((t) => <Tile key={t.label} icon={t.icon} tint={t.tint} label={t.label} value={t.value} onClick={t.go} />)}
       </div>
 
-      {/* Row 1: Trend + Risk */}
+      {/* Quarter by quarter: always every quarter of the year */}
+      <div className="mb-3 grid grid-cols-1 gap-3">
+        <Panel title={<>{words.risk}<InfoButton lines={CRITERIA.risk} /></>} hint={`${qLabel}, ${observations.length} observations`}>
+          {riskD.length ? (
+            <div className="flex items-center gap-4">
+              <div className="relative size-[150px] shrink-0"><Pie data={riskData} options={pieOpts(openRisk)} /></div>
+              <div className="min-w-0 flex-1"><LegendRows rows={riskD} onPick={openRisk} extra={(r) => `${r.pct}%`} /></div>
+            </div>
+          ) : <Empty>No observations in {qLabel}</Empty>}
+        </Panel>
+      </div>
+
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
-        <BrandTrendCard title={words.trend} allBrands={allBrands} brands={brands} stores={stores} />
-        <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.risk}<InfoButton lines={CRITERIA.risk} /><span className="ml-2 text-[11px] font-normal text-muted-foreground">{observations.length} total</span></div>
-          <div className="flex h-[190px] items-center justify-center gap-4">
-            <div className="relative h-[155px] w-[155px] shrink-0">
-              {riskD.length ? <Doughnut data={riskData} options={donutOpts('62%', openRiskDrill)}/> : null}
+        <Panel title={<>{words.storeBars}<InfoButton lines={CRITERIA.storeBars} /></>} hint={`${storeBarNote}. Green is ${SCORE_TARGET}% or above, amber 60 to ${SCORE_TARGET}%, red below 60. Click a bar to open the store.`}>
+          {barStores.length ? <div className="relative h-[220px]"><Bar data={storeBarData} options={storeBarOpts} /></div> : <Empty>No stores scored in {qLabel}</Empty>}
+        </Panel>
+        <Panel title={<>{words.distribution}<InfoButton lines={CRITERIA.distribution} /></>} hint={`${qLabel}, stores per score band`}>
+          {scored.length ? (
+            <div className="flex items-center gap-4">
+              <div className="relative size-[140px] shrink-0"><Pie data={distData} options={pieOpts(openDist)} /></div>
+              <div className="min-w-0 flex-1">
+                <LegendRows rows={distD} onPick={openDist} />
+                <button type="button" className="mt-1.5 text-[11.5px] text-muted-foreground hover:underline" onClick={openUnscored}>Not scored: <b>{unscored.length}</b></button>
+              </div>
             </div>
-            <div className="text-[11.5px]">
-              {riskD.length ? riskD.map(d => (
-                <div key={d.l} className="mb-1.5 flex cursor-pointer items-center gap-1.5" onClick={() => openRiskDrill(riskD.indexOf(d))}>
-                  <span className="inline-block h-[9px] w-[9px] rounded-sm" style={{background:d.c}}/>
-                  {d.l}: <b>{d.pct}% ({d.count})</b>
-                </div>
-              )) : <div className="text-xs text-muted-foreground">No observations yet</div>}
-            </div>
-          </div>
-        </div>
+          ) : <Empty>No stores scored in {qLabel}</Empty>}
+        </Panel>
       </div>
 
-      {/* Row 2: Store bars + Region */}
-      {/* Row 2: Store bars + Region */}
-      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
-        <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.storeBars}<InfoButton lines={CRITERIA.storeBars} /><span className="ml-2 text-[11px] font-normal text-muted-foreground">{storeBarNote}</span></div>
-          {storeBarD.length ? <div className="relative h-[190px] w-full"><Bar data={storeBarData} options={storeBarOpts}/></div> : <div className="flex h-[190px] items-center justify-center text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
-        </div>
-        <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.region}<InfoButton lines={CRITERIA.region} /><span className="ml-2 text-[11px] font-normal text-muted-foreground">{audits.length} checklist audits</span></div>
-          <div className="flex h-[190px] items-center justify-center gap-3.5">
-            <div className="relative h-[150px] w-[150px] shrink-0">
-              {regD.length ? <Doughnut data={regData} options={donutOpts('58%', openRegionDrill)}/> : null}
-            </div>
-            <div className="text-[11.5px]">
-              <div className="mb-1 text-[17px] font-bold">{regionAvg !== null ? regionAvg + '%' : '--'}</div>
-              <div className="mb-2 text-[10px] text-muted-foreground">Avg audit score ({regionScores.length} of {audits.length} scored)</div>
-              {!regD.length && <div className="text-xs text-muted-foreground">No audits yet</div>}
-              {regD.map(d => (
-                <div key={d.l} className="mb-1 flex cursor-pointer items-center gap-1.5" onClick={() => openRegionDrill(regD.indexOf(d))}>
-                  <span className="inline-block h-[9px] w-[9px] rounded-sm" style={{background:d.c}}/>
-                  <span className="text-[11.5px]">{d.l}: <b>{d.pct}% ({d.count})</b></span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Row 3: Format + Distribution */}
-      {/* Row 3: Format + Distribution */}
-      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
-        <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 flex items-center gap-1 text-[13px] font-semibold text-foreground">{words.format}<InfoButton lines={CRITERIA.format} /><FormatLegend /><span className="ml-1 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
-          <div className="flex gap-4.5">
-            <div className="flex-1">{fmtScored.length ? <Bar data={fmtData} options={fmtOpts} height={145}/> : <div className="flex h-[145px] items-center justify-center text-xs text-muted-foreground">No scored stores in {qLabel}</div>}</div>
-            <div className="min-w-[155px] text-xs">
-              <div className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Format Summary</div>
-              {fmtD.map(d => (
-                <div key={d.l} className="mb-1 cursor-pointer border-b border-gray-200 pb-1 hover:opacity-80" onClick={() => navigate(storesLink({ format: d.l }))}>
-                  <div className="mb-1 flex justify-between">
-                    <span className="text-gray-500">{d.l} Average ({d.n} scored)</span><b style={{color:d.c}}>{d.v === null ? 'Not scored' : `${d.v}%`}</b>
-                  </div>
-                  <div className="h-[5px] overflow-hidden rounded-[3px] bg-gray-200"><div className="h-full rounded-[3px]" style={{width:`${d.v || 0}%`,background:d.c}}/></div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.distribution}<InfoButton lines={CRITERIA.distribution} /><span className="ml-2 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
-          <div className="flex h-[185px] items-center justify-center gap-3">
-            <div className="relative h-[145px] w-[145px] shrink-0">
-              {scored.length ? <Doughnut data={distData} options={donutOpts('58%', openDistDrill)}/> : null}
-            </div>
-            <div className="text-[11.5px]">
-              {!scored.length && <div className="mb-1 text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
-              {scored.length > 0 && distD.map(d => (
-                <div key={d.l} className="mb-1 flex cursor-pointer items-center gap-1.5" onClick={() => openDistDrill(distD.indexOf(d))}>
-                  <span className="inline-block h-[9px] w-[9px] rounded-sm" style={{background:d.c}}/>
-                  <span className="text-[11.5px]">{d.l}: <b>{d.count}</b></span>
-                </div>
-              ))}
-              <div className="mt-1 cursor-pointer text-[11px] text-muted-foreground hover:underline" onClick={openUnscoredDrill}>Not scored: <b>{unscored.length}</b></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Row 4: Scorecards + Observations */}
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[13px] font-semibold text-foreground">{words.topBottom}<span className="ml-2 text-[11px] font-normal text-muted-foreground">{qLabel}</span></div>
-          <div className="flex gap-4.5">
-            <div className="flex-1">
-              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider" style={{color:'var(--green)'}}>&#x1F3C6; Top 5 Stores</div>
-              {!t5.length && <div className="py-2 text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
-              {t5.map(s => { const v = parseInt(s.v); return (
-                <div key={s.n} className={cn('flex cursor-pointer items-center justify-between border-b border-border py-1 text-xs last:border-0', s.id && 'hover:bg-accent/40')} onClick={() => s.id && navigate(storeScorecardLink(s.id, role))}>
-                  <span>{s.n}</span>
-                  <div className="flex min-w-[70px] items-center gap-1.5">
-                    <div className="h-[5px] flex-1 overflow-hidden rounded-[3px] bg-gray-200"><div className={cn('h-full rounded-[3px]', pbClass(v))} style={{width:`${v}%`}}/></div>
-                    <span className="text-[11.5px] font-bold text-emerald-600">{s.v}</span>
-                  </div>
-                </div>
-              );})}
-            </div>
-            <div className="flex-1">
-              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider" style={{color:'var(--red)'}}>&#x26A0; Bottom 5 Stores</div>
-              {!b5.length && <div className="py-2 text-xs text-muted-foreground">No stores scored in {qLabel}</div>}
-              {b5.map(s => { const v = parseInt(s.v); return (
-                <div key={s.n} className={cn('flex cursor-pointer items-center justify-between border-b border-border py-1 text-xs last:border-0', s.id && 'hover:bg-accent/40')} onClick={() => s.id && navigate(storeScorecardLink(s.id, role))}>
-                  <span>{s.n}</span>
-                  <div className="flex min-w-[70px] items-center gap-1.5">
-                    <div className="h-[5px] flex-1 overflow-hidden rounded-[3px] bg-gray-200"><div className={cn('h-full rounded-[3px]', pbClass(v))} style={{width:`${v}%`}}/></div>
-                    <span className="text-[11.5px] font-bold text-red-600">{s.v}</span>
-                  </div>
-                </div>
-              );})}
-            </div>
+        <Panel title={<span className="flex items-center gap-1">{words.format}<InfoButton lines={CRITERIA.format} /><FormatLegend /></span>} hint={`${qLabel}, average score of the scored stores in each format`}>
+          {fmtScored.length ? <div className="relative h-[200px]"><Bar data={fmtData} options={fmtOpts} /></div> : <Empty>No scored stores in {qLabel}</Empty>}
+          {fmtD.some((d) => d.v === null) && (
+            <p className="mt-2 text-[11px] text-muted-foreground">Not scored: {fmtD.filter((d) => d.v === null).map((d) => d.label).join(', ')}</p>
+          )}
+        </Panel>
+        <Panel title={words.topBottom} hint={qLabel}>
+          <div className="flex flex-col gap-4 sm:flex-row">
+            <RankList title="Top 5 stores" rows={t5} tone="text-emerald-700" />
+            <RankList title="Bottom 5 stores" rows={b5} tone="text-red-700" />
           </div>
-        </div>
+        </Panel>
+      </div>
+
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
         <ObservationsCard scope={scope} observations={observations} issues={issues} />
-      </div>
-
-      {/* Row 5: Recent issues */}
-      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="self-start rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 flex items-center justify-between text-[13px] font-semibold text-foreground">{words.issues}<span className="cursor-pointer text-[11px] font-normal text-muted-foreground" onClick={() => navigate('/issues')}>View all &rarr;</span></div>
+        <Panel title={words.issues} action={<button type="button" className="text-[11px] text-muted-foreground hover:underline" onClick={() => navigate('/issues')}>View all &rarr;</button>}>
           {recentIssues.length ? recentIssues.map((i, idx) => (
-            <div key={i.id} className={cn('flex cursor-pointer items-center justify-between gap-2.5 py-2', idx < recentIssues.length - 1 && 'border-b border-border')} onClick={() => navigate(issuesLink({ id: i.id }))}>
-              <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(i.assignee || 'U'))}>{(i.assignee||'U')[0]}</div>
+            <button type="button" key={i.id} className={cn('flex w-full items-center justify-between gap-2.5 py-2 text-left', idx < recentIssues.length - 1 && 'border-b border-border')} onClick={() => navigate(issuesLink({ id: i.id }))}>
+              <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(i.assignee || 'U'))}>{(i.assignee || 'U')[0]}</div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[12.5px] font-semibold text-foreground">{i.title}</div>
-                <div className="text-[11px] text-muted-foreground">{i.store} &bull; {i.created_at?.substring(0,10)}</div>
+                <div className="text-[11px] text-muted-foreground">{i.store} &bull; {i.created_at?.substring(0, 10)}</div>
               </div>
               <div className="flex shrink-0 gap-1.5">
                 <Badge className={prC(i.priority)}>{i.priority}</Badge>
                 <Badge className={stC(i.status)}>{i.status}</Badge>
               </div>
-            </div>
-          )) : <div className="p-5 text-center text-xs text-muted-foreground">No issues yet</div>}
-        </div>
-      </div>
+            </button>
+          )) : <Empty>No issues in {qLabel}</Empty>}
+        </Panel>
       </div>
 
-      {/* Drill Drawer */}
-      <Drawer open={drillOpen} onClose={() => setDrillOpen(false)}>
-        <div className="mb-3.5 flex items-center justify-between">
-          <div className="text-[15px] font-bold text-foreground">{drillTitle}</div>
-          <span className="cursor-pointer text-[15px] text-muted-foreground" onClick={() => setDrillOpen(false)}>&#x2715;</span>
-        </div>
-        {drillLink && (
-          <button className="mb-3 text-xs text-primary hover:underline" onClick={() => { setDrillOpen(false); navigate(drillLink); }}>View all &rarr;</button>
-        )}
-        {drillList.length ? drillList.map((item, idx) => (
-          <div key={idx} className={cn('border-b border-border py-2.5 last:border-0', item.id && 'cursor-pointer hover:bg-accent/40')} onClick={() => item.id && navigate(storeScorecardLink(item.id, role))}>
-            <div className="mb-1 text-[12.5px] font-semibold text-foreground">{item.title}</div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {item.badges.map((b, bi) => <Badge key={bi} className={b.cls}>{b.text}</Badge>)}
-              {item.sub && <span className="text-[11px] text-muted-foreground">{item.sub}</span>}
-              {item.score != null && <span className="text-[11px] font-bold" style={{color:sColor(item.score)}}>{item.score}%</span>}
+      <Drawer open={!!drill} onClose={() => setDrill(null)}>
+        {drill && (
+          <>
+            <div className="mb-3.5 flex items-center justify-between">
+              <div className="text-[15px] font-bold text-foreground">{drill.title}</div>
+              <button type="button" className="text-[15px] text-muted-foreground" aria-label="Close" onClick={() => setDrill(null)}>&#x2715;</button>
             </div>
-          </div>
-        )) : <div className="p-5 text-center text-xs text-muted-foreground">No items in this category</div>}
+            {drill.link && <button type="button" className="mb-3 text-xs text-primary hover:underline" onClick={() => { setDrill(null); navigate(drill.link); }}>View all &rarr;</button>}
+            {drill.items.length ? drill.items.map((item, idx) => (
+              <div key={idx} className={cn('border-b border-border py-2.5 last:border-0', item.id && 'cursor-pointer hover:bg-accent/40')} onClick={() => item.id && navigate(storeScorecardLink(item.id, role))}>
+                <div className="mb-1 text-[12.5px] font-semibold text-foreground">{item.title}</div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {item.sub && <span className="text-[11px] text-muted-foreground">{item.sub}</span>}
+                  {item.score != null && <span className="text-[11px] font-bold" style={{ color: sColor(item.score) }}>{item.score}%</span>}
+                </div>
+              </div>
+            )) : <div className="p-5 text-center text-xs text-muted-foreground">No items in this category</div>}
+          </>
+        )}
       </Drawer>
     </>
   );
 }
 
-// Dashboard & Analytics: one outline for every scope. The heading names what is
-// shown and the selector beside it picks all brands, one brand or one store
-// (?brand=<id> or ?store=<id>); the sections below follow the selection.
+// Dashboard & Analytics. Two views, Audit Planning and Audit Execution (?view=),
+// for all stores or one store (?store=<id>), and for
+// all quarters of the year or one quarter.
 export default function Dashboard() {
   const [params, setParams] = useSearchParams();
   const role = loadSession()?.user?.role;
   const [data, setData] = useState(null);
-  const [selectedQ, setSelectedQ] = useState('q4');
+  const [selectedQ, setSelectedQ] = useState(ALL_QUARTERS);
   const [pbiOpen, setPbiOpen] = useState(false);
+  const view = VIEWS.some((v) => v.key === params.get('view')) ? params.get('view') : 'planning';
+  const year = new Date().getFullYear();
 
   useEffect(() => {
     Promise.all([
       api.stores().catch(() => []),
-      api.brands().catch(() => []),
       api.issues().catch(() => []),
       api.observations().catch(() => []),
       api.audits().catch(() => []),
       api.storeScores().catch(() => []),
-    ]).then(([stores, brands, issues, observations, audits, scores]) => {
+    ]).then(([stores, issues, observations, audits, scores]) => {
       const scoreMap = {};
       for (const sc of (scores || [])) scoreMap[sc.store_id] = sc;
-      const latestQ = latestAuditQuarter(audits || [], new Date().getFullYear());
-      if (latestQ) setSelectedQ(latestQ);
       setData({
-        stores: stores || [], brands: brands || [], issues: issues || [],
+        stores: stores || [], issues: issues || [],
         observations: observations || [], audits: audits || [], scoreMap,
       });
     });
   }, []);
 
   const stores = data?.stores;
-  const brands = data?.brands;
   const scope = useMemo(
-    () => (data ? resolveScope(scopeFromParams(params), stores, brands) : { kind: 'all', id: '' }),
-    [data, params, stores, brands],
+    () => (data ? resolveScope(scopeFromParams(params), stores) : { kind: 'all', id: '' }),
+    [data, params, stores],
   );
   const scoped = useMemo(() => (data ? storesInScope(stores, scope) : []), [data, stores, scope]);
 
-  // Audits, and the observations and issues raised in them, for the selected quarter.
-  const { quarterAudits, quarterObservations, quarterIssues } = useMemo(() => {
-    if (!data) return { quarterAudits: [], quarterObservations: [], quarterIssues: [] };
-    const audits = auditsInQuarter(inScope(data.audits, scoped), selectedQ, new Date().getFullYear());
+  // Audits, and the observations and issues raised in them, for the selected quarter
+  // (or the whole year), plus every audit of the year for the quarter-by-quarter chart.
+  const { yearAudits, quarterAudits, quarterObservations, quarterIssues } = useMemo(() => {
+    if (!data) return { yearAudits: [], quarterAudits: [], quarterObservations: [], quarterIssues: [] };
+    const scopedAudits = inScope(data.audits, scoped);
+    const audits = auditsInQuarter(scopedAudits, selectedQ, year);
     return {
+      yearAudits: auditsInQuarter(scopedAudits, ALL_QUARTERS, year),
       quarterAudits: audits,
       quarterObservations: itemsOfAudits(inScope(data.observations, scoped), audits),
       quarterIssues: itemsOfAudits(inScope(data.issues, scoped), audits),
     };
-  }, [data, scoped, selectedQ]);
+  }, [data, scoped, selectedQ, year]);
 
   if (!data) return <Loading what="dashboard" />;
 
-  const brandName = brands.find((b) => b.id === scope.id)?.name || '';
-  const shownBrands = brands.filter((b) => scoped.some((s) => s.brand_id === b.id));
   const store = scope.kind === 'store' ? scoped[0] : null;
+  const filtered = !!params.get('store') || selectedQ !== ALL_QUARTERS;
+  function clearFilters() {
+    setSelectedQ(ALL_QUARTERS);
+    setParams(params.get('view') ? { view: params.get('view') } : {}, { replace: true });
+  }
+  const setView = (key) => {
+    const next = new URLSearchParams(params);
+    next.set('view', key);
+    setParams(next, { replace: true });
+  };
 
   return (
     <div>
       <div className="mb-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-xl font-bold text-foreground">{scope.kind === 'all' ? 'Audit Operations' : scopeTitle(scope, stores, brands)}</h2>
+            <h2 className="text-xl font-bold text-foreground">{scope.kind === 'all' ? 'Audit Operations' : scopeTitle(scope, stores)}</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {store
-                ? `${store.brand || 'No brand'}${store.format ? ` - format ${store.format}` : ''}`
+                ? `${store.format ? `Format ${store.format}` : 'No format'}`
                 : scope.kind === 'all' ? 'Consolidated View' : `${scoped.length} ${scoped.length === 1 ? 'store' : 'stores'}`}
-              {' • '}{selectedQ.toUpperCase()}
+              {' • '}{quarterLabel(selectedQ)} {year}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <ScopePicker
-              brands={brands}
               stores={stores}
-              brandId={params.get('brand') || ''}
               storeId={scope.kind === 'store' ? scope.id : ''}
-              onChange={(change) => setParams(pickerParams(stores, {
-                brand: params.get('brand') || '', store: scope.kind === 'store' ? scope.id : '',
-              }, change), { replace: true })}
+              onChange={(store) => {
+                const next = store ? { store } : {};
+                if (params.get('view')) next.view = params.get('view');
+                setParams(next, { replace: true });
+              }}
             />
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5" role="group" aria-label="Quarter">
+              <Button size="sm" className="h-11 md:h-[30px]" variant={selectedQ === ALL_QUARTERS ? 'default' : 'outline'} onClick={() => setSelectedQ(ALL_QUARTERS)}>All</Button>
               {QUARTERS.map((q) => (
                 <Button key={q} size="sm" className="h-11 md:h-[30px]" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
               ))}
             </div>
+            {filtered && (
+              <Button size="sm" className="h-11 md:h-[30px]" variant="outline" onClick={clearFilters} title="Show all stores and all quarters">
+                &#x2715; Clear filters
+              </Button>
+            )}
             <Button size="sm" className="h-11 md:h-[30px]" variant="outline" onClick={() => setPbiOpen(true)}>BI Dashboard</Button>
           </div>
         </div>
+        {!store && (
+          <div className="mt-3 inline-flex rounded-lg border border-border bg-card p-1" role="tablist" aria-label="Dashboard view">
+            {VIEWS.map((v) => (
+              <button
+                key={v.key}
+                type="button"
+                role="tab"
+                aria-selected={view === v.key}
+                onClick={() => setView(v.key)}
+                className={cn('rounded-md px-3.5 py-1.5 text-[13px] font-semibold transition-colors', view === v.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {store ? (
-        <StoreView key={store.id} store={store} role={role} quarter={selectedQ} />
+        <StoreView key={store.id} store={store} role={role} quarter={selectedQ === ALL_QUARTERS ? undefined : selectedQ} />
+      ) : view === 'planning' ? (
+        <PlanningView
+          key={`plan${scope.kind}${scope.id}`}
+          audits={quarterAudits}
+          yearAudits={yearAudits}
+          stores={scoped}
+          quarter={selectedQ}
+          year={year}
+          onPickQuarter={setSelectedQ}
+        />
       ) : (
-        <OverviewBody
-          key={scope.kind + scope.id}
+        <ExecutionView
+          key={`exec${scope.kind}${scope.id}`}
           scope={scope}
-          brandName={brandName}
-          brands={shownBrands}
-          allBrands={brands}
           stores={scoped}
           scoreMap={data.scoreMap}
           issues={quarterIssues}

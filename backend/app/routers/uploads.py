@@ -11,7 +11,7 @@ from ..models import (
     ROLE_ADMIN, ROLE_AUDIT_MANAGER, CashDepositPickup, CashReconciliation, DataImport,
     ExpiredInventory, Observation, Store, StoreScore, User,
 )
-from ..services import get_or_create_brand, log_action
+from ..services import log_action
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
@@ -176,22 +176,17 @@ _STORE_COLUMNS = {
 
 
 def _import_store(session, row):
-    """Create or update one store from a sheet row. A Brand column puts the
-    store under that brand (created if new); a blank or missing Brand puts a
-    new store under 'Unassigned' and leaves an existing store's brand alone."""
+    """Create or update one store from a sheet row."""
     sid = str(row.get("Store ID") or "").strip()
     if not sid:
         return False
     store = session.get(Store, sid)
-    brand_name = str(row.get("Brand") or "").strip()
     if not store:
         name = str(row.get("Name") or "").strip()
         if not name:
             return False
-        store = Store(id=sid, name=name, brand_id=get_or_create_brand(session, brand_name).id)
+        store = Store(id=sid, name=name)
         session.add(store)
-    elif brand_name:
-        store.brand_id = get_or_create_brand(session, brand_name).id
     for column, attr in _STORE_COLUMNS.items():
         value = str(row.get(column) or "").strip()
         if value:

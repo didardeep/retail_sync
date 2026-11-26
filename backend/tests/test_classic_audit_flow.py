@@ -26,7 +26,14 @@ def _start(client, tokens, checklist_id, who="auditor1", store="T001"):
                        json={"store_id": store, "checklist_id": checklist_id})
 
 
+PROOF = {"remarks": "Seen in store", "evidence": [{"type": "photo", "url": "/api/evidence/x.jpg"}]}
+
+
 def _answer(client, tokens, audit, n, answer, who="auditor1", **extra):
+    """A No needs remarks and evidence to be submitted, so it gets them unless the
+    test passes its own."""
+    if answer == "No":
+        extra = {**PROOF, **extra}
     rid = audit["responses"][n]["id"]
     return client.put(f"/api/audits/{audit['id']}/responses/{rid}",
                       headers=tokens[who], json={"answer": answer, **extra})

@@ -1,4 +1,4 @@
-import { Building2, ChevronDown, Store } from 'lucide-react';
+import { ChevronDown, Store } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
@@ -21,21 +21,14 @@ function Picker({ id, label, icon: Icon, value, onChange, children }) {
   );
 }
 
-// The Dashboard's main control: two dropdowns, brand and store, that work
-// together or alone. With a brand picked the store list only has its stores.
-// onChange gets { brand } or { store }; '' means all.
-export default function ScopePicker({ brands, stores, brandId, storeId, onChange, className }) {
-  const storeChoices = [...stores]
-    .filter((s) => !brandId || s.brand_id === brandId)
-    .sort((a, b) => a.name.localeCompare(b.name));
+// The Dashboard's main control: a store dropdown. onChange gets the store id;
+// '' means all stores.
+export default function ScopePicker({ stores, storeId, onChange, className }) {
+  const storeChoices = [...stores].sort((a, b) => a.name.localeCompare(b.name));
   return (
     <div className={cn('flex flex-wrap items-end gap-2', className)}>
-      <Picker id="brand-picker" label="Brand" icon={Building2} value={brandId} onChange={(brand) => onChange({ brand })}>
-        <option value="">All brands</option>
-        {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-      </Picker>
-      <Picker id="store-picker" label="Store" icon={Store} value={storeId} onChange={(store) => onChange({ store })}>
-        <option value="">{brandId ? 'All stores of this brand' : 'All stores'}</option>
+      <Picker id="store-picker" label="Store" icon={Store} value={storeId} onChange={onChange}>
+        <option value="">All stores</option>
         {storeChoices.map((s) => (
           <option key={s.id} value={s.id}>
             {s.name}{s.city ? ` (${s.city})` : ''}

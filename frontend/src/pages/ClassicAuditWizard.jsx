@@ -7,14 +7,15 @@ import { lockedForChanges } from '@/lib/statuses';
 import { categoryLabel, fixProgress, flaggedQuestions, stepFlagged } from '@/lib/changesRequested';
 import { cn, fieldClass, labelClass } from '@/lib/utils';
 import {
-  RISKS, firstUnansweredIndex, isAuditorEditable, orderedQuestions,
-  parseQuestionParam, processes, progress,
+  RISKS, firstUnansweredIndex, isAuditorEditable, missingProof, orderedQuestions,
+  parseQuestionParam, processes, progress, proofLabel,
 } from '@/lib/classicAudit';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/Toast';
 import { ErrorNote, Loading } from '@/components/Loader';
 import { EvidencePicker } from '@/components/Evidence';
+import CriticalityBadge from '@/components/CriticalityBadge';
 import AnswerButtons from '@/components/classic/AnswerButtons';
 import ChangesPanel from '@/components/classic/ChangesPanel';
 import ConflictPanel from '@/components/classic/ConflictPanel';
@@ -170,8 +171,24 @@ export default function ClassicAuditWizard({ initialAudit }) {
     }));
   }
 
+  // A No must carry remarks and evidence before the auditor moves on. Offline the
+  // photo cannot be added yet, so only the remarks block and a reminder is shown.
+  function proofBlocks() {
+    const { q: cur, remarks: rem } = live.current;
+    if (!cur || lockedForChanges(audit, cur)) return false;
+    const missing = missingProof({ ...cur, remarks: rem });
+    const blocking = navigator.onLine ? missing : missing.filter((m) => m !== 'evidence');
+    if (blocking.length) {
+      toast.error(`This question is answered No: add ${proofLabel(blocking)} before moving on.`);
+      return true;
+    }
+    if (missing.length) toast('Add the photo once you are back online. It is needed before you submit.');
+    return false;
+  }
+
   async function go(delta) {
     if (!(await flush())) return;
+    if (delta > 0 && proofBlocks()) return;
     if (audit.status === 'Changes Requested') {
       // Only the flagged questions can change, so Next and Back skip the locked ones.
       const target = stepFlagged(flaggedQuestions(audit), idx, delta);
@@ -195,6 +212,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
 
   async function jumpTo(index) {
     if (!(await flush())) return;
+    if (index > idx && proofBlocks()) return;
     setIdx(index);
     topRef.current?.scrollIntoView({ block: 'start' });
   }
@@ -247,6 +265,8 @@ export default function ClassicAuditWizard({ initialAudit }) {
   if (conflict) return <ConflictPanel audit={audit} message={conflict} busy={dismissing} onDismiss={dismiss} />;
 
   const { answered, total, percent } = progress(audit);
+  const proofNeeded = q.answer === 'No' && !lockedForChanges(audit, q);
+  const missingNow = missingProof({ ...q, remarks });
   const isLast = idx === questions.length - 1;
   const locked = lockedForChanges(audit, q);
   const fixing = audit.status === 'Changes Requested';
@@ -311,10 +331,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
         </div>
         <h2 className="whitespace-pre-line text-base font-bold leading-snug text-foreground">{q.question_text}</h2>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {q.is_critical && (
-            <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10.5px] font-semibold text-red-700">Critical</span>
-          )}
-          <span>Weight {q.weight ?? 1}</span>
+          <CriticalityBadge item={q} />
           {q.question_code && <span className="font-mono">{q.question_code}</span>}
         </div>
 
@@ -334,15 +351,19 @@ export default function ClassicAuditWizard({ initialAudit }) {
         {!locked && <RaiseIssue audit={audit} question={q} onRaised={markRaised} />}
 
         <div className="mt-4">
-          <label className={labelClass} htmlFor="classic-remarks">Remarks</label>
+          <label className={labelClass} htmlFor="classic-remarks">
+            Remarks{proofNeeded && <span className="text-destructive"> * required for No</span>}
+          </label>
           <Textarea
             id="classic-remarks"
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
             onBlur={flush}
-            placeholder="What did you observe?"
+            placeholder={proofNeeded ? 'What was wrong? Required when the answer is No.' : 'What did you observe?'}
             rows={3}
             disabled={locked}
+            aria-invalid={proofNeeded && missingNow.includes('remarks')}
+            className={cn(proofNeeded && missingNow.includes('remarks') && 'border-destructive')}
           />
         </div>
 
@@ -360,7 +381,9 @@ export default function ClassicAuditWizard({ initialAudit }) {
         </div>
 
         <div className="mt-3">
-          <div className={labelClass}>Evidence</div>
+          <div className={labelClass}>
+            Evidence{proofNeeded && <span className="text-destructive"> * required for No</span>}
+          </div>
           <EvidencePicker
             key={q.id}
             value={q.evidence}
@@ -371,6 +394,11 @@ export default function ClassicAuditWizard({ initialAudit }) {
             <p className="mt-1 text-xs text-muted-foreground">Evidence needs a connection. Add it once you are back online.</p>
           )}
         </div>
+        {proofNeeded && missingNow.length > 0 && (
+          <div role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-[12.5px] text-red-800">
+            A No answer needs {proofLabel(missingNow)} before you can move on or submit.
+          </div>
+        )}
       </div>
 
       <div

@@ -14,15 +14,13 @@ import FormatLegend from '@/components/FormatLegend'
 import { storeScorecardLink } from '@/lib/links'
 import { storesApi } from '../api/storesApi'
 import StorePeople from '@/components/StorePeople'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { BRAND_CATEGORIES, STORE_FORMATS, STORE_TYPES, formatLabel, formatNote, typeNote } from '@/lib/storeCatalog'
+import { STORE_FORMATS, STORE_TYPES, formatLabel, formatNote, typeNote } from '@/lib/storeCatalog'
 
 const PP = 7
 const FORMATS = STORE_FORMATS.map(f => f.code)
 const REGIONS = ['North India', 'South India', 'East India', 'West India']
 const TYPES = STORE_TYPES.map(t => t.code)
-const EMPTY_BRAND = { name: '', code: '', legal_name: '', category: '', contact_name: '', contact_email: '', contact_phone: '', regions: [], notes: '' }
-const EMPTY_FORM = { name: '', city: '', brandId: '', format: 'COCO', type: 'Standard', region: 'North India', status: 'Operating' }
+const EMPTY_FORM = { name: '', city: '', format: 'COCO', type: 'Standard', region: 'North India', status: 'Operating' }
 
 function normalizeStore(st) {
   return {
@@ -58,13 +56,6 @@ export default function Stores() {
   const [statusFilter, setStatusFilter] = useState('')
   const [regionFilter, setRegionFilter] = useState(urlParams.get('region') || '')
   const [formatFilter, setFormatFilter] = useState(urlParams.get('format') || '')
-  const [brandFilter, setBrandFilter] = useState('')
-  const [brands, setBrands] = useState([])
-  const [brandOpen, setBrandOpen] = useState(false)
-  const [brandForm, setBrandForm] = useState(EMPTY_BRAND)
-  // Where the brand form was opened: 'header' (onboarding) or 'store' (inside Add Store).
-  const [brandFrom, setBrandFrom] = useState('header')
-  const [addStoreFor, setAddStoreFor] = useState(null)   // brand just onboarded
   const [nextSteps, setNextSteps] = useState(null)       // store just added
   const [peopleFilter, setPeopleFilter] = useState('')
   const [peopleFocus, setPeopleFocus] = useState(null)
@@ -87,9 +78,7 @@ export default function Stores() {
     Promise.all([
       api.stores().catch(() => []),
       api.storeScores().catch(() => []),
-      api.brands().catch(() => []),
-    ]).then(([s, scores, b]) => {
-      setBrands(b || [])
+    ]).then(([s, scores]) => {
       const normalized = (s || []).map(normalizeStore)
       setStores(normalized)
       const map = {}
@@ -124,7 +113,6 @@ export default function Stores() {
     if (statusFilter && s.status !== statusFilter) return false
     if (regionFilter && s.region !== regionFilter) return false
     if (formatFilter && s.format !== formatFilter) return false
-    if (brandFilter && s.brand_id !== brandFilter) return false
     if (peopleFilter === 'no_auditor' && s.auditor_count !== 0) return false
     if (peopleFilter === 'no_auditee' && s.auditee_count !== 0) return false
     return true
@@ -161,31 +149,24 @@ export default function Stores() {
     setStores(prev => prev.map(x => x.id === id ? { ...x, auditor_count: auditors, auditee_count: auditees } : x))
   }, [])
 
-  function openAdd(brandId) {
+  function openAdd() {
     setEditId(null)
-    setForm({ ...EMPTY_FORM, brandId: brandId || brands.find(b => b.name !== 'Unassigned')?.id || brands[0]?.id || '' })
+    setForm(EMPTY_FORM)
     setFormOpen(true)
-  }
-
-  function openBrand(from) {
-    setBrandFrom(from)
-    setBrandForm(EMPTY_BRAND)
-    setBrandOpen(true)
   }
 
   function openEdit(id) {
     const s = stores.find(x => x.id === id)
     if (!s) return
     setEditId(id)
-    setForm({ name: s.name, city: s.city, brandId: s.brand_id || '', format: s.format || 'COCO', type: s.type || 'Standard', region: s.region || 'North India', status: s.status || 'Operating' })
+    setForm({ name: s.name, city: s.city, format: s.format || 'COCO', type: s.type || 'Standard', region: s.region || 'North India', status: s.status || 'Operating' })
     setFormOpen(true)
   }
 
   function saveStore() {
     if (saving) return
     if (!form.name.trim() || !form.city.trim()) { toast.error('Fill in name and city'); return }
-    if (!form.brandId) { toast.error('Pick a brand for the store'); return }
-    const fields = { name: form.name.trim(), city: form.city.trim(), brand_id: form.brandId, format: form.format, type: form.type, region: form.region, status: form.status }
+    const fields = { name: form.name.trim(), city: form.city.trim(), format: form.format, type: form.type, region: form.region, status: form.status }
     setSaving(true)
     const call = editId
       ? storesApi.update(editId, fields)
@@ -203,25 +184,6 @@ export default function Stores() {
     }).finally(() => setSaving(false))
   }
 
-  // Onboard a brand. From the header it then offers to add the brand's first
-  // store; from inside Add Store it just selects the new brand.
-  function saveBrand() {
-    const name = brandForm.name.trim()
-    if (!name) { toast.error('Enter a brand name'); return }
-    api.createBrand({ ...brandForm, name }).then(b => {
-      setBrands(prev => [...prev, b].sort((x, y) => x.name.localeCompare(y.name)))
-      setForm(f => ({ ...f, brandId: b.id }))
-      setBrandForm(EMPTY_BRAND)
-      setBrandOpen(false)
-      toast('Brand added')
-      if (brandFrom === 'header') setAddStoreFor(b)
-    }).catch(e => toast.error(e.message || 'Could not add the brand'))
-  }
-
-  function toggleRegion(r) {
-    setBrandForm(f => ({ ...f, regions: f.regions.includes(r) ? f.regions.filter(x => x !== r) : [...f.regions, r] }))
-  }
-
   function dehireStore(id) {
     const s = stores.find(x => x.id === id)
     if (!s || s.status === 'Dehired') return
@@ -233,8 +195,8 @@ export default function Stores() {
   }
 
   function handleExport() {
-    const headers = ['ID', 'Store', 'Brand', 'City', 'Region', 'Format', 'Manager', 'Status', 'Latest Score']
-    const rows = stores.map(s => [s.id, s.name, s.brand, s.city, s.region, s.format, s.manager, s.status, storeScore(s)])
+    const headers = ['ID', 'Store', 'City', 'Region', 'Format', 'Manager', 'Status', 'Latest Score']
+    const rows = stores.map(s => [s.id, s.name, s.city, s.region, s.format, s.manager, s.status, storeScore(s)])
     exportCSV(rows, headers, 'stores.csv')
     toast('CSV exported')
   }
@@ -281,16 +243,8 @@ export default function Stores() {
             <Button key={q} size="sm" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
           ))}
           <Button size="sm" variant="outline" onClick={handleExport}>&#x2B07; Export</Button>
-          {/* One Add button for what Store Management owns: brands and stores. People are added from a store's People tab. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm">+ Add &#x25BE;</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[160px]">
-              <DropdownMenuItem className="cursor-pointer" onSelect={() => openBrand('header')}>Brand</DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer" onSelect={() => openAdd()}>Store</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* People are added from a store's People tab. */}
+          <Button size="sm" onClick={() => openAdd()}>+ Add Store</Button>
         </div>
       </div>
 
@@ -307,10 +261,6 @@ export default function Stores() {
           <Input className="pl-8" placeholder="Search name, ID or city..." value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <select aria-label="Brand" className={cn(fieldClass, 'h-[30px] w-auto cursor-pointer py-0 text-xs')} value={brandFilter} onChange={e => { setBrandFilter(e.target.value); setPage(1) }}>
-            <option value="">All brands</option>
-            {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
           <select className={cn(fieldClass, 'h-[30px] w-auto cursor-pointer py-0 text-xs')} value={regionFilter} onChange={e => { setRegionFilter(e.target.value); setPage(1) }}>
             <option value="">All regions</option>
             {regionOptions.map(r => <option key={r} value={r}>{r}</option>)}
@@ -328,7 +278,7 @@ export default function Stores() {
             <option value="no_auditor">Without an auditor</option>
             <option value="no_auditee">Without an auditee</option>
           </select>
-          <button className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-card text-[13px]" onClick={() => { setSearch(''); setStatusFilter(''); setRegionFilter(''); setFormatFilter(''); setBrandFilter(''); setPeopleFilter(''); setPage(1) }}>&#x1F504;</button>
+          <button className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-card text-[13px]" onClick={() => { setSearch(''); setStatusFilter(''); setRegionFilter(''); setFormatFilter(''); setPeopleFilter(''); setPage(1) }}>&#x1F504;</button>
         </div>
       </div>
 
@@ -360,7 +310,7 @@ export default function Stores() {
                         </button>
                         {s.type && <span className="rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10.5px] font-medium text-gray-700">{s.type}</span>}
                       </div>
-                      <div className="text-[11px] text-muted-foreground">{s.brand ? `${s.brand} - ` : ''}{s.city}</div>
+                      <div className="text-[11px] text-muted-foreground">{s.city}</div>
                     </div>
                   </div>
                 </TableCell>
@@ -424,7 +374,6 @@ export default function Stores() {
           <div className="px-5 pb-1.5 pt-4">
             {siTab === 'info' && (
               <div>
-                <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Brand</span><span className="font-semibold text-foreground">{insightStore.brand || '--'}</span></div>
                 <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Manager</span><span className="font-semibold text-foreground">{insightStore.manager || '—'}</span></div>
                 <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Format</span><span className="font-semibold text-foreground">{insightStore.format ? formatLabel(insightStore.format) : '—'}</span></div>
                 <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Type of Store</span><span className="font-semibold text-foreground">{insightStore.type || '—'}{typeNote(insightStore.type) && <span className="mt-0.5 block text-[11.5px] font-normal text-muted-foreground">{typeNote(insightStore.type)}</span>}</span></div>
@@ -446,15 +395,6 @@ export default function Stores() {
         </Modal>
       )}
 
-      <Modal open={!!addStoreFor} onClose={() => setAddStoreFor(null)}>
-        <ModalTitle>Brand {addStoreFor?.name} added</ModalTitle>
-        <p className="text-[13px] text-foreground/80">Add the first store for this brand now?</p>
-        <ModalActions>
-          <Button variant="outline" onClick={() => setAddStoreFor(null)}>Later</Button>
-          <Button onClick={() => { const b = addStoreFor; setAddStoreFor(null); openAdd(b.id) }}>+ Add a store to {addStoreFor?.name}</Button>
-        </ModalActions>
-      </Modal>
-
       <Modal open={!!nextSteps} onClose={() => setNextSteps(null)}>
         <ModalTitle>Store {nextSteps?.name} added</ModalTitle>
         <p className="mb-3 text-[13px] text-foreground/80">Next steps for this store:</p>
@@ -474,13 +414,6 @@ export default function Stores() {
           <div><label className={labelClass}>Store Name</label><Input placeholder="e.g. Phoenix Mall" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
           <div><label className={labelClass}>City</label><Input placeholder="e.g. Mumbai" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} /></div>
           <div>
-            <label className={labelClass}>Brand</label>
-            <select className={fieldClass} value={form.brandId} onChange={e => setForm(f => ({ ...f, brandId: e.target.value }))}>
-              <option value="">Select brand</option>
-              {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          </div>
-          <div>
             <label className={labelClass}>Format</label>
             <select className={fieldClass} value={form.format} onChange={e => setForm(f => ({ ...f, format: e.target.value }))}>{formatOptions.map(o => <option key={o} value={o}>{formatLabel(o)}</option>)}</select>
             {formatNote(form.format) && <p className="mt-1 text-[11.5px] text-muted-foreground">{formatNote(form.format)}</p>}
@@ -496,45 +429,6 @@ export default function Stores() {
         <ModalActions>
           <Button variant="outline" onClick={() => setFormOpen(false)}>Cancel</Button>
           <Button onClick={saveStore} disabled={saving}>{editId ? 'Save Changes' : 'Add Store'}</Button>
-        </ModalActions>
-      </Modal>
-
-      {/* After the store form: "+ New brand" inside it must open on top. */}
-      <Modal open={brandOpen} onClose={() => setBrandOpen(false)} className="w-[560px]">
-        <ModalTitle>Onboard a Brand</ModalTitle>
-        <div className="grid gap-3">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
-            <div><label className={labelClass}>Brand name (banner / chain) <span className="text-destructive">*</span></label><Input placeholder="e.g. FreshMart" value={brandForm.name} onChange={e => setBrandForm(f => ({ ...f, name: e.target.value }))} /></div>
-            <div><label className={labelClass}>Short code</label><Input placeholder="e.g. FM" value={brandForm.code} onChange={e => setBrandForm(f => ({ ...f, code: e.target.value }))} /></div>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div><label className={labelClass}>Legal / company name</label><Input placeholder="e.g. FreshMart Retail Pvt Ltd" value={brandForm.legal_name} onChange={e => setBrandForm(f => ({ ...f, legal_name: e.target.value }))} /></div>
-            <div>
-              <label className={labelClass}>Category</label>
-              <select className={fieldClass} value={brandForm.category} onChange={e => setBrandForm(f => ({ ...f, category: e.target.value }))}>
-                <option value="">Select category</option>
-                {BRAND_CATEGORIES.map(c => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div><label className={labelClass}>Contact person</label><Input placeholder="Name" value={brandForm.contact_name} onChange={e => setBrandForm(f => ({ ...f, contact_name: e.target.value }))} /></div>
-            <div><label className={labelClass}>Contact email</label><Input placeholder="name@brand.com" value={brandForm.contact_email} onChange={e => setBrandForm(f => ({ ...f, contact_email: e.target.value }))} /></div>
-            <div><label className={labelClass}>Contact phone</label><Input placeholder="Phone" value={brandForm.contact_phone} onChange={e => setBrandForm(f => ({ ...f, contact_phone: e.target.value }))} /></div>
-          </div>
-          <div>
-            <div className={labelClass}>Regions where it operates</div>
-            <div className="flex flex-wrap gap-1.5">
-              {REGIONS.map(r => (
-                <button key={r} type="button" onClick={() => toggleRegion(r)} className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', brandForm.regions.includes(r) && 'border-primary bg-primary text-primary-foreground')}>{r}</button>
-              ))}
-            </div>
-          </div>
-          <div><label className={labelClass}>Notes</label><textarea className={cn(fieldClass, 'min-h-[60px] resize-y')} placeholder="Anything the audit team should know" value={brandForm.notes} onChange={e => setBrandForm(f => ({ ...f, notes: e.target.value }))} /></div>
-        </div>
-        <ModalActions>
-          <Button variant="outline" onClick={() => setBrandOpen(false)}>Cancel</Button>
-          <Button onClick={saveBrand}>Add Brand</Button>
         </ModalActions>
       </Modal>
 

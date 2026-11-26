@@ -16,6 +16,7 @@ from pathlib import Path
 from app.auth import hash_password
 from app.db import SessionLocal, init_db, reset_db
 from app.models import (
+    criticality_for,
     ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_CLUSTER_HEAD,
     ROLE_HO_OPERATIONS, ROLE_STORE_MANAGER,
     Audit, AuditResponse, AuditorAvailability, CashReconciliation,
@@ -23,7 +24,7 @@ from app.models import (
     ExpiredInventory, Issue, Observation, Question, Store, StoreScore, User, UserStore,
 )
 from app.services import (
-    SCORED_STATUSES, compute_audit_score, get_or_create_brand, next_audit_id, quarter_of,
+    SCORED_STATUSES, compute_audit_score, next_audit_id, quarter_of,
     sync_store_score,
 )
 
@@ -136,7 +137,7 @@ def seed():
     for st in data["stores"]:
         mgr = users.get((ROLE_STORE_MANAGER, st.get("manager")))
         s.add(Store(
-            id=st["id"], brand_id=get_or_create_brand(s, st.get("brand")).id,
+            id=st["id"],
             name=st["name"], city=st.get("city"),
             region=st.get("region"), store_format=st.get("format"),
             store_type=st.get("type"), status=st.get("status", "Operating"),
@@ -168,8 +169,7 @@ def seed():
         obj = Question(
             code=q["id"], version=1, is_current=True, text=q["text"],
             process=q.get("proc"), sub_process=q.get("sp"),
-            audit_type=q.get("at"), weight=q.get("w", 1),
-            is_critical=bool(q.get("crit")), active=bool(q.get("on", True)),
+            audit_type=q.get("at"), active=bool(q.get("on", True)),
             photo_video_enablement=q.get("photo_video", "No"),
             data_analyst_enabled=q.get("da_enabled", "N"),
             data_analyst_reference=q.get("da_ref"),
@@ -177,6 +177,7 @@ def seed():
             approval_status="APPROVED", approved_by_id=admin.id,
             meta={"tags": q.get("tags", [])},
         )
+        obj.set_criticality(criticality_for(q.get("criticality"), q.get("w", 1), q.get("crit")))
         s.add(obj)
         s.flush()
         questions[q["id"]] = obj
@@ -518,7 +519,7 @@ def seed():
           f"{len(users) + 1} users")
     print(f"  Data: {cr_count} cash reconciliations, {cd_count} cash deposits, "
           f"{ei_count} expired inventory, {ss_count} store scores, {ob_count} observations")
-    print(f"  Issues: {issue_no}, brands: {len({st.get('brand') for st in data['stores']})}")
+    print(f"  Issues: {issue_no}")
     print(f"\nLogins (password: {DEFAULT_PASSWORD})")
     print("  Admin         : admin")
     print("  Audit Manager : manager")

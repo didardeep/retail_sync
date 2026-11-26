@@ -32,16 +32,18 @@ def test_store_changes_refused_for_auditor_and_store_manager(client, tokens):
 def test_question_create_edit_toggle_and_soft_delete_persist(client, tokens, db):
     r = client.post("/api/questions", headers=tokens["manager"], json={
         "text": "Persist me", "process": "Cashiering", "audit_type": "Store Visit",
-        "weight": 2, "meta": {"tags": ["a"]}})
+        "criticality": "Medium", "meta": {"tags": ["a"]}})
     assert r.status_code == 201, r.text
     q1 = r.json()
     assert q1["approval_status"] == "APPROVED"
+    assert q1["criticality"] == "Medium" and q1["weight"] == 2 and q1["is_critical"] is False
 
     r = client.put(f"/api/questions/{q1['id']}", headers=tokens["manager"],
-                   json={"text": "Persist me, edited", "weight": 4})
+                   json={"text": "Persist me, edited", "criticality": "High"})
     assert r.status_code == 200, r.text
     q2 = r.json()
-    assert q2["code"] == q1["code"] and q2["version"] == 2 and q2["weight"] == 4
+    assert q2["code"] == q1["code"] and q2["version"] == 2
+    assert q2["criticality"] == "High" and q2["weight"] == 3 and q2["is_critical"] is True
 
     r = client.put(f"/api/questions/{q2['id']}", headers=tokens["admin"], json={"active": False})
     assert r.status_code == 200 and r.json()["active"] is False

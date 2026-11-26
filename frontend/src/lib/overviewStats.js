@@ -3,6 +3,7 @@
 // output, so the number you see is the number you get when you click it.
 import { stageOf } from './statuses.js'
 import { quarterOf } from './storeStats.js'
+import { STAGE_COLORS } from './chartColors.js'
 
 export const RISK_LEVELS = ['Critical', 'High', 'Medium', 'Low', 'Unrated']
 export const UNASSIGNED_REGION = 'Unassigned'
@@ -19,15 +20,21 @@ export const SCORE_BUCKETS = [
   { key: 'lt40', label: '<40', test: () => true },
 ]
 
+// The quarter picker's "every quarter of the year" value.
+export const ALL_QUARTERS = 'all'
+export const quarterLabel = (q) => (q === ALL_QUARTERS ? 'All quarters' : String(q || '').toUpperCase())
+
 export function pct(count, total) {
   return total ? Math.round((count / total) * 100) : 0
 }
 
 // Audits scheduled in `quarter` of `year` (planned and cancelled ones count too,
-// so the date used is the scheduled date, not the submitted date).
+// so the date used is the scheduled date, not the submitted date). With
+// ALL_QUARTERS, every audit scheduled in the year.
 export function auditsInQuarter(audits = [], quarter, year) {
   return audits.filter((a) => {
-    if (!a.scheduled_at || quarterOf(a.scheduled_at) !== quarter) return false
+    if (!a.scheduled_at) return false
+    if (quarter !== ALL_QUARTERS && quarterOf(a.scheduled_at) !== quarter) return false
     return new Date(a.scheduled_at).getFullYear() === year
   })
 }
@@ -46,10 +53,15 @@ export function itemsOfAudits(items = [], audits = []) {
   return items.filter((it) => ids.has(it.audit_id))
 }
 
+const usable = (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null)
+
 // A usable score is a finite number above 0; null/0/missing means "not scored".
+// For ALL_QUARTERS it is the average of the quarters that are scored.
 export function scoreFor(scoreMap, storeId, quarter) {
-  const v = scoreMap?.[storeId]?.[quarter]
-  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null
+  if (quarter === ALL_QUARTERS) {
+    return averageScore(['q1', 'q2', 'q3', 'q4'].map((q) => usable(scoreMap?.[storeId]?.[q])).filter((v) => v !== null))
+  }
+  return usable(scoreMap?.[storeId]?.[quarter])
 }
 
 // Blank or unrecognised risk text is 'Unrated'.
@@ -143,4 +155,71 @@ export function auditStageCounts(audits = []) {
   }
   counts.done = counts.completed + counts.approved
   return counts
+}
+
+// ---- Audit planning -------------------------------------------------------
+
+// Stages as the planning charts show them, in the order an audit moves.
+export const PLAN_STAGES = [
+  { key: 'scheduled', label: 'Planned', color: STAGE_COLORS.scheduled },
+  { key: 'in_progress', label: 'Ongoing', color: STAGE_COLORS.in_progress },
+  { key: 'done', label: 'Completed', color: STAGE_COLORS.done },
+  { key: 'cancelled', label: 'Cancelled', color: STAGE_COLORS.cancelled },
+]
+
+// Planned / ongoing / completed / cancelled for a list of audits (completed
+// includes approved; rejected counts as completed work that was turned down).
+export function planStage(audit) {
+  const stage = stageOf(audit.status || 'Planned')
+  if (stage === 'completed' || stage === 'approved' || stage === 'rejected') return 'done'
+  return stage
+}
+
+// For each quarter of `year`: how many audits are planned, ongoing, completed
+// and cancelled. Every quarter is returned, empty ones too.
+export function auditsByQuarter(audits = [], year) {
+  return ['q1', 'q2', 'q3', 'q4'].map((q) => {
+    const items = auditsInQuarter(audits, q, year)
+    const counts = { scheduled: 0, in_progress: 0, done: 0, cancelled: 0 }
+    for (const a of items) counts[planStage(a)] += 1
+    return { quarter: q, total: items.length, ...counts }
+  })
+}
+
+// Audits grouped by the format of their store (exact store format, 'Other' when
+// the store has none), biggest first. Each group says how many are completed.
+export function groupAuditsByFormat(audits = [], stores = []) {
+  const formatOf = new Map(stores.map((s) => [s.id, s.format || s.store_format]))
+  const map = new Map()
+  for (const a of audits) {
+    const format = formatOf.get(a.store_id) || 'Other'
+    if (!map.has(format)) map.set(format, [])
+    map.get(format).push(a)
+  }
+  return [...map.entries()]
+    .map(([format, items]) => ({
+      format, count: items.length, pct: pct(items.length, audits.length),
+      done: items.filter((a) => planStage(a) === 'done').length, items,
+    }))
+    .sort((a, b) => b.count - a.count || a.format.localeCompare(b.format))
+}
+
+// Audits per auditor with how many are completed, most audits first.
+export function auditorWorkload(audits = []) {
+  const map = new Map()
+  for (const a of audits) {
+    const name = a.auditor || 'Unassigned'
+    if (!map.has(name)) map.set(name, { auditor: name, total: 0, done: 0, open: 0 })
+    const row = map.get(name)
+    row.total += 1
+    if (planStage(a) === 'done') row.done += 1
+    else if (planStage(a) !== 'cancelled') row.open += 1
+  }
+  return [...map.values()].sort((a, b) => b.total - a.total || a.auditor.localeCompare(b.auditor))
+}
+
+// Share of the audits that are not cancelled which are completed, 0-100.
+export function completionRate(audits = []) {
+  const live = audits.filter((a) => planStage(a) !== 'cancelled')
+  return pct(live.filter((a) => planStage(a) === 'done').length, live.length)
 }

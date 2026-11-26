@@ -2,7 +2,6 @@
  "stores": [
   {
    "id": "ST001",
-   "brand": "FreshMart",
    "store_code": "RC-MUM-001",
    "name": "Phoenix Mall",
    "state": "Maharashtra",
@@ -24,7 +23,6 @@
   },
   {
    "id": "ST002",
-   "brand": "Urban Basket",
    "store_code": "RC-DEL-001",
    "name": "DLF Avenue",
    "state": "Delhi",
@@ -46,7 +44,6 @@
   },
   {
    "id": "ST003",
-   "brand": "FreshMart",
    "store_code": "RC-BLR-001",
    "name": "Ub City",
    "state": "Karnataka",
@@ -68,7 +65,6 @@
   },
   {
    "id": "ST004",
-   "brand": "Urban Basket",
    "store_code": "RC-DEL-002",
    "name": "Select Citywalk",
    "state": "Delhi",
@@ -90,7 +86,6 @@
   },
   {
    "id": "ST005",
-   "brand": "ValueHub",
    "store_code": "RC-PUN-001",
    "name": "Nexus Mall",
    "state": "Maharashtra",
@@ -112,7 +107,6 @@
   },
   {
    "id": "ST006",
-   "brand": "FreshMart",
    "store_code": "RC-CHD-001",
    "name": "Centra Mall",
    "state": "Chandigarh",
@@ -134,7 +128,6 @@
   },
   {
    "id": "ST007",
-   "brand": "Metro Express",
    "store_code": "RC-NAG-001",
    "name": "Elante Outpost",
    "state": "Maharashtra",
@@ -156,7 +149,6 @@
   },
   {
    "id": "ST008",
-   "brand": "ValueHub",
    "store_code": "RC-DDN-001",
    "name": "Pacific Hub",
    "state": "Uttarakhand",
@@ -178,7 +170,6 @@
   },
   {
    "id": "ST009",
-   "brand": "Urban Basket",
    "store_code": "RC-KOL-001",
    "name": "South City",
    "state": "West Bengal",
@@ -200,7 +191,6 @@
   },
   {
    "id": "ST010",
-   "brand": "Metro Express",
    "store_code": "RC-JAI-001",
    "name": "Orbit Mall",
    "state": "Rajasthan",

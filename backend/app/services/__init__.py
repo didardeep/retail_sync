@@ -1,10 +1,10 @@
-"""Scoring, brand lookup, and audit-logging logic, kept out of the route layer."""
+"""Scoring and audit-logging logic, kept out of the route layer."""
 import datetime as dt
 
 from sqlalchemy import func
 
 from ..models import (
-    ROLE_AUDITEE, ROLE_AUDITOR, UNASSIGNED_BRAND, Audit, AuditLog, AuditorAvailability, Brand,
+    ROLE_AUDITEE, ROLE_AUDITOR, Audit, AuditLog, AuditorAvailability,
     Store, StoreScore, User, UserStore,
 )
 
@@ -67,18 +67,6 @@ def next_audit_id(session) -> str:
     return f"AUD-{n}"
 
 
-def get_or_create_brand(session, name) -> Brand:
-    """The brand called `name` (case-insensitive), created if it does not exist.
-    A blank name means the Unassigned brand."""
-    name = str(name or "").strip() or UNASSIGNED_BRAND
-    brand = session.query(Brand).filter(func.lower(Brand.name) == name.lower()).first()
-    if not brand:
-        brand = Brand(name=name)
-        session.add(brand)
-        session.flush()
-    return brand
-
-
 def linked_auditee_ids(session, store_id) -> set[str]:
     """Ids of the active auditees linked to a store."""
     return _linked_ids(session, store_id, ROLE_AUDITEE)
@@ -126,7 +114,7 @@ STORE_FORMATS = [
 ]
 STORE_TYPES = [
     {"code": "Flagship", "name": "Flagship",
-     "note": "The brand's largest showcase store, usually in a prime location, with the full range."},
+     "note": "The largest showcase store, usually in a prime location, with the full range."},
     {"code": "Standard", "name": "Standard",
      "note": "A regular full-size store with the usual range and staffing."},
     {"code": "Compact", "name": "Compact",

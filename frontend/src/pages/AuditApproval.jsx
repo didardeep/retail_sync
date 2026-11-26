@@ -8,6 +8,7 @@ import {
   REVIEW_FILTERS, checkDecision, decisionBody, evidenceCount, reviewFilter, reviewProgress,
 } from '@/lib/auditReview';
 import { cn, fieldClass, labelClass } from '@/lib/utils';
+import CriticalityBadge from '@/components/CriticalityBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EvidenceList } from '@/components/Evidence';
@@ -57,7 +58,7 @@ function QuestionCard({ number, row, canReview, ticked, note, category, onTick, 
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <span className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Q{number} - {row.process}</span>
             <span className="flex flex-wrap gap-1.5">
-              {row.is_critical && <Badge className="bg-red-50 text-red-800">Critical</Badge>}
+              <CriticalityBadge item={row} />
               {row.risk && row.risk !== 'None' && <Badge className="bg-muted text-foreground/80">Risk: {row.risk}</Badge>}
               {badge && <Badge className={badge[1]}>{badge[0]}</Badge>}
             </span>

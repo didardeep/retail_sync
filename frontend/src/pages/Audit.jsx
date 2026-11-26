@@ -40,7 +40,7 @@ import { useUrlFilters } from '@/lib/useUrlFilters';
 // stage / status / view all filter by status (see components/audit/auditHelpers
 // rowMatchesStatusFilter); id opens the detail; new opens the schedule form
 // (old /scheduling links land here).
-const FILTER_KEYS = ['stage', 'status', 'view', 'brand', 'store', 'region', 'quarter', 'auditor', 'q', 'id', 'new'];
+const FILTER_KEYS = ['stage', 'status', 'view', 'store', 'region', 'quarter', 'auditor', 'q', 'id', 'new'];
 const STATUS_OPTIONS = [...STAGES, { value: 'changes_requested', label: 'Changes requested' }, { value: 'overdue', label: 'Overdue' }];
 // Statuses a manager or admin may set by hand on a checklist audit (same list as the API).
 const EDIT_STATUSES = ['Planned', 'Ongoing', 'Completed', 'Approved', 'Cancelled'];
@@ -224,12 +224,7 @@ export default function Audit() {
   }, [audits, isAuditor, ws.userId]);
   const scheduled = useMemo(() => scheduledForYou(rows), [rows]);
   const regionOptions = useMemo(() => distinctOptions(rows, 'region', 'region'), [rows]);
-  const brandOptions = useMemo(() => distinctOptions(rows, 'brand_id', 'brand'), [rows]);
-  // Brand and store are separate filters; with a brand picked the store list only has its stores.
-  const storeOptions = useMemo(
-    () => distinctOptions(filters.brand ? rows.filter((r) => r.brand_id === filters.brand) : rows, 'store_id', 'store'),
-    [rows, filters.brand],
-  );
+  const storeOptions = useMemo(() => distinctOptions(rows, 'store_id', 'store'), [rows]);
   const auditorOptions = useMemo(() => distinctOptions(rows, 'auditor_id', 'auditor'), [rows]);
 
   // Tiles count everything except the status filter, so they stay a way to switch status.
@@ -237,7 +232,7 @@ export default function Audit() {
     const from = startDate ? new Date(`${startDate}T00:00:00`) : null;
     const to = endDate ? new Date(`${endDate}T23:59:59`) : null;
     return filterRows(rows, {
-      brand: filters.brand, store: filters.store,
+      store: filters.store,
       region: filters.region, auditor: filters.auditor, q: filters.q,
     }).filter((r) => {
       if (filters.quarter) {
@@ -249,7 +244,7 @@ export default function Audit() {
       if (!d || Number.isNaN(d.getTime())) return false;
       return !(from && d < from) && !(to && d > to);
     });
-  }, [rows, filters.brand, filters.store, filters.region, filters.auditor, filters.q, filters.quarter, startDate, endDate]);
+  }, [rows, filters.store, filters.region, filters.auditor, filters.q, filters.quarter, startDate, endDate]);
   const counts = kpiCounts(forTiles);
   const overdueCount = forTiles.filter((r) => isOverdue(r)).length;
   const statusKeys = { stage: filters.stage, status: filters.status, view: filters.view };
@@ -421,30 +416,9 @@ export default function Audit() {
           {regionOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <select
-          className={filterClass(filters.brand)}
-          value={filters.brand}
-          onChange={(e) => {
-            const brand = e.target.value;
-            // Keep the store only when it belongs to the new brand ("Brand" = all clears it).
-            const keepStore = !!brand && rows.some((r) => r.store_id === filters.store && r.brand_id === brand);
-            setPage(1);
-            setMany({ brand, store: keepStore ? filters.store : '' });
-          }}
-          aria-label="Filter by brand"
-        >
-          <option value="">Brand</option>
-          {brandOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <select
           className={filterClass(filters.store)}
           value={filters.store}
-          onChange={(e) => {
-            // Picking a store also picks its brand, so the two filters always agree.
-            const store = e.target.value;
-            const brand = rows.find((r) => r.store_id === store)?.brand_id;
-            setPage(1);
-            setMany(store && brand ? { store, brand } : { store });
-          }}
+          onChange={(e) => applyFilter('store', e.target.value)}
           aria-label="Filter by store"
         >
           <option value="">Store</option>

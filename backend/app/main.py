@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 from .db import init_db
 from .routers import (
-    admin, annexures, audit_log, audits, auth, availability, brands, checklists, chat, dashboard,
+    admin, annexures, audit_log, audits, auth, availability, checklists, chat, dashboard,
     data, evidence, exceptions, issues, notifications, observations, people, questions, stores,
     uploads,
 )
@@ -33,7 +33,7 @@ app.add_middleware(
 )
 
 for router in (
-    auth.router, admin.router, brands.router, stores.router, questions.router, checklists.router,
+    auth.router, admin.router, stores.router, questions.router, checklists.router,
     audits.router, availability.router, issues.router, observations.router,
     data.router, dashboard.router, uploads.router, evidence.router, audit_log.router,
     chat.router, exceptions.router, notifications.router, annexures.router, people.router,

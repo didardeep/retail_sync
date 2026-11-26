@@ -2,29 +2,53 @@
 
 const distinct = (values) => [...new Set(values.filter(Boolean))].sort()
 
-// The formats and categories that exist in the store list, for the builder.
-export function storeChoices(stores = []) {
+// The formats, store types and categories a checklist can be limited to, for
+// the builder: the standard formats and types plus whatever the stores use.
+export function storeChoices(stores = [], { formats = [], types = [] } = {}) {
   return {
-    formats: distinct(stores.map((s) => s.format)),
+    formats: distinct([...formats, ...stores.map((s) => s.format)]),
+    types: distinct([...types, ...stores.map((s) => s.type)]),
     categories: distinct(stores.map((s) => s.store_category)),
   }
 }
 
 // A checklist applies to a store unless its conditions name other values.
-// An empty list means every store.
+// An empty list means every store. A list of stores means exactly those
+// stores, whatever their format or type.
 export function checklistFitsStore(checklist, store) {
   if (checklist.is_active === false) return false
   if (!store) return true
-  const { format = [], category = [] } = checklist.conditions || {}
+  const { format = [], type = [], category = [], stores = [] } = checklist.conditions || {}
+  if (stores.length) return stores.includes(store.id)
   if (format.length && !format.includes(store.format)) return false
+  if (type.length && !type.includes(store.type)) return false
   if (category.length && !category.includes(store.store_category)) return false
   return true
 }
 
-// One line for the list: who a checklist is for.
-export function conditionsLabel(conditions) {
-  const parts = [...(conditions?.format || []), ...(conditions?.category || [])]
+// One line for the list: who a checklist is for. With the store list it names
+// up to two stores and counts the rest.
+export function conditionsLabel(conditions, allStores = []) {
+  const ids = conditions?.stores || []
+  if (ids.length) {
+    const names = ids.map((id) => allStores.find((s) => s.id === id)?.name || id)
+    return names.length <= 2 ? names.join(', ') : `${names.slice(0, 2).join(', ')} +${names.length - 2} more`
+  }
+  const parts = [...(conditions?.format || []), ...(conditions?.type || []), ...(conditions?.category || [])]
   return parts.length ? parts.join(', ') : 'All stores'
+}
+
+// Checklists grouped by name, newest version first, groups by name. Each
+// group's first entry is its latest version.
+export function versionGroups(checklists = []) {
+  const groups = new Map()
+  for (const c of checklists) {
+    if (!groups.has(c.name)) groups.set(c.name, [])
+    groups.get(c.name).push(c)
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, versions]) => ({ name, versions: [...versions].sort((a, b) => (b.version || 0) - (a.version || 0)) }))
 }
 
 // Questions per process, keeping the order given.

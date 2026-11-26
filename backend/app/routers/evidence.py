@@ -1,14 +1,17 @@
 """Photos and videos attached to audit answers and issues.
 
 The file goes up here first and the answer or issue then stores the returned
-{"type", "url", "name"} in its evidence list. Files need a signed-in user to
+{"type", "url", "name"} in its evidence list. When the device shared where it
+was, the item also carries "geo": {"lat", "lng", "accuracy", "captured_at"}. Files need a signed-in user to
 read, and their random names cannot be guessed.
 """
+import datetime as dt
+import math
 import re
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from ..auth import get_current_user
@@ -38,11 +41,37 @@ FILE_TYPES = {
 _STORED_NAME = re.compile(r"^[0-9a-f]{32}\.[a-z0-9]+$")
 
 
+def _geo(lat, lng, accuracy, captured_at):
+    """The location sent with a photo, or None when there is none. A location
+    that is out of range is refused rather than stored wrong."""
+    if lat is None and lng is None:
+        return None
+    if lat is None or lng is None or not (
+            math.isfinite(lat) and math.isfinite(lng) and -90 <= lat <= 90 and -180 <= lng <= 180):
+        raise HTTPException(status_code=422, detail={"error": "location must have a valid lat and lng"})
+    when = None
+    if captured_at:
+        try:
+            when = dt.datetime.fromisoformat(captured_at.replace("Z", "+00:00")).isoformat()
+        except ValueError:
+            raise HTTPException(status_code=422, detail={"error": "captured_at must be an ISO date-time"})
+    return {
+        "lat": round(lat, 6), "lng": round(lng, 6),
+        "accuracy": round(accuracy, 1) if accuracy is not None and math.isfinite(accuracy) and accuracy >= 0 else None,
+        "captured_at": when or dt.datetime.utcnow().isoformat(),
+    }
+
+
 @router.post("", status_code=201)
 async def upload_evidence(
     file: UploadFile = File(...),
+    lat: float | None = Form(None),
+    lng: float | None = Form(None),
+    accuracy: float | None = Form(None),
+    captured_at: str | None = Form(None),
     user: User = Depends(get_current_user),
 ):
+    geo = _geo(lat, lng, accuracy, captured_at)
     ext = Path(file.filename or "").suffix.lower()
     if ext not in FILE_TYPES:
         raise HTTPException(status_code=422, detail={
@@ -65,7 +94,10 @@ async def upload_evidence(
         path.unlink(missing_ok=True)
         raise
 
-    return {"type": FILE_TYPES[ext][0], "url": f"/api/evidence/{stored}", "name": file.filename}
+    item = {"type": FILE_TYPES[ext][0], "url": f"/api/evidence/{stored}", "name": file.filename}
+    if geo:
+        item["geo"] = geo
+    return item
 
 
 @router.get("/{name}")

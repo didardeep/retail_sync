@@ -25,12 +25,41 @@ test('an inactive checklist fits nothing; no store picked yet shows active ones'
 test('store choices are the distinct values, sorted, without blanks', () => {
   assert.deepEqual(storeChoices([
     { format: 'FOFO', store_category: 'Mall' }, { format: 'COCO' }, { format: 'FOFO', store_category: null },
-  ]), { formats: ['COCO', 'FOFO'], categories: ['Mall'] });
+  ]), { formats: ['COCO', 'FOFO'], types: [], categories: ['Mall'] });
+  // The standard lists are offered even before any store uses them.
+  assert.deepEqual(storeChoices([{ type: 'Kiosk' }], { formats: ['COCO'], types: ['Flagship'] }),
+    { formats: ['COCO'], types: ['Flagship', 'Kiosk'], categories: [] });
+});
+
+test('conditions limit a checklist by store type', () => {
+  const c = { conditions: { type: ['Flagship'] } };
+  assert.equal(checklistFitsStore(c, { id: 'S1', type: 'Flagship' }), true);
+  assert.equal(checklistFitsStore(c, { id: 'S2', type: 'Kiosk' }), false);
+});
+
+test('a list of stores means exactly those stores, whatever their format or type', () => {
+  const c = { conditions: { stores: ['S1'], format: ['FOFO'], type: ['Kiosk'] } };
+  assert.equal(checklistFitsStore(c, { id: 'S1', format: 'COCO', type: 'Flagship' }), true);
+  assert.equal(checklistFitsStore(c, { id: 'S2', format: 'FOFO', type: 'Kiosk' }), false);
+});
+
+test('checklist versions group by name, newest first', async () => {
+  const { versionGroups } = await import('../src/lib/checklists.js');
+  const groups = versionGroups([
+    { id: 'a1', name: 'Cash', version: 1 }, { id: 'b1', name: 'Bakery', version: 1 },
+    { id: 'a3', name: 'Cash', version: 3 }, { id: 'a2', name: 'Cash', version: 2 },
+  ]);
+  assert.deepEqual(groups.map((g) => [g.name, g.versions.map((v) => v.id)]),
+    [['Bakery', ['b1']], ['Cash', ['a3', 'a2', 'a1']]]);
 });
 
 test('conditions read as a short label', () => {
   assert.equal(conditionsLabel({}), 'All stores');
   assert.equal(conditionsLabel({ format: ['COCO'], category: ['Mall'] }), 'COCO, Mall');
+  assert.equal(conditionsLabel({ format: ['COCO'], type: ['Flagship'] }), 'COCO, Flagship');
+  const stores = [{ id: 'S1', name: 'Phoenix' }, { id: 'S2', name: 'Orion' }, { id: 'S3', name: 'Lulu' }];
+  assert.equal(conditionsLabel({ stores: ['S1', 'S2'] }, stores), 'Phoenix, Orion');
+  assert.equal(conditionsLabel({ stores: ['S1', 'S2', 'S3', 'S9'] }, stores), 'Phoenix, Orion +2 more');
 });
 
 test('questions group by process in the order given', () => {

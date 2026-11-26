@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_staff_user, require_roles
 from ..db import get_db
-from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, Question, User
+from ..models import CRITICALITIES, ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, Question, User
 from ..schemas import QuestionApprove, QuestionCreate, QuestionEdit
 from ..services import log_action
 from ..services.alerts import notify
@@ -14,6 +14,23 @@ from ..services.alerts import notify
 QUESTION_DECISIONS = ("APPROVED", "REJECTED")
 
 router = APIRouter(prefix="/api/questions", tags=["questions"])
+
+
+def _criticality(level, weight=None, is_critical=None, fallback="Low"):
+    """The criticality to save. An explicit level must be High, Medium or Low; a
+    client that still sends only weight / is_critical gets the level they imply."""
+    if level is not None:
+        if level not in CRITICALITIES:
+            raise HTTPException(status_code=422, detail={
+                "error": f"criticality must be one of {', '.join(CRITICALITIES)}"})
+        return level
+    if is_critical:
+        return "High"
+    if weight is not None:
+        return "High" if weight >= 5 else "Medium" if weight >= 3 else "Low"
+    if is_critical is False and fallback == "High":
+        return "Medium"
+    return fallback
 
 
 @router.get("")
@@ -47,12 +64,13 @@ def create_question(
     q = Question(
         code=code, text=body.text, process=body.process,
         sub_process=body.sub_process, audit_type=body.audit_type,
-        weight=body.weight, is_critical=body.is_critical,
         approval_status="APPROVED" if is_am else "PENDING",
         proposed_by_id=user.id,
         approved_by_id=user.id if is_am else None,
         meta=body.meta,
     )
+    q.set_criticality(_criticality(
+        body.criticality, body.weight, body.is_critical))
     db.add(q)
     db.commit()
     return q.to_dict()
@@ -110,12 +128,13 @@ def edit_question(
         text=d.get("text", old.text), process=d.get("process", old.process),
         sub_process=d.get("sub_process", old.sub_process),
         audit_type=d.get("audit_type", old.audit_type),
-        weight=d.get("weight", old.weight),
-        is_critical=d.get("is_critical", old.is_critical),
         active=d.get("active", old.active),
         approval_status="APPROVED", approved_by_id=user.id,
         meta=d.get("meta", old.meta),
     )
+    new.set_criticality(_criticality(
+        d.get("criticality"), d.get("weight"), d.get("is_critical"),
+        fallback=old.criticality or "Low"))
     db.add(new)
     log_action(db, user.id, "edit_question", "question", new.id,
                {"code": new.code, "version": new.version, "fields": list(d.keys())})

@@ -71,7 +71,7 @@ export default function PendingApprovals() {
                   <TableCell className="font-semibold text-primary">{a.id}</TableCell>
                   <TableCell>
                     <div className="font-medium">{a.store}</div>
-                    <div className="text-[11px] text-muted-foreground">{[a.brand, a.city].filter(Boolean).join(' - ')}</div>
+                    <div className="text-[11px] text-muted-foreground">{a.city}</div>
                   </TableCell>
                   <TableCell>{a.auditor || 'Unassigned'}</TableCell>
                   <TableCell>{when(tab === 'waiting' ? a.submitted_at : a.decision_at)}</TableCell>

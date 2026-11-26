@@ -7,6 +7,7 @@ import { useApi } from '../components/useApi'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import CriticalityBadge from '@/components/CriticalityBadge'
 import { sColor, sBadge, pbClass, prC } from '../utils/helpers'
 
 const ANSWERS = ['Yes', 'No', 'NA']
@@ -171,17 +172,12 @@ export default function AuditExecution({ readOnly = false }) {
                         {r.question_code}
                       </span>
                     )}
-                    {r.is_critical && (
-                      <Badge className="bg-red-50 text-red-700 text-[10px]">Critical</Badge>
-                    )}
+                    <CriticalityBadge item={r} className="text-[10px]" />
                   </div>
                   <div className="flex items-center gap-1.5">
                     {r.risk && (
                       <Badge className={cn('text-[10px]', prC(r.risk))}>{r.risk} risk</Badge>
                     )}
-                    <span className="rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      Wt {r.weight}
-                    </span>
                   </div>
                 </div>
 

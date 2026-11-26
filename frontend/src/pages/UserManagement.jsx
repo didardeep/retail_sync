@@ -319,7 +319,7 @@ export default function UserManagement() {
                             store_ids: e.target.checked ? [...f.store_ids, s.id] : f.store_ids.filter(x => x !== s.id),
                           }))}
                         />
-                        {s.name}{s.city ? ` (${s.city})` : ''}{s.brand ? ` - ${s.brand}` : ''}
+                        {s.name}{s.city ? ` (${s.city})` : ''}
                       </label>
                     ))}
                   </div>

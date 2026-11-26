@@ -16,12 +16,12 @@ from openpyxl import load_workbook
 from app.auth import hash_password
 from app.db import SessionLocal, init_db, reset_db
 from app.models import (
+    criticality_for,
     ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
     Audit, AuditResponse, AuditorAvailability, CashReconciliation,
     CashDepositPickup, Checklist, ChecklistItem, DataImport,
     ExpiredInventory, Issue, Observation, Question, Store, StoreScore, User,
 )
-from app.services import get_or_create_brand
 from import_excel import (
     _parse_date, _float, _int, _normalise_status,
     json_safe_row, _read_sheet,
@@ -170,8 +170,6 @@ def seed_from_excel():
 
         store = Store(
             id=sid,
-            # No Brand column (or a blank cell) puts the store under 'Unassigned'.
-            brand_id=get_or_create_brand(s, row.get("Brand")).id,
             store_code=code,
             name=name,
             state=str(row.get("State", "") or ""),
@@ -288,8 +286,6 @@ def seed_from_excel():
             process=str(row.get("Process", "") or ""),
             sub_process=str(row.get("Sub-Process", "") or ""),
             audit_type=str(row.get("Type", "") or ""),
-            weight=_int(row.get("Weights")) or 1,
-            is_critical=(_int(row.get("Weights")) or 0) >= 5,
             active=True,
             photo_video_enablement=str(row.get("Photo/Video", "No") or "No"),
             data_analyst_enabled=str(row.get("Data Analyst Enabled", "N") or "N"),
@@ -299,6 +295,8 @@ def seed_from_excel():
             approved_by_id=admin.id,
             meta={},
         )
+        # A "Criticality" column wins; files without one fall back to the weights.
+        q.set_criticality(criticality_for(row.get("Criticality"), _int(row.get("Weights"))))
         s.add(q)
         s.flush()
         questions[code] = q

@@ -8,13 +8,12 @@ export const STORE_FORMATS = [
 ]
 
 export const STORE_TYPES = [
-  { code: 'Flagship', note: "The brand's largest showcase store, usually in a prime location, with the full range." },
+  { code: 'Flagship', note: "The largest showcase store, usually in a prime location, with the full range." },
   { code: 'Standard', note: 'A regular full-size store with the usual range and staffing.' },
   { code: 'Compact', note: 'A smaller store with a reduced range, often in a neighbourhood or high street.' },
   { code: 'Kiosk', note: 'A small counter or stall, for example in a mall or station, with a few lines.' },
 ]
 
-export const BRAND_CATEGORIES = ['Grocery', 'Fashion', 'Electronics', 'Pharmacy', 'Home & Living', 'Food & Beverage', 'Other']
 
 // "COCO - Company Owned, Company Operated"; unknown codes stay as they are.
 export function formatLabel(code) {
