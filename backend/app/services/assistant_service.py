@@ -138,7 +138,7 @@ def _get_audit_detail(db: Session, user, audit_id, **_):
             unanswered += 1
             continue
         proc = (r.question.process if r.question else None) or "Unknown"
-        by_process.setdefault(proc, {"yes": 0, "no": 0, "partial": 0, "na": 0})
+        by_process.setdefault(proc, {"yes": 0, "no": 0, "na": 0})
         ans = r.answer.lower()
         if ans == "yes":
             by_process[proc]["yes"] += 1
@@ -146,8 +146,6 @@ def _get_audit_detail(db: Session, user, audit_id, **_):
             by_process[proc]["no"] += 1
             if r.question and r.question.is_critical:
                 critical_fails.append({"question": r.question.text[:80], "remarks": r.remarks})
-        elif ans == "partial":
-            by_process[proc]["partial"] += 1
         elif ans == "na":
             by_process[proc]["na"] += 1
     return _round_dict({
@@ -327,7 +325,7 @@ def _get_failure_rollup(db: Session, user, group_by="process", region=None, **_)
          .join(Question, AuditResponse.question_id == Question.id)
          .join(Audit, AuditResponse.audit_id == Audit.id)
          .join(Store, Audit.store_id == Store.id)
-         .filter(AuditResponse.answer.in_(["No", "Partial"])))
+         .filter(AuditResponse.answer == "No"))
     if region:
         q = q.filter(Store.region.ilike(f"%{region}%"))
     rows = q.all()
@@ -336,19 +334,16 @@ def _get_failure_rollup(db: Session, user, group_by="process", region=None, **_)
         key = (qu.process if group_by == "process"
                else qu.sub_process or qu.process if group_by == "sub_process"
                else qu.text[:60]) or "Unknown"
-        rollup.setdefault(key, {"no": 0, "partial": 0, "critical": 0, "total": 0})
+        rollup.setdefault(key, {"no": 0, "critical": 0, "total": 0})
         rollup[key]["total"] += 1
-        if resp.answer == "No":
-            rollup[key]["no"] += 1
-            if qu.is_critical:
-                rollup[key]["critical"] += 1
-        else:
-            rollup[key]["partial"] += 1
+        rollup[key]["no"] += 1
+        if qu.is_critical:
+            rollup[key]["critical"] += 1
     total_resp = db.query(func.count(AuditResponse.id)).filter(
-        AuditResponse.answer.in_(["Yes", "No", "Partial"])
+        AuditResponse.answer.in_(["Yes", "No"])
     ).scalar() or 1
     result = sorted([
-        {"group": k, **v, "failure_pct": round((v["no"] + v["partial"]) / total_resp * 100, 2)}
+        {"group": k, **v, "failure_pct": round(v["no"] / total_resp * 100, 2)}
         for k, v in rollup.items()
     ], key=lambda x: x["total"], reverse=True)
     return {"group_by": group_by, "total_failures": len(rows), "rollup": result[:30]}
@@ -527,7 +522,7 @@ TOOLS_DEF = [
     {"name": "get_store_score_trend", "description": "Q1-Q4 quarterly scores and audit score history for a store.", "properties": {"store": {"type": "string", "description": "Store name or ID (partial)"}}, "required": ["store"]},
     {"name": "list_issues", "description": "List issues/actions. Overdue = due_date < today AND status != Resolved.", "properties": {"priority": {"type": "string", "description": "Critical/High/Medium/Low"}, "status": {"type": "string", "description": "Open/In Progress/Resolved"}, "overdue_only": {"type": "boolean", "description": "Only overdue issues"}, "store": {"type": "string", "description": "Store name or ID (partial)"}, "process": {"type": "string", "description": "Process area (partial)"}, "top_n": {"type": "integer", "description": "Max results (default 20)"}}, "required": []},
     {"name": "list_observations", "description": "List audit observations.", "properties": {"audit_id": {"type": "string"}, "store": {"type": "string"}, "status": {"type": "string", "description": "Open - Not Due / Open - Overdue / In Progress / Closed"}}, "required": []},
-    {"name": "get_failure_rollup", "description": "Count No/Partial answers grouped by process, sub_process, or question. AUDIT_MANAGER only.", "properties": {"group_by": {"type": "string", "description": "process / sub_process / question"}, "region": {"type": "string"}}, "required": []},
+    {"name": "get_failure_rollup", "description": "Count No answers grouped by process, sub_process, or question. AUDIT_MANAGER only.", "properties": {"group_by": {"type": "string", "description": "process / sub_process / question"}, "region": {"type": "string"}}, "required": []},
     {"name": "get_cash_exceptions", "description": "Cash reconciliation gaps and deposit pickup delays.", "properties": {"min_difference": {"type": "number"}, "min_delay_days": {"type": "integer"}, "store": {"type": "string"}}, "required": []},
     {"name": "get_expired_inventory", "description": "Expired inventory items and total value.", "properties": {"store": {"type": "string"}, "top_n": {"type": "integer"}}, "required": []},
     {"name": "get_auditor_availability", "description": "Who is free/blocked in a date window. AUDIT_MANAGER only.", "properties": {"date_from": {"type": "string", "description": "YYYY-MM-DD"}, "date_to": {"type": "string", "description": "YYYY-MM-DD (optional)"}, "auditor_name": {"type": "string"}}, "required": ["date_from"]},
@@ -610,7 +605,7 @@ User: {user.name} | Role: {user.role} | Today: {today} (IST)
 {ctx.get(user.role, "")}
 
 FIXED FACTS (no tool needed):
-- Score = round(Σ(weight × answer_value) / Σ(weight) × 100, 2). Yes=1.0, Partial=0.5, No=0.0, NA excluded.
+- Score = round(Σ(weight × answer_value) / Σ(weight) × 100, 2). Yes=1.0, No=0.0, NA excluded.
 - Audit flow: Planned → Ongoing → Completed → Approved.
 - Issue status: Open / In Progress / Resolved. Overdue = due_date < today AND status ≠ Resolved.
 - Observation status: Open - Not Due / Open - Overdue / In Progress / Closed.

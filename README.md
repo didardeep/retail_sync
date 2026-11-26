@@ -29,7 +29,7 @@ not the security boundary.
 ```bash
 cd backend
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # runtime packages plus pytest; the server uses requirements.txt only
 python seed.py --reset          # creates the DB and loads placeholder data
 python run.py                   # http://127.0.0.1:5050
 ```
@@ -55,14 +55,14 @@ npm run dev                     # http://localhost:5173
 Vite proxies `/api` to the FastAPI server, so no CORS configuration is needed
 in development.
 
-**Seeded logins** — password `password123`
+**Seeded logins** — password `pass`
 
-- `am@retail-chain.com` — Audit Manager
-- `aud.j.patel@retail-chain.com` — Auditor
-- `sm.a.sharma@retail-chain.com` — Store Manager
+- `manager` — Audit Manager
+- `amit` — Auditor
+- `sharma` — Store Manager
 
-Every auditor and store manager in the prototype data has an account; the email
-pattern is `aud.<name>@` and `sm.<name>@`.
+Every auditor and auditee logs in with their first name, and every store manager
+with their surname.
 
 ---
 
@@ -88,6 +88,15 @@ python import_excel.py
 ```
 
 SQLite works as a zero-config fallback — just omit `DATABASE_URL`.
+
+---
+
+## Deploying on the site server
+
+One process on one port (8199) serves the API and the built website, on Windows
+with PostgreSQL and no Docker. Build a zip with `scripts\make-release.bat`, then
+follow `docs/DEPLOYMENT.md`. Updates: `docs/PATCH_AND_PROD_RUNBOOK.md`. Decisions:
+`docs/decisions-site-deployment.md`. What is still open: `docs/TODOS-for-Production.md`.
 
 ---
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Line } from 'react-chartjs-2'
-import { api } from '../api/client'
+import { api, loadSession } from '../api/client'
 import { sColor, pbClass, exportCSV } from '../utils/helpers'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -8,22 +9,37 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Modal, ModalActions } from '../components/Modal'
+import { storeScorecardLink } from '@/lib/links'
+import AuditReport from '@/components/audit/AuditReport'
 
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4']
-const SCORE_GRID = 'grid-cols-[2fr_1fr_1.5fr_1.5fr_1.5fr_1.5fr_70px]'
+const SCORE_GRID = 'grid-cols-[minmax(180px,2fr)_110px_repeat(4,minmax(140px,1fr))_56px]'
 
+// Scores are shown with two decimals; a missing score is '--', never 0.
+function fmtScore(v) {
+  return typeof v === 'number' ? v.toFixed(2) : '--'
+}
+
+// Change from the previous quarter. Always rendered in a fixed-width slot (empty
+// when there is nothing to compare) so the bars line up in every column and row.
 function deltaDisplay(curr, prev) {
-  if (prev === undefined || prev === null || prev === 0) return ''
-  const d = curr - prev
-  if (d > 0) return <span className="rounded-[5px] bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">+{d}</span>
-  if (d < 0) return <span className="rounded-[5px] bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">{d}</span>
-  return <span className="rounded-[5px] bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500">0</span>
+  if (typeof curr !== 'number' || typeof prev !== 'number') return null
+  const d = Math.round((curr - prev) * 100) / 100
+  const base = 'rounded-[5px] px-1.5 py-0.5 text-[10px] font-bold tabular-nums'
+  if (d > 0) return <span className={cn(base, 'bg-emerald-100 text-emerald-700')}>+{d.toFixed(2)}</span>
+  if (d < 0) return <span className={cn(base, 'bg-red-100 text-red-700')}>{d.toFixed(2)}</span>
+  return <span className={cn(base, 'bg-gray-100 text-gray-500')}>0.00</span>
 }
 
 export default function StoreAuditScores() {
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const role = loadSession()?.user?.role
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [detailStore, setDetailStore] = useState(null)
+  // The audit whose report is open; the store pop-up hides behind it and comes back on Back.
+  const [reportId, setReportId] = useState(null)
   const [stores, setStores] = useState([])
   const [audits, setAudits] = useState([])
   const [scoreMap, setScoreMap] = useState({})
@@ -44,13 +60,18 @@ export default function StoreAuditScores() {
       }
       setScoreMap(map)
       setLoading(false)
+      // open detail from ?id= query param
+      const idParam = params.get('id')
+      if (idParam) {
+        const found = (s || []).find(x => x.id === idParam)
+        if (found) setDetailStore(found)
+      }
     })
   }, [])
 
   function getScore(store, quarter) {
-    const rec = scoreMap[store.id]
-    if (!rec) return 0
-    return rec[quarter.toLowerCase()] ?? 0
+    const v = scoreMap[store.id]?.[quarter.toLowerCase()]
+    return typeof v === 'number' && v > 0 ? v : null
   }
 
   /* ── filtering ── */
@@ -67,7 +88,10 @@ export default function StoreAuditScores() {
   /* ── handlers ── */
   function handleExport() {
     const headers = ['ID', 'Store', 'City', 'Status', ...QUARTERS]
-    const rows = filtered.map(s => [s.id, s.name, s.city, s.status, ...QUARTERS.map(q => getScore(s, q))])
+    const rows = filtered.map(s => [s.id, s.name, s.city, s.status, ...QUARTERS.map(q => {
+      const v = getScore(s, q)
+      return v === null ? '' : v.toFixed(2)
+    })])
     exportCSV(rows, headers, 'store_audit_scores.csv')
   }
 
@@ -96,7 +120,7 @@ export default function StoreAuditScores() {
   const chartOpts = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `Score ${fmtScore(ctx.parsed.y)}` } } },
     scales: {
       y: { min: 0, max: 100, ticks: { font: { size: 10 } } },
       x: { ticks: { font: { size: 10 } } }
@@ -143,15 +167,15 @@ export default function StoreAuditScores() {
       </div>
 
       {/* Score table */}
-      <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+      <div className="overflow-x-auto rounded-[10px] border border-border bg-card">
         {/* Header row */}
-        <div className={cn('grid items-center gap-2.5 border-b border-border bg-gray-50 px-3 py-2.5', SCORE_GRID)}>
+        <div className={cn('grid min-w-[820px] items-center gap-2.5 border-b border-border bg-gray-50 px-3 py-2.5', SCORE_GRID)}>
           <span className="text-[11.5px] font-semibold text-muted-foreground">Store Details</span>
-          <span className="text-[11.5px] font-semibold text-muted-foreground">Status</span>
+          <span className="text-center text-[11.5px] font-semibold text-muted-foreground">Status</span>
           {QUARTERS.map(q => (
-            <span key={q} className="text-[11.5px] font-semibold text-muted-foreground">&#x1F4C5; {q} Score</span>
+            <span key={q} className="text-center text-[11.5px] font-semibold text-muted-foreground">&#x1F4C5; {q} Score</span>
           ))}
-          <span className="text-[11.5px] font-semibold text-muted-foreground">Actions</span>
+          <span className="text-center text-[11.5px] font-semibold text-muted-foreground">View</span>
         </div>
 
         {/* Data rows */}
@@ -159,21 +183,35 @@ export default function StoreAuditScores() {
           return (
             <div
               key={s.id}
-              className={cn('grid cursor-pointer items-center gap-2.5 border-b border-border px-3 py-2.5 last:border-0 hover:bg-[#fafbff]', SCORE_GRID)}
+              className={cn('grid min-w-[820px] cursor-pointer items-center gap-2.5 border-b border-border px-3 py-2.5 last:border-0 hover:bg-[#fafbff]', SCORE_GRID)}
               onClick={() => setDetailStore(s)}
             >
               {/* Store details */}
               <div className="flex items-center gap-2">
                 <img src="store-logo.jpg" alt="" className="h-[26px] w-[26px] rounded-md" onError={e => { e.target.style.display = 'none' }} />
                 <div>
-                  <div className="text-[12.5px] font-semibold">{s.name}</div>
+                  <button
+                    className="text-left text-[12.5px] font-semibold text-primary hover:underline"
+                    onClick={e => { e.stopPropagation(); navigate(storeScorecardLink(s.id, role)) }}
+                  >
+                    {s.name}
+                  </button>
                   <div className="text-[11px] text-muted-foreground">{s.city}</div>
                 </div>
               </div>
 
               {/* Status */}
-              <div>
-                <Badge className={s.status === 'Operating' ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground border border-border'}>{s.status}</Badge>
+              <div className="flex justify-center">
+                {(() => {
+                  const st = s.status || 'Operating'
+                  return (
+                    <Badge className={st === 'Operating'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-red-50 text-red-600 border border-red-200'}>
+                      {st}
+                    </Badge>
+                  )
+                })()}
               </div>
 
               {/* Score columns */}
@@ -181,22 +219,28 @@ export default function StoreAuditScores() {
                 const score = getScore(s, q)
                 const prevScore = idx > 0 ? getScore(s, QUARTERS[idx - 1]) : null
                 return (
-                  <div key={q}>
-                    <div className="mb-1">
-                      <span className="text-base font-bold" style={{ color: sColor(score) }}>{score}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-1.5 w-[150px] overflow-hidden rounded-[3px] bg-gray-200">
-                        <div className={cn('h-full rounded-[3px]', pbClass(score))} style={{ width: `${score}%` }} />
+                  <div key={q} className="flex justify-center">
+                    <div className="grid w-[128px] grid-cols-[72px_52px] items-center gap-x-1 gap-y-1">
+                      <span
+                        className="text-base font-bold tabular-nums"
+                        style={{ color: score === null ? 'var(--text3)' : sColor(score) }}
+                      >
+                        {fmtScore(score)}
+                      </span>
+                      <span />
+                      <div className="h-1.5 w-[72px] overflow-hidden rounded-[3px] bg-gray-200">
+                        {score !== null && <div className={cn('h-full rounded-[3px]', pbClass(score))} style={{ width: `${score}%` }} />}
                       </div>
-                      {deltaDisplay(score, prevScore)}
+                      <div className="flex justify-start">{deltaDisplay(score, prevScore)}</div>
                     </div>
                   </div>
                 )
               })}
 
               {/* Actions */}
-              <button className="flex h-[26px] w-[26px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={e => { e.stopPropagation(); setDetailStore(s) }}>&#x1F441;</button>
+              <div className="flex justify-center">
+                <button className="flex h-[26px] w-[26px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={e => { e.stopPropagation(); setDetailStore(s) }}>&#x1F441;</button>
+              </div>
             </div>
           )
         })}
@@ -213,7 +257,7 @@ export default function StoreAuditScores() {
 
       {/* ── Store Detail Modal ── */}
       {detailStore && (
-        <Modal open={!!detailStore} onClose={() => setDetailStore(null)} className="w-[540px] p-0" >
+        <Modal open={!!detailStore && !reportId} onClose={() => setDetailStore(null)} className="w-[540px] p-0" >
           {/* Modal header */}
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <span className="text-[15px] font-bold text-foreground">{detailStore.name}, {detailStore.city}</span>
@@ -263,7 +307,7 @@ export default function StoreAuditScores() {
                   <TableRow>
                     <TableHead>Audit ID</TableHead>
                     <TableHead>Date</TableHead>
-                    <TableHead>Score</TableHead>
+                    <TableHead className="text-right">Score</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -271,16 +315,16 @@ export default function StoreAuditScores() {
                   {storeAudits(detailStore.name).map(a => (
                     <TableRow key={a.id}>
                       <TableCell className="font-semibold">{a.id}</TableCell>
-                      <TableCell>{a.scheduled_at?.substring(0,10) || a.sched}</TableCell>
-                      <TableCell>
+                      <TableCell className="tabular-nums">{a.scheduled_at?.substring(0,10) || a.sched}</TableCell>
+                      <TableCell className="text-right">
                         {a.score !== null && a.score !== undefined ? (
-                          <span className="font-bold" style={{ color: sColor(a.score) }}>{a.score}%</span>
+                          <span className="font-bold tabular-nums" style={{ color: sColor(a.score) }}>{fmtScore(a.score)}%</span>
                         ) : (
                           <span className="text-muted-foreground">&mdash;</span>
                         )}
                       </TableCell>
-                      <TableCell>
-                        <Button size="sm" variant="outline">View Report</Button>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="outline" onClick={() => setReportId(a.id)}>View Report</Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -297,6 +341,20 @@ export default function StoreAuditScores() {
           </ModalActions>
         </Modal>
       )}
+
+      {/* ── Audit report (opened from Recent Audits) ── */}
+      <Modal open={!!reportId} onClose={() => setReportId(null)} className="w-[640px] max-w-[95vw]">
+        <div className="mb-3.5 flex items-center justify-between">
+          <span className="text-[15px] font-bold text-foreground">
+            Audit report {reportId}{detailStore ? ` - ${detailStore.name}` : ''}
+          </span>
+          <button className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-[13px]" onClick={() => setReportId(null)} aria-label="Close">&times;</button>
+        </div>
+        {reportId && <AuditReport auditId={reportId} />}
+        <ModalActions>
+          <Button size="sm" variant="outline" onClick={() => setReportId(null)}>Back to store</Button>
+        </ModalActions>
+      </Modal>
     </>
   )
 }

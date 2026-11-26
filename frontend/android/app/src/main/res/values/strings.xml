@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Retail Sync</string>
+    <string name="title_activity_main">Retail Sync</string>
+    <string name="package_name">com.retailsync.app</string>
+    <string name="custom_url_scheme">com.retailsync.app</string>
+</resources>

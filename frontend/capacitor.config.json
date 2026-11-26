@@ -1,0 +1,11 @@
+{
+  "appId": "com.retailsync.app",
+  "appName": "Retail Sync",
+  "webDir": "dist",
+  "server": {
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

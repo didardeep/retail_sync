@@ -1,0 +1,192 @@
+# Page guide: every tab of the website
+
+What each page is for, what you do on it, a use case, who uses it, and what is real versus sample.
+Written 6 Oct 2026 from reading the code, plus a live check as the admin (section 1).
+Items marked **[verified]** were also confirmed by running the app.
+
+---
+
+## 1. The admin account
+
+| | |
+|---|---|
+| Login | `admin` |
+| Password | the shared demo password (printed by `python backend/demo.py prepare`; it is `DEFAULT_PASSWORD` in `backend/seed.py`) |
+| Role | ADMIN. Not listed in the login page's demo box, so type it in |
+
+**[verified]** Signed in as the admin and opened all 14 sidebar pages: every one loaded with content and none of
+its data requests was refused. The admin sees every page the Audit Manager sees, plus **User Management**, which
+only the admin can really use. The admin cannot fill in audits (that is the auditor's job).
+
+| Role | Pages in the sidebar |
+|------|----------------------|
+| ADMIN | all 12 (My Store and the auditor Dashboard are not shown) |
+| AUDIT_MANAGER | 11 (as admin, without User Management, which only the admin can open) |
+| AUDITOR | Dashboard, Audit, Email |
+| STORE_MANAGER | My Store, Action Taken Tracking, Audit, Email |
+
+Two kinds of audit exist side by side:
+
+| | Classic checklist audit | SOP audit |
+|---|---|---|
+| Ids | AUD-1000 | SOP-xxxxxxxx |
+| Questions | Yes / No / Partial / NA from a question bank | Marks per question with Best / Average / Least descriptions |
+| Score | Weighted percentage | Typed score per question, sum over applicable marks |
+| Proof | Remarks, risk level, evidence link | Comment and photos, required per question |
+| Offline | No | Yes, saved on the phone first |
+| Follow-up | A "No" on a critical question raises an issue | Nothing raised yet |
+| Who fills it in | Intended: auditor (no screen for it today) | Auditor on the phone |
+
+---
+
+## 2. Pages at a glance
+
+| Page (route) | For | Main users | Data |
+|---|---|---|---|
+| Dashboard and Analytics (`/dashboard`) | Management summary; SOP tab for deep analysis; store selector for one store's view | Admin, Audit Manager | Overview partly sample; SOP tab real |
+| SOP audit wizard / review (`/sop-audits/:id`) | Do the audit; check and submit; read the report | Auditor; everyone reads | Real |
+| Audit (`/audits`) | One list of all audits, both kinds; auditors start and resume from it | All roles | Real |
+| Audit Scheduling (`/scheduling`) | Plan and assign audits | Admin, Audit Manager | Real |
+| Audit Questions (`/questions`) | Question bank; SOP tool editor | Admin, Audit Manager | Bank edits mostly not saved; SOP tools real |
+| Store Audit Scores (`/scores`) | Quarterly store scores | Admin, Audit Manager | Real |
+| Action Taken Tracking (`/issues`) | Issues from audits through to resolution | Admin, Audit Manager, Store Manager | Reads real; most edits not saved |
+| Store Management (`/stores`) | Store master list | Admin, Audit Manager | Reads real; add/delete not saved |
+| My Store (`/my-store`) | A store manager's own store (admin and manager use the Dashboard store selector) | Store Manager | Real |
+| Email Communications (`/email`) | Mailbox | nobody yet | All sample |
+| Audit Log (`/audit-log`) | Who did what | Admin, Audit Manager | Real |
+| User Management (`/user-management`) | Create and manage accounts | Admin only | Real |
+| Login (`/login`) | Sign in | Everyone | Real |
+
+---
+
+## 3. Insights
+
+### Dashboard and Analytics (`/dashboard`)
+Two tabs, plus a store selector at the top ("All stores" by default; kept in the address as `?store=<id>`).
+- **Purpose.** Overview: a summary of audits, store scores and issues. SOP Audits tab: where are we weak, which stores are overdue.
+- **Store selector.** "All stores" shows the chain-wide Overview and SOP tab described here. Picking a store (`/dashboard?store=<id>`) replaces the tab strip with that store's view: quarter score with Q1-Q4 selector, score trend with the 90% benchmark, open issues by priority, audit results over time, audits by status, recent audits and open issues (the same view a store manager sees as My Store); every tile and chart opens a list with the same count. A small link "Open SOP scores for this store" goes to `/dashboard?tab=sop&store=<id>`; with `tab=sop` the SOP tab is shown, filtered to that store, as before.
+- **Do.** *Overview:* click Q1-Q4 to change the quarter; click Planned/Ongoing/Completed tiles to open the Audit page filtered; click donut slices (risk, region, score bands) for a side list; click a store bar, Top/Bottom row or score-band list row to open that store's view; "Power BI" button opens a pop-up.
+  *SOP tab:* tool chips, region, search; click a store in the ranking or coverage panel, a section in "Gap by section", a bar in "Where marks are lost" to filter everything; filter chips with "Clear all"; Refresh; Export CSV; click a table row to open the report. Filters live in the web address.
+- **See.** SOP tab: Audits submitted, Average score (target 80%), Stores below 70%, change vs last audit; store ranking; gap by section; top 10 questions losing marks; coverage (stores not audited for 30+ days); monthly trend; audits table.
+- **Data.** SOP tab: all real, from one request. Overview: store scores, issues, observations are real but come from the older audit tables, not SOP audits. **Sample/fake on Overview:** the "Performance Trends" line is invented from the current average; the Power BI pop-up is a hard-coded mock-up with controls that do nothing; "Recent Communications" is always empty; "Top 5 Repeat" is just the first five issue titles; if the database is empty it silently shows sample numbers.
+- **Who.** Admin and Audit Manager.
+- **Use case.** Monday: the audit manager checks the SOP tab, sees Pacific Hub unaudited for 62 days, clicks it, then schedules a visit.
+- **Limits.** The two tabs use different data and scoring, so numbers will not match. Overview tiles count only classic audits. Do not quote the trend line or Power BI pop-up as real.
+
+### Store Audit Scores (`/scores`)
+- **Purpose.** Compare every store's Q1-Q4 scores.
+- **Do.** Search; filter Operating/Dehired; Export CSV; click a store for a pop-up with a trend and recent audits ("View Report"); the store name opens its SOP scorecard.
+- **Data.** Real (stored quarterly scores and classic audits). A missing score shows as 0, which looks like a real zero.
+- **Who.** Admin, Audit Manager. **Use case.** Before a quarterly review, export all stores' scores and open the ones that fell.
+
+### Action Taken Tracking (`/issues`)
+- **Purpose.** Follow problems found in audits to resolution (owner, priority, status, due date).
+- **Do.** Table or Board view; click tiles to filter; filter by text, status, priority, store, assignee; Export; "+ New Issue"; edit; delete.
+- **Data.** Issues are read from the server. **Not saved (lost on refresh), though the page says success:** new issue, delete, assignee, due date, tags, attachments, comments. Saved: title, status, priority, description. A store manager's edit keeps only status. The assignee list is hard-coded names. Issues are raised automatically only from classic audits (a "No" on a critical question).
+- **Who.** Admin, Audit Manager, Store Manager (sees only issues assigned to them).
+- **Use case.** A store manager filters to Open and marks a fixed item Resolved; that status change does persist.
+
+### Store Management (`/stores`)
+- **Purpose.** Store master list with each store's quarter score.
+- **Do.** Quarter buttons; search; status filter; Export; click a store for details; edit a store; "+ Add Store"; delete. Region and format filters work only through links (the dashboard's format rows).
+- **Data.** Editing name, city, format, type, region or status saves. **Add and delete are browser-only and vanish on refresh.** The manager typed in the form is not saved (managers are assigned by account). "Full History" does nothing.
+- **Who.** Admin, Audit Manager. **Use case.** Mark a closed store Dehired; export the list.
+
+---
+
+## 4. Audits
+
+### Dashboard (auditor) (`/my-dashboard`)
+- **Purpose.** What an auditor needs to know about their own audits at a glance. Auditors land here.
+- **See.** Tiles and charts (every number opens the Audit list with the same count): Scheduled, In progress, Submitted, Cancelled, Overdue; Score trend against the 80% target; My audits by status (donut); Scheduled vs completed by month; My stores (latest score, coloured by band). Panels: Next up (nearest scheduled audit with note and Start), Finish these (drafts with percent done), Recently submitted (score, date), My numbers (average score, audits and stores this month, issues raised from my audits, waiting to sync). Real data only.
+- **Who.** Auditors only (managers use Dashboard and Analytics).
+
+### Audit (`/audits`)
+- **Purpose.** The one audit page for every role (it replaces the old "Audit" and "Audit Status" pages). One table of classic checklist and scored (SOP) audits with status, score, auditor and issue count. Old `/sop-audits?...` links redirect here and keep their query.
+- **Do.** Filter by search, status (Scheduled, In progress, Completed, Approved, Cancelled, Overdue), type, tool, region, store, auditor, dates; the filters live in the address (`stage`, `status`, `view`, `tool`, `kind`, `store`, `region`, `auditor`, `q`, `id`). A "Filter: ... (clear)  N shown" chip shows when a status filter is on, so a dashboard number equals the rows shown. Click a row for a details pop-up. Each row has a Scored or Checklist chip, and in-progress rows show a progress bar and "x% done".
+- **Auditor.** Sees only their own audits (including drafts saved on the device, and a sync chip). Scheduled for you is on top (overdue first, Start). **New audit** opens the store list and the per-store options to start an unscheduled scored or checklist audit. The Actions column has Start / Resume / View (also in the pop-up).
+- **Admin / Audit Manager.** View scores and Schedule an audit in the page header; Actions column with Edit (status, date, auditor on classic audits) and "Mark as" any status.
+- **Store manager.** Read-only list of the audits of their own stores.
+- **Data.** Real. Scored parts work offline for auditors; checklist audits need a connection.
+- **Limits.** "Mark as Approved" only flips a status; there is no real approval screen. An auditor can start an unscheduled audit for any store.
+
+### Checklist audit wizard (`/audits/:id`, review at `/audits/:id/review`)
+- One question per screen with Yes / Partial / No / N/A buttons, remarks, risk level and an evidence link; saved on the server as you go. A critical question answered No warns that it will raise an issue. Review lists unanswered questions, then Submit shows the score and the issues raised. Only the owning auditor can edit; everyone else sees a read-only view.
+
+### SOP audit wizard (`/sop-audits/:id`)
+- **Purpose.** Score one audit, one question per screen, built for phones.
+- **Do.** Type the score (0 to marks in half steps), or tick N/A; read Best/Average/Least; "Add proof / comment" for comment and photos; Previous/Next; Save & exit; Jump to section; header Review button. Saved on the device first, synced when online.
+- **Use case.** In a store with poor signal the auditor scores the cash float, photographs the register, moves on.
+- **Limits.** The score is typed, so any value in range is allowed. Data is lost only if device storage is cleared before syncing.
+
+### SOP review (`/sop-audits/:id/review`)
+- **Purpose.** Auditor: check before submitting (lists unanswered, missing comment, missing photo; tap one to fix; Submit with confirmation). Everyone else: read-only report with per-section subtotals, comments and photos.
+- **Limits.** No manager approve or return buttons yet (statuses Approved/Returned are never set). No issues are created from low SOP scores.
+
+### Classic audit screen (`/audits/:id`)
+Built to let an auditor answer Yes/No/Partial/NA and submit, but the route is mounted **read-only** and nothing links to it. Classic audits therefore cannot be filled in from the website today; the Audit page pop-up shows the answers.
+
+### Audit Scheduling (`/scheduling`)
+- **Purpose.** Plan and assign audits of both kinds. **[verified in the demo rehearsal]**
+- **Do.** Tiles filter the table; "+ Schedule Audit" with an SOP-tool or Checklist toggle; a live warning if the auditor is on leave or already booked at another store that day, and saving is refused; View, Edit, Cancel (Planned audits only; cancelled audits stay in history).
+- **Who.** Admin, Audit Manager only. **Use case.** Friday: schedule next week's Cash audits across four stores and assign auditors.
+
+### Audit Questions (`/questions`)
+- **Tab "Question bank".** The classic question bank. **Saved:** a new question. **Not saved (page still says success):** edit, active toggle, delete, new process/type. Pending-question approval has no button.
+- **Tab "SOP tools".** **[verified]** One card per tool with version, marks, version history; the editor changes wording, marks, rubric text, proof flags, adds/removes/reorders; "Review changes" shows a summary and requires a note; Publish creates a new version. Finished audits keep their version. Drafts are autosaved in the browser only. Tools cannot be created from scratch, only edited.
+- **Who.** Admin, Audit Manager (auditors cannot open it). **Use case.** Raise the marks on a question and publish version 3; last month's reports keep version 2.
+
+---
+
+## 5. My store (store manager)
+
+### My Store (`/my-store`)
+- **Purpose.** The store manager's own dashboard (the same store view as Dashboard and Analytics with a store picked): quarter score with a Q1-Q4 selector, score trend with the 90% benchmark, open issues by priority (donut), audit results over time (bars), audits by status (donut), recent audits and open issues. Both kinds of audit are included; every tile and chart opens a list with the same count.
+- **Do.** Click Q1-Q4 only.
+- **Limits.** Store managers only: the page always shows their own store and has no store picker. Admin and Audit Manager no longer get this page in the sidebar; they pick a store on Dashboard and Analytics instead, and a visit to `/my-store` (with or without `?store=`) redirects them to `/dashboard` (keeping `?store`).
+
+- **Excel import.** The server can import Excel files (`POST /api/upload`, admin/audit manager) for cash, deposits, expired stock, store scores and observations, but **no page exposes it**.
+
+---
+
+## 6. Admin and tools
+
+### Audit Log (`/audit-log`)
+Read-only table of the latest 500 actions (when, who, action, record). Real. Records audit scheduling, approvals, SOP schedule/submit/publish, store and user changes, uploads, issue status changes; not logins or most edits. No search or filter. **Who:** Admin, Audit Manager. **Use case:** "who published the new Cash tool version?"
+
+### User Management (`/user-management`)
+Create and edit accounts (name, email, password, designation, region, role, assigned store for store managers), filter by role, activate/deactivate (a deactivated user is blocked at once). Real, logged. **Who:** admin only. Limits: role cannot be changed after creation; assigned store cannot be cleared; no password length check; an admin can deactivate themselves; the audit manager sees the page but gets an error.
+
+### Email Communications (`/email`)
+A mailbox layout with eight hard-coded June messages. **No backend:** Send, Schedule, Save draft only update the screen; nothing is sent or stored; messages cannot be opened. Describe it as a prototype.
+
+### Top bar, bell, assistant
+- **Notification bell.** Real counts per role (manager: SOP audits awaiting approval, overdue issues; auditor: planned audits assigned; store manager: open issues), loaded once per page load, cannot be dismissed.
+- **Avatar menu.** Name and Sign out. No profile or password change.
+- **AI assistant** (round button, hidden on SOP audit screens). Answers questions from 16 read-only data lookups (audits, stores, issues, cash, expiry, availability and so on) with tables and charts, and refuses to change anything. **Currently off:** it needs `GOOGLE_API_KEY` in `backend/.env` (then restart the backend). It does not know about SOP audits, and several lookups are limited to the Audit Manager role, so the admin gets a reduced assistant.
+
+### Login (`/login`)
+Email and password. No forgot-password, sign-up, or password change; the admin resets passwords in User Management. The page shows demo credentials to everyone (remove before real use) and does not list the admin.
+
+---
+
+## 7. Fixed on 6 Oct 2026 (these were the first gaps in the original review)
+
+| Gap | What changed |
+|---|---|
+| My Store and Compliance mixed stores for admin / manager | Compliance has a store picker (`?store=ST003`). My Store is now store managers only; admin and manager use the store selector on Dashboard and Analytics (`/dashboard?store=`). |
+| Issues: new, delete, assignee, due date did not save | Create, edit, delete now saved on the server (delete: admin and audit manager only, logged); real users as assignees; failures show an error instead of success; fields with no database column (tags, attachments, comments) removed from the form; the overdue badge now works. Store managers see only status and action taken. [verified: create, persist, delete, 403 for store manager] |
+| Stores: add and delete did not save | Add and edit saved; delete replaced by "Dehire" (soft); fake manager field and dead "Full History" button removed; region and format filters added; duplicate id returns 409. [verified] |
+| Question bank edits did not save | Create, edit, active toggle and delete (soft) saved and logged; failures show an error; Approve / Reject for pending questions; status badge for managers; guidance field removed (no column). |
+| Audit Manager saw User Management but got an error | Page is now admin only. |
+| Dashboard Overview fake trend and Power BI mock | Trend line now the real average of stores' Q1-Q4 scores; the Power BI button and pop-up are labelled sample data; the always-empty "Recent Communications" card removed. |
+
+## 8. Still open
+
+1. Excel import has no screen.
+2. Classic audits cannot be performed from the website (read-only route); no real approve screen for them.
+3. No manager approve / return for SOP audits; no issues raised from low SOP scores.
+4. Overview "Top 5 Repeat" is not real repeat detection; the Overview tiles count classic audits only.
+5. The AI assistant is switched on only when `GOOGLE_API_KEY` is set (left off on purpose), and it does not know SOP audits.
+6. Email page is a non-functional prototype.
+7. Login page shows demo credentials to everyone (remove before real use); no password reset.

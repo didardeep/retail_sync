@@ -14,16 +14,47 @@ import sys
 from pathlib import Path
 
 from app.auth import hash_password
-from app.db import Base, SessionLocal, engine, init_db
+from app.db import SessionLocal, init_db, reset_db
 from app.models import (
-    ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
+    criticality_for,
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITEE, ROLE_AUDITOR, ROLE_CLUSTER_HEAD,
+    ROLE_HO_OPERATIONS, ROLE_STORE_MANAGER,
     Audit, AuditResponse, AuditorAvailability, CashReconciliation,
     CashDepositPickup, Checklist, ChecklistItem, DataImport,
-    ExpiredInventory, Issue, Observation, Question, Store, StoreScore, User,
+    ExpiredInventory, Issue, Observation, Question, Store, StoreScore, User, UserStore,
+)
+from app.services import (
+    SCORED_STATUSES, compute_audit_score, next_audit_id, quarter_of,
+    sync_store_score,
 )
 
 SEED_FILE = Path(__file__).parent / "seed_data.json"
-DEFAULT_PASSWORD = "password123"
+DEFAULT_PASSWORD = "pass"
+
+# Placeholder auditees (people who follow up issues) and the stores they are linked to.
+AUDITEES = {
+    "Neha Kapoor": ["ST001", "ST002"],
+    "Karan Bedi": ["ST001", "ST003"],
+    "Divya Nair": ["ST004", "ST005"],
+    "Rahul Mehta": ["ST006", "ST007"],
+    "Pooja Iyer": ["ST008", "ST009"],
+    "Vikram Joshi": ["ST010"],
+}
+
+CLUSTER_HEADS = {
+    "Anita Verma": "North India", "Suresh Menon": "South India",
+    "Ritu Malhotra": "West India", "Arjun Sen": "East India",
+}
+
+# What an assignee writes back on an issue, and what follows from an audit finding.
+ISSUE_REPLIES = [
+    "Checked with the team and corrected the entries. Process explained to the shift staff.",
+    "Issue fixed and verified with the store manager. New checklist put up at the counter.",
+    "Root cause was a missed handover. Added a sign-off to the daily closing routine.",
+    "Vendor called in and the fault repaired. Photos shared with the area office.",
+]
+OBSERVATION_RISKS = ["High", "Medium", "Low", "Medium", "High", "Low", "Medium"]
+OBSERVATION_STATUSES = ["Open", "In Progress", "Closed"]
 
 STATUS_MAP = {"Completed": "Completed", "In Progress": "Ongoing",
               "Scheduled": "Planned", "Assigned": "Planned"}
@@ -48,6 +79,13 @@ def parse_dt(text: str):
 
 def seed():
     s = SessionLocal()
+
+    # Guard: if users already exist this DB is already seeded.
+    if s.query(User).count() > 0:
+        print("Database already seeded. Run with --reset to rebuild from scratch.")
+        s.close()
+        return
+
     data = load_seed()
 
     # ---- users -----------------------------------------------------------
@@ -63,8 +101,10 @@ def seed():
     def add_user(name, role, designation=None, region=None):
         if (role, name) in users:
             return users[(role, name)]
-        prefix = {"AUDITOR": "aud", "STORE_MANAGER": "sm"}.get(role, "user")
-        u = User(name=name, email=f"{prefix}.{slug(name)}@retail-chain.com", role=role,
+        # Simple logins: first name, or surname for store managers ("A. Sharma").
+        parts = slug(name).split(".")
+        login = parts[-1] if role == ROLE_STORE_MANAGER else parts[0]
+        u = User(name=name, email=login, role=role,
                  password_hash=hash_password(DEFAULT_PASSWORD),
                  designation=designation, region=region)
         s.add(u)
@@ -72,7 +112,12 @@ def seed():
         users[(role, name)] = u
         return u
 
-    admin = User(name="Audit Manager", email="am@retail-chain.com",
+    super_admin = User(name="Admin", email="admin",
+                       role=ROLE_ADMIN, designation="System Administrator",
+                       password_hash=hash_password(DEFAULT_PASSWORD))
+    s.add(super_admin)
+
+    admin = User(name="Audit Manager", email="manager",
                  role=ROLE_AUDIT_MANAGER, designation="Audit Manager",
                  password_hash=hash_password(DEFAULT_PASSWORD))
     s.add(admin)
@@ -82,12 +127,18 @@ def seed():
         add_user(n, ROLE_AUDITOR, "Field Auditor")
     for n in manager_names:
         add_user(n, ROLE_STORE_MANAGER, "Store Manager")
+    for n in AUDITEES:
+        add_user(n, ROLE_AUDITEE, "Store Auditee")
+    for n, region in CLUSTER_HEADS.items():
+        add_user(n, ROLE_CLUSTER_HEAD, "Cluster Head", region)
+    add_user("Nisha Gupta", ROLE_HO_OPERATIONS, "HO Store Operations")
 
     # ---- stores ----------------------------------------------------------
     for st in data["stores"]:
         mgr = users.get((ROLE_STORE_MANAGER, st.get("manager")))
         s.add(Store(
-            id=st["id"], name=st["name"], city=st.get("city"),
+            id=st["id"],
+            name=st["name"], city=st.get("city"),
             region=st.get("region"), store_format=st.get("format"),
             store_type=st.get("type"), status=st.get("status", "Operating"),
             manager_id=mgr.id if mgr else None,
@@ -104,14 +155,21 @@ def seed():
         ))
     s.flush()
 
+    # ---- auditees linked to stores (many auditees per store) -------------
+    store_auditee = {}
+    for name, store_ids in AUDITEES.items():
+        for sid in store_ids:
+            s.add(UserStore(user_id=users[(ROLE_AUDITEE, name)].id, store_id=sid))
+            store_auditee.setdefault(sid, users[(ROLE_AUDITEE, name)])
+    s.flush()
+
     # ---- question bank ---------------------------------------------------
     questions = {}
     for q in data["questions"]:
         obj = Question(
             code=q["id"], version=1, is_current=True, text=q["text"],
             process=q.get("proc"), sub_process=q.get("sp"),
-            audit_type=q.get("at"), weight=q.get("w", 1),
-            is_critical=bool(q.get("crit")), active=bool(q.get("on", True)),
+            audit_type=q.get("at"), active=bool(q.get("on", True)),
             photo_video_enablement=q.get("photo_video", "No"),
             data_analyst_enabled=q.get("da_enabled", "N"),
             data_analyst_reference=q.get("da_ref"),
@@ -119,6 +177,7 @@ def seed():
             approval_status="APPROVED", approved_by_id=admin.id,
             meta={"tags": q.get("tags", [])},
         )
+        obj.set_criticality(criticality_for(q.get("criticality"), q.get("w", 1), q.get("crit")))
         s.add(obj)
         s.flush()
         questions[q["id"]] = obj
@@ -236,35 +295,100 @@ def seed():
     s.flush()
 
     # ---- audits ----------------------------------------------------------
+    random.seed(2026)  # the same demo data on every run
+    all_questions = list(questions.values())
+
+    def answer_audit(audit, yes_rate):
+        """Every question answered once the checklist is filled (Completed /
+        Approved), about half while Ongoing; the score comes from the answers."""
+        for q in all_questions:
+            answer = None
+            if audit.status in SCORED_STATUSES or (audit.status == "Ongoing" and random.random() < 0.5):
+                answer = "NA" if random.random() < 0.04 else ("Yes" if random.random() < yes_rate else "No")
+            audit.responses.append(AuditResponse(question_id=q.id, answer=answer))
+        s.flush()
+        if audit.status in SCORED_STATUSES:
+            audit.score = compute_audit_score(audit)
+
     stores_by_name = {st["name"]: st["id"] for st in data["stores"]}
     audit_objs = {}
     for a in data["audits"]:
         auditor = users.get((ROLE_AUDITOR, a.get("auditor")))
         status = STATUS_MAP.get(a.get("status"), "Planned")
+        start = parse_dt(a.get("sched"))
         audit = Audit(
             id=a["id"], store_id=stores_by_name.get(a.get("store")),
             checklist_id=full.id,
             auditor_id=auditor.id if auditor else None,
             created_by_id=admin.id,
-            scheduled_at=parse_dt(a.get("sched")),
+            created_at=start - dt.timedelta(days=7) if start else None,
+            scheduled_at=start,
+            due_at=start + dt.timedelta(hours=8) if start else None,
             status=status,
-            score=a.get("score") if status in ("Completed", "Approved") else None,
-            submitted_at=parse_dt(a.get("sched")) if status == "Completed" else None,
+            submitted_at=start if status == "Completed" else None,
         )
         s.add(audit)
         s.flush()
         audit_objs[a["id"]] = audit
+        # The prototype's score is the target; the answers are drawn to land near it.
+        answer_audit(audit, (a.get("score") or 80) / 100)
+    s.flush()
 
-        # Give completed audits plausible answers so screens aren't empty.
-        sample = list(questions.values())
-        for q in sample:
-            answer = None
-            if status == "Completed":
-                answer = random.choices(["Yes", "No", "Partial", "NA"],
-                                        weights=[70, 10, 15, 5])[0]
-            elif status == "Ongoing":
-                answer = random.choice(["Yes", "Partial", None])
-            s.add(AuditResponse(audit_id=audit.id, question_id=q.id, answer=answer))
+    # ---- audits across the year, so every page and chart has data ---------
+    now = dt.datetime.now().replace(minute=0, second=0, microsecond=0)
+    current_q = quarter_of(now)
+    auditor_users = sorted((u for u in users.values() if u.role == ROLE_AUDITOR), key=lambda u: u.name)
+    # How well each store does (share of Yes answers), so the scores spread out.
+    yes_rate = {st["id"]: 0.55 + 0.4 * random.random() for st in data["stores"]}
+
+    def add_audit(store_id, start, status, n, unassigned=False, notes=None):
+        audit = Audit(
+            id=next_audit_id(s), store_id=store_id, checklist_id=full.id,
+            auditor_id=None if unassigned else auditor_users[n % len(auditor_users)].id,
+            created_by_id=admin.id, created_at=start - dt.timedelta(days=7),
+            scheduled_at=start, due_at=start + dt.timedelta(hours=8),
+            status=status, notes=notes,
+        )
+        if status in SCORED_STATUSES:
+            audit.submitted_at = start + dt.timedelta(hours=7)
+            if status == "Approved":
+                audit.approved_by_id = admin.id
+        s.add(audit)
+        s.flush()
+        answer_audit(audit, yes_rate[store_id])
+        audit_objs[audit.id] = audit
+        return audit
+
+    store_ids = [st["id"] for st in data["stores"]]
+    for n, sid in enumerate(store_ids):
+        # One filled-in audit per store in each earlier quarter of this year.
+        for q in range(1, current_q):
+            start = dt.datetime(now.year, 3 * (q - 1) + 1, 5 + (n * 2) % 20, 10)
+            add_audit(sid, start, "Approved" if q < current_q - 1 or n % 2 else "Completed", n + q)
+            add_audit(sid, start + dt.timedelta(days=35), "Approved" if q < current_q - 1 else "Completed", n + q + 1)
+        # This quarter: a mix of every status the pages show.
+        if sid == "ST003":
+            pass  # Ub City: no scored audit this quarter, so its score stays the imported one
+        elif n % 5 == 4:
+            add_audit(sid, now - dt.timedelta(days=3), "Ongoing", n,
+                      notes="Started but not finished by the end: shows as overdue.")
+        elif n % 5 == 2:
+            add_audit(sid, now - dt.timedelta(days=4), "Planned", n,
+                      notes="Not started by its end date: shows as overdue.")
+        else:
+            add_audit(sid, now - dt.timedelta(days=n + 2), "Completed", n)
+        if n % 4 == 1:
+            add_audit(sid, now - dt.timedelta(days=10), "Cancelled", n, notes="Store closed for renovation that day.")
+        # Something coming up for every store, a few not yet assigned.
+        add_audit(sid, now + dt.timedelta(days=n + 1), "Planned", n, unassigned=n % 4 == 3,
+                  notes="Quarterly checklist audit.")
+    s.flush()
+
+    # ---- each auditor covers the stores they audit ----------------------
+    # (auditors and auditees share user_stores; the user's role says which is which)
+    covered = {(a.auditor_id, a.store_id) for a in audit_objs.values() if a.auditor_id}
+    for user_id, store_id in sorted(covered):
+        s.add(UserStore(user_id=user_id, store_id=store_id))
     s.flush()
 
     # ---- scheduled audits that have no audit record yet ------------------
@@ -303,11 +427,73 @@ def seed():
             title=iss["title"], description=iss.get("desc"),
             process=iss.get("proc"), sub_process=iss.get("sp"),
             priority=iss.get("pri", "Medium"), status=iss.get("status", "Open"),
-            assignee_id=store.manager_id if store else None,
+            # Issues at a store with an auditee go to that auditee.
+            assignee_id=(store_auditee[store.id].id if store and store.id in store_auditee
+                         else store.manager_id if store else None),
             raised_by_id=admin.id,
             due_date=(parse_dt(iss.get("due")) or dt.datetime.now()).date(),
             meta={"tags": iss.get("tags", []), "store_label": iss.get("store")},
         ))
+
+    # ---- issues raised from "No" answers on the generated audits -----------
+    s.flush()
+    issue_no = len(data.get("issues", []))
+    statuses = ["Open", "In Progress", "Resolved", "Open", "Closed", "On Hold"]
+    seeded_ids = {a["id"] for a in data["audits"]}
+    for n, audit in enumerate(a for a in audit_objs.values()
+                              if a.id not in seeded_ids and a.status in SCORED_STATUSES):
+        if n % 2:
+            continue
+        failed = next((r for r in audit.responses if r.answer == "No"), None)
+        if failed is None:
+            continue
+        q = failed.question
+        status = statuses[(n // 2) % len(statuses)]
+        issue_no += 1
+        assignee_id = (store_auditee[audit.store_id].id if audit.store_id in store_auditee
+                       else s.get(Store, audit.store_id).manager_id)
+        # Issues that have moved on carry the assignee's reply; some Resolved ones
+        # are already accepted by the auditor, the rest wait for review.
+        meta, reply = {}, None
+        if status != "Open":
+            reply = ISSUE_REPLIES[n % len(ISSUE_REPLIES)]
+            at = (audit.submitted_at + dt.timedelta(days=5)).isoformat()
+            meta["history"] = [{"at": at, "by": s.get(User, assignee_id).name, "status": status, "reply": reply}]
+            if status == "Closed" or (status == "Resolved" and n % 8 == 0):
+                reviewer = s.get(User, audit.auditor_id).name if audit.auditor_id else admin.name
+                meta["review"] = {"decision": "accepted", "by": reviewer, "at": at, "note": ""}
+        s.add(Issue(
+            id=f"ISS-{issue_no:03d}", audit_id=audit.id, store_id=audit.store_id,
+            response_id=failed.id, title=f"Not met: {q.text}"[:240],
+            description=f"Answered No during audit {audit.id}.",
+            process=q.process, sub_process=q.sub_process,
+            priority="Critical" if q.is_critical else "Medium", status=status,
+            assignee_id=assignee_id, action_taken=reply, meta=meta,
+            raised_by_id=audit.auditor_id or admin.id,
+            due_date=(audit.submitted_at + dt.timedelta(days=14)).date(),
+            closed_at=audit.submitted_at + dt.timedelta(days=10) if status == "Closed" else None,
+            created_at=audit.submitted_at,
+        ))
+
+    # ---- observations from "No" answers, so every quarter has findings -----
+    for n, audit in enumerate(a for a in audit_objs.values()
+                              if a.id not in seeded_ids and a.status in SCORED_STATUSES):
+        for sr_no, resp in enumerate((r for r in audit.responses if r.answer == "No"), 1):
+            if sr_no > 2:
+                break
+            s.add(Observation(
+                audit_id=audit.id, store_id=audit.store_id, sr_no=sr_no,
+                observation=resp.question.text, risk=OBSERVATION_RISKS[(n + sr_no) % len(OBSERVATION_RISKS)],
+                action_plan="Correct the gap and confirm at the next audit.",
+                person_responsible=s.get(Store, audit.store_id).name,
+                target=(audit.submitted_at + dt.timedelta(days=30)).strftime("%d-%b-%y"),
+                status=OBSERVATION_STATUSES[n % len(OBSERVATION_STATUSES)],
+            ))
+
+    # ---- quarter scores follow the audits scored in each quarter ----------
+    for audit in audit_objs.values():
+        if audit.status in SCORED_STATUSES:
+            sync_store_score(s, audit.store_id, audit.submitted_at)
 
     # ---- a couple of availability blocks ---------------------------------
     auditors = [u for u in users.values() if u.role == ROLE_AUDITOR]
@@ -333,11 +519,13 @@ def seed():
           f"{len(users) + 1} users")
     print(f"  Data: {cr_count} cash reconciliations, {cd_count} cash deposits, "
           f"{ei_count} expired inventory, {ss_count} store scores, {ob_count} observations")
-    print(f"  Issues: {len(data.get('issues', []))}")
+    print(f"  Issues: {issue_no}")
     print(f"\nLogins (password: {DEFAULT_PASSWORD})")
-    print("  Audit Manager : am@retail-chain.com")
+    print("  Admin         : admin")
+    print("  Audit Manager : manager")
     for role, label in ((ROLE_AUDITOR, "Auditor      "),
-                        (ROLE_STORE_MANAGER, "Store Manager")):
+                        (ROLE_STORE_MANAGER, "Store Manager"),
+                        (ROLE_AUDITEE, "Auditee      ")):
         for u in users.values():
             if u.role == role:
                 print(f"  {label} : {u.email}")
@@ -346,7 +534,7 @@ def seed():
 
 if __name__ == "__main__":
     if "--reset" in sys.argv:
-        Base.metadata.drop_all(bind=engine)
+        reset_db()
         print("Dropped all tables.")
     init_db()
 

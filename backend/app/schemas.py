@@ -31,6 +31,43 @@ class LoginResponse(ORMBase):
 # --------------------------------------------------------------------------
 # Stores
 # --------------------------------------------------------------------------
+class StorePersonLink(ORMBase):
+    """Link an existing auditor or auditee to a store."""
+    user_id: str
+
+
+class StorePersonRemove(ORMBase):
+    """Unlink a person from a store, and what to do with their open work there.
+    Auditor: planned audits at the store go to `reassign_to`, or are left
+    unassigned. Auditee: open issues at the store go to `move_issues_to`; with
+    open issues and no one to move them to, the removal is refused."""
+    reassign_to: str | None = None
+    move_issues_to: str | None = None
+
+
+class PersonCreate(ORMBase):
+    """An audit manager adds an auditor or an auditee."""
+    name: str
+    email: str
+    password: str
+    designation: str | None = None
+    region: str | None = None
+    phone: str | None = None
+    notify_email: str | None = None
+    store_ids: list[str] = Field(default_factory=list)
+
+
+class PersonUpdate(ORMBase):
+    name: str | None = None
+    designation: str | None = None
+    region: str | None = None
+    phone: str | None = None
+    notify_email: str | None = None
+    active: bool | None = None
+    # Deactivating with open work: hand it to this person (same role).
+    hand_over_to: str | None = None
+
+
 class StoreCreate(ORMBase):
     id: str
     name: str
@@ -68,13 +105,15 @@ class QuestionCreate(ORMBase):
     process: str | None = None
     sub_process: str | None = None
     audit_type: str | None = None
-    weight: int = 1
+    criticality: str | None = None    # High / Medium / Low; sets the scoring weight
+    weight: int = 1                   # older clients: used only when criticality is not given
     is_critical: bool = False
     meta: dict[str, Any] = Field(default_factory=dict)
 
 
 class QuestionApprove(ORMBase):
-    decision: str = "APPROVED"
+    decision: str = "APPROVED"        # APPROVED | REJECTED
+    reason: str = ""                  # required when REJECTED
 
 
 class QuestionEdit(ORMBase):
@@ -82,6 +121,7 @@ class QuestionEdit(ORMBase):
     process: str | None = None
     sub_process: str | None = None
     audit_type: str | None = None
+    criticality: str | None = None
     weight: int | None = None
     is_critical: bool | None = None
     active: bool | None = None
@@ -93,8 +133,13 @@ class QuestionEdit(ORMBase):
 # --------------------------------------------------------------------------
 class ChecklistCreate(ORMBase):
     name: str
+    # Who it is for: {"format": [...], "type": [...], "category": [...], "stores": [ids]}.
+    # Empty lists mean every store; a stores list limits it to exactly those stores.
     conditions: dict[str, Any] = Field(default_factory=dict)
     question_ids: list[str] = Field(default_factory=list)
+    is_active: bool = True
+    new_version: bool = False         # edit: always save as the next version
+    retire_previous: bool = True      # with new_version: switch the edited version off
 
 
 # --------------------------------------------------------------------------
@@ -103,10 +148,16 @@ class ChecklistCreate(ORMBase):
 class AuditScheduleRequest(ORMBase):
     store_id: str
     scheduled_at: str
+    due_at: str | None = None
     checklist_id: str | None = None
+    # Several checklists make one audit with their questions combined (each question once).
+    checklist_ids: list[str] = Field(default_factory=list)
     auditor_id: str | None = None
     audit_type: str = "Checklist based Audit"
     notes: str | None = None
+    # Also make the chosen auditor one of the store's auditors, so the next
+    # audit there suggests them.
+    assign_to_store: bool = False
 
 
 class AnswerQuestionRequest(ORMBase):
@@ -114,6 +165,12 @@ class AnswerQuestionRequest(ORMBase):
     remarks: str | None = None
     risk: str | None = None
     evidence: list[Any] | None = None
+    annexure: dict[str, Any] | None = None
+
+
+class AuditStartRequest(ORMBase):
+    store_id: str
+    checklist_id: str
 
 
 class AuditApproveRequest(ORMBase):
@@ -148,6 +205,62 @@ class IssueCreate(ORMBase):
     priority: str = "Medium"
     assignee_id: str | None = None
     due_date: str | None = None
+
+
+class RaiseIssueRequest(ORMBase):
+    """The auditor's choice to raise an issue on one answered question."""
+    assignee_id: str
+    description: str | None = None
+    priority: str = "Medium"
+    due_date: str | None = None
+
+
+class ResponseReview(ORMBase):
+    decision: str                     # approve | query
+    note: str = ""
+    # Optional label for a query: wrong_answer / missing_evidence / unclear_photo / other
+    category: str | None = None
+
+
+class AuditReassign(ORMBase):
+    """Give a planned or ongoing audit to another auditor; None removes the auditor."""
+    auditor_id: str | None = None
+    reason: str = ""
+
+
+class DecisionItem(ORMBase):
+    response_id: str
+    note: str = ""
+    category: str | None = None       # wrong_answer / missing_evidence / unclear_photo / other
+
+
+class AuditDecision(ORMBase):
+    """The audit manager's verdict on a submitted audit."""
+    decision: str                     # approve | return | reject
+    reason: str = ""
+    items: list[DecisionItem] = []    # the questions to check again (return only)
+
+
+class AuditRequestChanges(ORMBase):
+    """Send a reviewed audit back to the auditor to fix the queried questions."""
+    note: str = ""
+
+
+class IssueDecision(ORMBase):
+    """The audit manager's call on the action taken: approve closes the issue,
+    deny reopens it and needs a reason; evidence is optional."""
+    decision: str                     # approve | deny
+    reason: str = ""
+    evidence: list[Any] = Field(default_factory=list)
+
+
+class ResponseReply(ORMBase):
+    note: str = ""
+
+
+class IssueReview(ORMBase):
+    decision: str                     # accept | send_back
+    note: str = ""
 
 
 class IssueUpdate(ORMBase):
@@ -194,44 +307,6 @@ class DataImportOut(ORMBase):
     data_section: str
     column_headers: Any
     imported_at: str | None = None
-
-
-class CashReconciliationOut(ORMBase):
-    id: str
-    store_id: str | None
-    cash_at_tills: float | None
-    cash_in_safe: float | None
-    cash_other_locations: float | None
-    physical_cash_total: float | None
-    cash_sales_as_per_report: float | None
-    float_or_imprest_amount: float | None
-    book_cash_total: float | None
-    difference: float | None
-    remarks: str | None
-    raw_data: Any
-
-
-class CashDepositPickupOut(ORMBase):
-    id: str
-    store_id: str | None
-    sales_date: str | None
-    cash_sales: float | None
-    cash_deposited: float | None
-    difference: float | None
-    cms_pickup_date: str | None
-    handover_delay_days: int | None
-    remarks: str | None
-
-
-class ExpiredInventoryOut(ORMBase):
-    id: str
-    store_id: str | None
-    article_code: str | None
-    article_description: str | None
-    expiry_date: str | None
-    review_date: str | None
-    quantity: float | None
-    mrp: float | None
 
 
 class StoreScoreOut(ORMBase):
@@ -291,3 +366,42 @@ class ChatResponse(ORMBase):
     details: list[DetailsSpec] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)
     conversation_id: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Admin — user management
+# ---------------------------------------------------------------------------
+
+class UserCreate(ORMBase):
+    name: str
+    email: str
+    password: str
+    role: str                         # AUDIT_MANAGER | AUDITOR | STORE_MANAGER | AUDITEE | CLUSTER_HEAD | HO_OPERATIONS
+    designation: str | None = None
+    region: str | None = None
+    notify_email: str | None = None
+    store_id: str | None = None       # STORE_MANAGER only — assigns as store manager
+    store_ids: list[str] = Field(default_factory=list)   # AUDITEE only — stores linked to
+
+
+class UserUpdate(ORMBase):
+    name: str | None = None
+    email: str | None = None
+    designation: str | None = None
+    region: str | None = None
+    notify_email: str | None = None
+    store_id: str | None = None       # reassign store for STORE_MANAGER
+    store_ids: list[str] | None = None  # replace the stores an AUDITEE is linked to
+    active: bool | None = None
+    password: str | None = None       # optional password reset
+
+
+# --------------------------------------------------------------------------
+# Audit rescheduling
+# --------------------------------------------------------------------------
+class AuditPatchRequest(ORMBase):
+    status: str | None = None
+    auditor_id: str | None = None
+    scheduled_at: str | None = None
+    due_at: str | None = None
+    notes: str | None = None

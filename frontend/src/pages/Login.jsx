@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { api } from '../api/client'
+import { AUDITOR_APP_ONLY_MESSAGE, allowedInThisApp, isAuditorApp } from '../lib/appClient'
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, notice }) {
+  const auditorApp = isAuditorApp()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
@@ -12,7 +14,12 @@ export default function Login({ onLogin }) {
     setBusy(true)
     setError(null)
     try {
-      onLogin(await api.login(email, password))
+      const result = await api.login(email, password)
+      if (!allowedInThisApp(result.user?.role)) {
+        setError(AUDITOR_APP_ONLY_MESSAGE)
+        return
+      }
+      onLogin(result)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -85,12 +92,13 @@ export default function Login({ onLogin }) {
           </div>
 
           <label className="login-field">
-            <span>Email address</span>
+            <span>Username</span>
             <div className="login-input-wrap">
               <span className="login-input-icon">&#x2709;</span>
               <input
-                type="email"
-                placeholder="name@retail-chain.com"
+                type="text"
+                placeholder="Enter your username"
+                autoCapitalize="none"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="username"
@@ -114,6 +122,7 @@ export default function Login({ onLogin }) {
             </div>
           </label>
 
+          {notice && !error && <div className="login-notice">{notice}</div>}
           {error && <div className="login-error">{error}</div>}
 
           <button className="login-btn" type="submit" disabled={busy}>
@@ -122,32 +131,6 @@ export default function Login({ onLogin }) {
             ) : null}
             {busy ? 'Signing in...' : 'Sign In'}
           </button>
-
-          <div className="login-hint">
-            <div className="login-hint-title">Demo Credentials</div>
-            <div className="login-hint-row">
-              <span className="login-hint-badge am">AM</span>
-              <div>
-                <div className="login-hint-email">am@retail-chain.com</div>
-                <div className="login-hint-role">Audit Manager</div>
-              </div>
-            </div>
-            <div className="login-hint-row">
-              <span className="login-hint-badge aud">AU</span>
-              <div>
-                <div className="login-hint-email">aud.j.patel@retail-chain.com</div>
-                <div className="login-hint-role">Auditor</div>
-              </div>
-            </div>
-            <div className="login-hint-row">
-              <span className="login-hint-badge sm">SM</span>
-              <div>
-                <div className="login-hint-email">sm.deepak.tiwari@retail-chain.com</div>
-                <div className="login-hint-role">Store Manager</div>
-              </div>
-            </div>
-            <div className="login-hint-pw">Password for all: <code>password123</code></div>
-          </div>
         </form>
       </div>
     </div>

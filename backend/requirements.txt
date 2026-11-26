@@ -1,12 +1,21 @@
+# Runtime packages: what the server installs (scripts/setup.bat).
+# Development and tests add requirements-dev.txt on top of this file.
+#
+# The server runs Python 3.14. Packages with compiled parts need a release that
+# has a 3.14 wheel, otherwise pip tries to compile them and fails:
+#   psycopg2-binary 2.9.11+ and pydantic 2.12+ (pydantic-core 2.41+) have them;
+#   the older pins (2.9.9, 2.9.2) do not. SQLAlchemy 2.0.44 is the first line
+#   with Python 3.14 support.
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
-pydantic==2.9.2
-SQLAlchemy==2.0.31
+pydantic==2.12.5
+SQLAlchemy==2.0.44
 PyJWT==2.8.0
 Werkzeug==3.0.3
 python-dotenv==1.0.1
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.11
 openpyxl==3.1.5
 python-multipart==0.0.9
 langchain-core>=0.2.0
 langchain-google-genai>=1.0.0
+alembic==1.18.4

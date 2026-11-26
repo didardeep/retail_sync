@@ -12,6 +12,7 @@ import uuid
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -28,10 +29,15 @@ def _uid() -> str:
 # --------------------------------------------------------------------------
 # Roles
 # --------------------------------------------------------------------------
+ROLE_ADMIN = "ADMIN"
 ROLE_AUDIT_MANAGER = "AUDIT_MANAGER"
 ROLE_AUDITOR = "AUDITOR"
 ROLE_STORE_MANAGER = "STORE_MANAGER"
-ROLES = (ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER)
+ROLE_AUDITEE = "AUDITEE"          # follows up issues assigned to them; linked to stores
+ROLE_CLUSTER_HEAD = "CLUSTER_HEAD"    # read-only over the stores of their region; gets escalations
+ROLE_HO_OPERATIONS = "HO_OPERATIONS"  # read-only over every store; gets escalations
+ROLES = (ROLE_ADMIN, ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER, ROLE_AUDITEE,
+         ROLE_CLUSTER_HEAD, ROLE_HO_OPERATIONS)
 
 
 # --------------------------------------------------------------------------
@@ -72,6 +78,8 @@ class User(Base):
     role = Column(String(20), nullable=False)          # one of ROLES
     designation = Column(String(120))                   # "Senior Field Auditor"
     region = Column(String(60))
+    notify_email = Column(String(200))                  # where alert mail goes; logins are usernames
+    phone = Column(String(40))
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=dt.datetime.utcnow)
 
@@ -83,6 +91,52 @@ class User(Base):
             "id": self.id, "name": self.name, "email": self.email,
             "role": self.role, "designation": self.designation,
             "region": self.region, "active": self.active,
+            "notify_email": self.notify_email, "phone": self.phone,
+        }
+
+
+class Notification(Base):
+    """One alert for one person. dedupe_key stops a repeat run sending it again."""
+    __tablename__ = "notifications"
+    __table_args__ = (UniqueConstraint("user_id", "dedupe_key", name="uq_notifications_user_key"),)
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    user_id = Column(String(12), ForeignKey("users.id"), nullable=False, index=True)
+    kind = Column(String(30), nullable=False)   # audit_reminder / issue_reminder / escalation
+    title = Column(String(300), nullable=False)
+    link = Column(String(200))
+    dedupe_key = Column(String(120), nullable=False)
+    read_at = Column(DateTime)
+    emailed_at = Column(DateTime)
+    created_at = Column(DateTime, default=dt.datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id, "kind": self.kind, "title": self.title, "link": self.link,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class Annexure(Base):
+    """A supporting document filed against an audit."""
+    __tablename__ = "annexures"
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    audit_id = Column(String(20), ForeignKey("audits.id"), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    file_name = Column(String(240), nullable=False)
+    stored_name = Column(String(60), nullable=False)
+    uploaded_by_id = Column(String(12), ForeignKey("users.id"))
+    created_at = Column(DateTime, default=dt.datetime.utcnow)
+
+    uploaded_by = relationship("User")
+
+    def to_dict(self):
+        return {
+            "id": self.id, "audit_id": self.audit_id, "title": self.title,
+            "file_name": self.file_name, "uploaded_by_id": self.uploaded_by_id,
+            "uploaded_by": self.uploaded_by.name if self.uploaded_by else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 
@@ -107,6 +161,22 @@ class AuditorAvailability(Base):
 # --------------------------------------------------------------------------
 # Stores
 # --------------------------------------------------------------------------
+class UserStore(Base):
+    """Links a person to a store: auditees (who follow up its issues) and
+    auditors (who audit it by default). Many people per store, many stores per
+    person; the user's role says which kind of link it is. (Store managers keep
+    using Store.manager_id.)"""
+    __tablename__ = "user_stores"
+    __table_args__ = (UniqueConstraint("user_id", "store_id"),)
+
+    id = Column(String(12), primary_key=True, default=_uid)
+    user_id = Column(String(12), ForeignKey("users.id"), nullable=False, index=True)
+    store_id = Column(String(20), ForeignKey("stores.id"), nullable=False, index=True)
+
+    user = relationship("User")
+    store = relationship("Store")
+
+
 class Store(Base):
     __tablename__ = "stores"
 
@@ -235,6 +305,26 @@ class StoreScore(Base):
 # --------------------------------------------------------------------------
 # Question bank + checklist versioning
 # --------------------------------------------------------------------------
+# A question's criticality sets how much it counts in the audit score. The
+# weight column always follows it (see Question.set_criticality).
+CRITICALITY_WEIGHT = {"High": 3, "Medium": 2, "Low": 1}
+CRITICALITIES = tuple(CRITICALITY_WEIGHT)
+
+
+def criticality_for(level=None, weight=None, critical=False) -> str:
+    """Read a criticality from a checklist file: the level text when it is one we
+    know ("High", "medium", "H", "Critical"), otherwise the old 1-5 weight and
+    critical flag (critical or 5 is High, 3-4 Medium, else Low)."""
+    text = str(level or "").strip().lower()
+    for name in CRITICALITIES:
+        if text in (name.lower(), name[0].lower()):
+            return name
+    if text == "critical" or critical:
+        return "High"
+    w = weight or 0
+    return "High" if w >= 5 else "Medium" if w >= 3 else "Low"
+
+
 class Question(Base):
     """
     One row per question *version*. Editing a question creates a new row with
@@ -252,8 +342,9 @@ class Question(Base):
     process = Column(String(80))                # Cashiering, EHS & Compliance...
     sub_process = Column(String(120))
     audit_type = Column(String(60))             # Store Visit / Structured data/DA / Unstructured data
-    weight = Column(Integer, default=1)
-    is_critical = Column(Boolean, default=False)
+    weight = Column(Integer, default=1)         # follows criticality
+    is_critical = Column(Boolean, default=False)  # True when criticality is High
+    criticality = Column(String(10), default="Low")  # High / Medium / Low
     active = Column(Boolean, default=True)
 
     # Photo/Video and Data Analyst columns from the client checklist
@@ -270,12 +361,19 @@ class Question(Base):
     meta = Column(JSON, default=dict)           # tags and anything client-specific
     created_at = Column(DateTime, default=dt.datetime.utcnow)
 
+    def set_criticality(self, level):
+        """Set the criticality and the scoring weight and critical flag that follow from it."""
+        self.criticality = level
+        self.weight = CRITICALITY_WEIGHT[level]
+        self.is_critical = level == "High"
+
     def to_dict(self):
         return {
             "id": self.id, "code": self.code, "version": self.version,
             "is_current": self.is_current, "text": self.text,
             "process": self.process, "sub_process": self.sub_process,
             "audit_type": self.audit_type, "weight": self.weight,
+            "criticality": self.criticality or "Low",
             "is_critical": self.is_critical, "active": self.active,
             "photo_video_enablement": self.photo_video_enablement,
             "data_analyst_enabled": self.data_analyst_enabled,
@@ -306,6 +404,7 @@ class Checklist(Base):
             "id": self.id, "name": self.name, "version": self.version,
             "is_active": self.is_active, "conditions": self.conditions or {},
             "question_count": len(self.items),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
         if with_items:
             d["questions"] = [i.question.to_dict() for i in self.items if i.question]
@@ -337,7 +436,9 @@ class Audit(Base):
     created_by_id = Column(String(12), ForeignKey("users.id"))
 
     audit_type = Column(String(60), default="Checklist based Audit")
-    scheduled_at = Column(DateTime)
+    scheduled_at = Column(DateTime)                      # planned start
+    due_at = Column(DateTime)                            # planned end; overdue after it
+    created_at = Column(DateTime, default=dt.datetime.utcnow)  # when it was scheduled
     submitted_at = Column(DateTime)
     status = Column(String(20), default="Planned")      # Planned/Ongoing/Completed/Approved
     score = Column(Float)
@@ -345,6 +446,9 @@ class Audit(Base):
     sm_rating = Column(Integer)                          # store manager's rating
     sm_comment = Column(Text)
     notes = Column(Text)
+    checklist_ids = Column(JSON, default=list)           # every checklist the audit was scheduled with (checklist_id is the first)
+    decision_note = Column(Text)                         # the manager's reason when returned or rejected
+    decision_at = Column(DateTime)
 
     store = relationship("Store")
     checklist = relationship("Checklist")
@@ -359,14 +463,19 @@ class Audit(Base):
             "city": self.store.city if self.store else None,
             "region": self.store.region if self.store else None,
             "checklist_id": self.checklist_id,
+            "checklist_ids": self.checklist_ids or ([self.checklist_id] if self.checklist_id else []),
             "auditor_id": self.auditor_id,
             "auditor": self.auditor.name if self.auditor else None,
             "audit_type": self.audit_type,
             "scheduled_at": self.scheduled_at.isoformat() if self.scheduled_at else None,
+            "due_at": self.due_at.isoformat() if self.due_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
             "submitted_at": self.submitted_at.isoformat() if self.submitted_at else None,
             "status": self.status, "score": self.score,
             "sm_rating": self.sm_rating, "sm_comment": self.sm_comment,
             "notes": self.notes,
+            "decision_note": self.decision_note,
+            "decision_at": self.decision_at.isoformat() if self.decision_at else None,
         }
         if with_responses:
             d["responses"] = [r.to_dict() for r in self.responses]
@@ -381,27 +490,46 @@ class AuditResponse(Base):
     audit_id = Column(String(20), ForeignKey("audits.id"))
     question_id = Column(String(12), ForeignKey("questions.id"))
 
-    answer = Column(String(20))                 # Yes / No / Partial / NA
+    answer = Column(String(20))                 # Yes / No / NA
     remarks = Column(Text)
     risk = Column(Text)                          # Risk description or level
     evidence = Column(JSON, default=list)       # [{"type":"photo","url":...}]
+    annexure = Column(JSON)                      # filled-in annexure table (app/annexure_table.py)
+    # The audit manager's review: approved, query (asked the auditor), replied.
+    review_status = Column(String(20))
+    review_note = Column(Text)
+    review_category = Column(String(30))  # what is wrong: wrong_answer / missing_evidence / ...
+    review_reply = Column(Text)
+    reviewed_by_id = Column(String(12), ForeignKey("users.id"))
+    reviewed_at = Column(DateTime)
     answered_at = Column(DateTime, default=dt.datetime.utcnow)
 
     audit = relationship("Audit", back_populates="responses")
     question = relationship("Question")
+    issues = relationship("Issue", back_populates="response")
+    reviewed_by = relationship("User", foreign_keys=[reviewed_by_id])
 
     def to_dict(self):
         q = self.question
+        issue = self.issues[0] if self.issues else None
         return {
+            "issue_id": issue.id if issue else None,
+            "issue_assignee": issue.assignee.name if issue and issue.assignee else None,
             "id": self.id, "audit_id": self.audit_id,
             "question_id": self.question_id,
             "question_code": q.code if q else None,
             "question_text": q.text if q else None,
             "weight": q.weight if q else None,
+            "criticality": (q.criticality or "Low") if q else None,
             "is_critical": q.is_critical if q else None,
             "process": q.process if q else None,
             "answer": self.answer, "remarks": self.remarks, "risk": self.risk,
             "evidence": self.evidence or [],
+            "annexure": self.annexure,
+            "annexure_template": (q.meta or {}).get("annexure") if q else None,
+            "review_status": self.review_status, "review_note": self.review_note,
+            "review_category": self.review_category, "review_reply": self.review_reply,
+            "reviewed_by": self.reviewed_by.name if self.reviewed_by else None,
         }
 
 
@@ -492,6 +620,9 @@ class Issue(Base):
 
     store = relationship("Store")
     assignee = relationship("User", foreign_keys=[assignee_id])
+    raised_by = relationship("User", foreign_keys=[raised_by_id])
+    audit = relationship("Audit")
+    response = relationship("AuditResponse", back_populates="issues")
 
     @property
     def is_overdue(self):
@@ -500,9 +631,20 @@ class Issue(Base):
         return self.due_date < dt.date.today()
 
     def to_dict(self):
+        r = self.response
+        a = self.audit
         return {
             "id": self.id, "audit_id": self.audit_id, "store_id": self.store_id,
             "store": self.store.name if self.store else None,
+            # The question and answer the issue came from, and the audit's date.
+            "question": r.question.text if r and r.question else None,
+            "question_code": r.question.code if r and r.question else None,
+            "answer": r.answer if r else None,
+            "remarks": r.remarks if r else None,
+            "response_evidence": (r.evidence or []) if r else [],
+            "audit_date": (a.submitted_at or a.scheduled_at).isoformat()
+                          if a and (a.submitted_at or a.scheduled_at) else None,
+            "raised_by": self.raised_by.name if self.raised_by else None,
             "title": self.title, "description": self.description,
             "process": self.process, "sub_process": self.sub_process,
             "priority": self.priority, "status": self.status,

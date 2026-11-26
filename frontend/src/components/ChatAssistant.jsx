@@ -290,7 +290,7 @@ export default function ChatAssistant({ user }) {
       {/* Slide-over panel */}
       <div
         className={cn(
-          'fixed bottom-0 right-0 z-40 flex h-full w-[390px] max-w-[98vw] flex-col border-l border-border bg-background shadow-2xl transition-transform duration-300',
+          'fixed bottom-0 right-0 z-40 flex h-full w-[390px] pt-[env(safe-area-inset-top)] max-w-[98vw] flex-col border-l border-border bg-background shadow-2xl transition-transform duration-300',
           open ? 'translate-x-0' : 'translate-x-full'
         )}
       >

@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user
+from ..auth import get_staff_user
 from ..db import get_db
 from ..models import User
 from ..schemas import ChatRequest, ChatResponse
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api")
 def chat(
     body: ChatRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_staff_user),
 ):
     result = run_chat(
         db=db,

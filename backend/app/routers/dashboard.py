@@ -3,15 +3,25 @@ from sqlalchemy.orm import Session
 
 from ..auth import require_roles
 from ..db import get_db
-from ..models import ROLE_AUDIT_MANAGER, Audit, Issue, Store, StoreScore, User
+from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, Audit, Issue, Store, StoreScore, User
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
+
+QUARTERS = ("q1", "q2", "q3", "q4")
+
+
+def _ids(csv):
+    return [x for x in (csv or "").split(",") if x.strip()]
+
+
+def _mean(values):
+    return round(sum(values) / len(values), 1) if values else None
 
 
 @router.get("/dashboard")
 def dashboard(
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     audits = db.query(Audit).all()
     issues = db.query(Issue).all()
@@ -27,7 +37,8 @@ def dashboard(
     all_scores = db.query(StoreScore).all()
     store_by_id = {st.id: st for st in stores}
     store_scores = sorted(
-        [{"store": store_by_id[sc.store_id].name,
+        [{"store_id": store_by_id[sc.store_id].id,
+          "store": store_by_id[sc.store_id].name,
           "city": store_by_id[sc.store_id].city,
           "score": sc.q4 or sc.q3 or sc.q2 or sc.q1 or 0}
          for sc in all_scores if sc.store_id in store_by_id
@@ -52,7 +63,7 @@ def dashboard(
 def list_users(
     role: str | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER)),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
 ):
     q = db.query(User)
     if role:

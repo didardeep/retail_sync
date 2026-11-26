@@ -14,8 +14,9 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from app.auth import hash_password
-from app.db import Base, SessionLocal, engine, init_db
+from app.db import SessionLocal, init_db, reset_db
 from app.models import (
+    criticality_for,
     ROLE_AUDIT_MANAGER, ROLE_AUDITOR, ROLE_STORE_MANAGER,
     Audit, AuditResponse, AuditorAvailability, CashReconciliation,
     CashDepositPickup, Checklist, ChecklistItem, DataImport,
@@ -29,7 +30,7 @@ from import_excel import (
 UPLOADS = Path(__file__).parent / "uploads"
 MASTER_FILE = UPLOADS / "Store_Master_dummy.xlsx"
 CHECKLIST_FILE = UPLOADS / "Store_Audit_Checklist_v1_dummy.xlsx"
-DEFAULT_PASSWORD = "password123"
+DEFAULT_PASSWORD = "pass"
 
 
 def _read_named_sheet(path, sheet_name):
@@ -109,7 +110,7 @@ def seed_from_excel():
     # 1. Users (create a fixed set of users)
     # ====================================================================
     admin = User(
-        name="Audit Manager", email="am@retail-chain.com",
+        name="Audit Manager", email="manager",
         role=ROLE_AUDIT_MANAGER, designation="Audit Manager",
         password_hash=hash_password(DEFAULT_PASSWORD),
     )
@@ -121,7 +122,7 @@ def seed_from_excel():
     for name in auditor_names:
         slug = ".".join(p for p in name.lower().replace(".", " ").split() if p)
         u = User(
-            name=name, email=f"aud.{slug}@retail-chain.com",
+            name=name, email=f"aud.{slug}",
             role=ROLE_AUDITOR, designation="Field Auditor",
             password_hash=hash_password(DEFAULT_PASSWORD),
         )
@@ -138,7 +139,7 @@ def seed_from_excel():
             return managers[name]
         slug = ".".join(p for p in name.lower().replace(".", " ").split() if p)
         u = User(
-            name=name, email=f"sm.{slug}@retail-chain.com",
+            name=name, email=f"sm.{slug}",
             role=ROLE_STORE_MANAGER, designation="Store Manager",
             password_hash=hash_password(DEFAULT_PASSWORD),
         )
@@ -285,8 +286,6 @@ def seed_from_excel():
             process=str(row.get("Process", "") or ""),
             sub_process=str(row.get("Sub-Process", "") or ""),
             audit_type=str(row.get("Type", "") or ""),
-            weight=_int(row.get("Weights")) or 1,
-            is_critical=(_int(row.get("Weights")) or 0) >= 5,
             active=True,
             photo_video_enablement=str(row.get("Photo/Video", "No") or "No"),
             data_analyst_enabled=str(row.get("Data Analyst Enabled", "N") or "N"),
@@ -296,6 +295,8 @@ def seed_from_excel():
             approved_by_id=admin.id,
             meta={},
         )
+        # A "Criticality" column wins; files without one fall back to the weights.
+        q.set_criticality(criticality_for(row.get("Criticality"), _int(row.get("Weights"))))
         s.add(q)
         s.flush()
         questions[code] = q
@@ -519,10 +520,10 @@ def seed_from_excel():
         for q in questions.values():
             answer = None
             if status == "Completed":
-                answer = random.choices(["Yes", "No", "Partial", "NA"],
-                                        weights=[70, 10, 15, 5])[0]
+                answer = random.choices(["Yes", "No", "NA"],
+                                        weights=[80, 15, 5])[0]
             elif status == "Ongoing":
-                answer = random.choice(["Yes", "Partial", None])
+                answer = random.choice(["Yes", "No", None])
             s.add(AuditResponse(audit_id=audit.id, question_id=q.id, answer=answer))
 
     s.flush()
@@ -593,7 +594,7 @@ def seed_from_excel():
     print(f"  {len(issue_templates)} issues")
     print(f"  {len(auditors) + len(managers) + 1} users")
     print(f"\nLogins (password: {DEFAULT_PASSWORD})")
-    print(f"  Audit Manager : am@retail-chain.com")
+    print(f"  Audit Manager : manager")
     for name, u in list(auditors.items())[:1]:
         print(f"  Auditor       : {u.email}")
     for name, u in list(managers.items())[:1]:
@@ -602,7 +603,7 @@ def seed_from_excel():
 
 if __name__ == "__main__":
     if "--reset" in sys.argv:
-        Base.metadata.drop_all(bind=engine)
+        reset_db()
         print("Dropped all tables.")
     init_db()
     seed_from_excel()

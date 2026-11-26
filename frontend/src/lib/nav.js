@@ -1,0 +1,32 @@
+// Single source of truth for the sidebar and the page title. `icon` is a key
+// into NAV_ICONS (components/navIcons.jsx); `page` is the role-map page key.
+export const NAV_ITEMS = [
+  { path: '/my-dashboard', page: 'my-dashboard', label: 'Dashboard', title: 'Dashboard', icon: 'dashboard', group: 'Insights' },
+  { path: '/my-store', page: 'my-store', label: 'My Store', title: 'My Store', icon: 'my-store', group: 'My store' },
+  { path: '/my-issues', page: 'my-issues', label: 'My Issues', title: 'My Issues', icon: 'issues', group: 'My issues' },
+  // Sidebar order follows the audit cycle: set up, plan, review, fix, analyse.
+  { path: '/stores', page: 'stores', label: 'Store Management', title: 'Store Management', icon: 'stores', group: 'Admin' },
+  { path: '/audits', page: 'audits', label: 'Audit Management', title: 'Audit Management', icon: 'audits', group: 'Audits' },
+  { path: '/questions', page: 'questions', label: 'Audit Questions', title: 'Audit Questions', icon: 'questions', group: 'Admin' },
+  { path: '/approvals', page: 'approvals', label: 'Pending Approval', title: 'Pending Approval', icon: 'audits', group: 'Audits' },
+  { path: '/issues', page: 'issues', label: 'Action Taken Tracking', title: 'Action Taken Tracking', icon: 'issues', group: 'Insights' },
+  { path: '/dashboard', page: 'dashboard', label: 'Dashboard & Analytics', title: 'Dashboard & Analytics', icon: 'dashboard', group: 'Insights' },
+  { path: '/scores', page: 'scores', label: 'Store Audit Scores', title: 'Store Audit Scores', icon: 'scores', group: 'Insights' },
+  { path: '/audit-log', page: 'audit-log', label: 'Audit Log', title: 'Audit Log', icon: 'audit-log', group: 'Admin' },
+  { path: '/email', page: 'email', label: 'Email Communications', title: 'Email Communications', icon: 'email', group: 'Admin' },
+  { path: '/user-management', page: 'user-management', label: 'User Management', title: 'User Management', icon: 'user-management', group: 'Admin' },
+]
+
+const DEFAULT_TITLE = 'Store Audit and Analysis'
+
+function titleOfPath(path) {
+  return NAV_ITEMS.find((n) => n.path === path)?.title
+}
+
+export function titleFor(pathname) {
+  const exact = titleOfPath(pathname)
+  if (exact) return exact
+  if (pathname.startsWith('/questions/')) return titleOfPath('/questions')
+  if (pathname.startsWith('/audits/')) return titleOfPath('/audits')
+  return DEFAULT_TITLE
+}

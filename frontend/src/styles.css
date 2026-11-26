@@ -64,11 +64,6 @@ a{color:inherit;text-decoration:none;}
    handful of migrated pages still reference --green/--orange/--red/--text2/
    --text3 for a few inline spot-colors (chart lines, priority dots).
 
-   NOTE: pages/MyActions.jsx, ProposeQuestion.jsx, AuditExecution.jsx and
-   MyAudits.jsx are NOT wired into any route in App.jsx (dead/orphaned
-   prototype files) and still reference the removed classes -- harmless
-   since they never render, but worth knowing if you wire them up later.
-
    The .login-* block below is Didardeep's split-screen KPMG-branded login
    redesign (main, 2026-09-22) -- not yet migrated to Tailwind; Login.jsx
    still uses these classes directly. Re-migrating it is follow-up work,
@@ -109,6 +104,8 @@ a{color:inherit;text-decoration:none;}
 
 .login-error{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-size:12.5px;padding:8px 12px;border-radius:8px;margin-bottom:14px;}
 
+.login-notice{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;font-size:12.5px;padding:8px 12px;border-radius:8px;margin-bottom:14px;}
+
 .login-btn{width:100%;padding:11px 20px;font:inherit;font-size:14px;font-weight:600;color:#fff;background:linear-gradient(135deg,#00338D,#0050c8);border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .2s,transform .1s;}
 .login-btn:hover{opacity:.92;}
 .login-btn:active{transform:scale(.985);}
@@ -117,17 +114,6 @@ a{color:inherit;text-decoration:none;}
 .login-spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 
-.login-hint{margin-top:24px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px 16px;}
-.login-hint-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px;}
-.login-hint-row{display:flex;align-items:center;gap:10px;padding:5px 0;}
-.login-hint-badge{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;flex-shrink:0;}
-.login-hint-badge.am{background:linear-gradient(135deg,#00338D,#0050c8);}
-.login-hint-badge.aud{background:linear-gradient(135deg,#0e9f6e,#34d399);}
-.login-hint-badge.sm{background:linear-gradient(135deg,#f59e0b,#fbbf24);}
-.login-hint-email{font-size:12px;font-weight:600;color:var(--text);}
-.login-hint-role{font-size:11px;color:var(--text3);}
-.login-hint-pw{margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0;font-size:11.5px;color:var(--text3);}
-.login-hint-pw code{background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:11px;color:var(--text);font-weight:600;}
 
 @media(max-width:768px){
   .login-split{flex-direction:column;}

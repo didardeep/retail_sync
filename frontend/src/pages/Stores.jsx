@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Line } from 'react-chartjs-2'
 import { useToast } from '../components/Toast'
-import { api } from '../api/client'
+import { api, loadSession } from '../api/client'
 import { avC, sColor, pbClass, exportCSV } from '../utils/helpers'
 import { cn, fieldClass, labelClass } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -9,15 +10,55 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Modal, ModalTitle, ModalActions } from '../components/Modal'
+import FormatLegend from '@/components/FormatLegend'
+import { storeScorecardLink } from '@/lib/links'
+import { storesApi } from '../api/storesApi'
+import StorePeople from '@/components/StorePeople'
+import { STORE_FORMATS, STORE_TYPES, formatLabel, formatNote, typeNote } from '@/lib/storeCatalog'
 
 const PP = 7
+const FORMATS = STORE_FORMATS.map(f => f.code)
+const REGIONS = ['North India', 'South India', 'East India', 'West India']
+const TYPES = STORE_TYPES.map(t => t.code)
+const EMPTY_FORM = { name: '', city: '', format: 'COCO', type: 'Standard', region: 'North India', status: 'Operating' }
+
+function normalizeStore(st) {
+  return {
+    ...st,
+    format: st.format || st.store_format || '',
+    type: st.type || st.store_type || '',
+    manager: st.manager || '',
+  }
+}
+
+// Union of the standard values and whatever the data already uses.
+function options(base, values) {
+  return [...new Set([...base, ...values.filter(Boolean)])]
+}
+
+function nextStoreId(stores) {
+  let max = 0
+  for (const s of stores) {
+    const m = /^ST(\d+)$/.exec(s.id || '')
+    if (m) max = Math.max(max, parseInt(m[1], 10))
+  }
+  return 'ST' + String(max + 1).padStart(3, '0')
+}
 
 export default function Stores() {
   const toast = useToast()
+  const navigate = useNavigate()
+  const [urlParams] = useSearchParams()
+  const role = loadSession()?.user?.role
   const [stores, setStores] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [regionFilter, setRegionFilter] = useState(urlParams.get('region') || '')
+  const [formatFilter, setFormatFilter] = useState(urlParams.get('format') || '')
+  const [nextSteps, setNextSteps] = useState(null)       // store just added
+  const [peopleFilter, setPeopleFilter] = useState('')
+  const [peopleFocus, setPeopleFocus] = useState(null)
   const [page, setPage] = useState(1)
 
   /* modals */
@@ -28,26 +69,28 @@ export default function Stores() {
   const [scoreMap, setScoreMap] = useState({})
   const [selectedQ, setSelectedQ] = useState('q4')
 
+  const [saving, setSaving] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [form, setForm] = useState({ name: '', city: '', format: 'COCO', type: 'Standard', manager: '', region: 'North India', status: 'Operating' })
+  const [form, setForm] = useState(EMPTY_FORM)
 
   useEffect(() => {
     Promise.all([
       api.stores().catch(() => []),
       api.storeScores().catch(() => []),
     ]).then(([s, scores]) => {
-      const normalized = (s || []).map(st => ({
-        ...st,
-        format: st.format || st.store_format || '',
-        type: st.type || st.store_type || '',
-        manager: st.manager || '',
-      }))
+      const normalized = (s || []).map(normalizeStore)
       setStores(normalized)
       const map = {}
       for (const sc of (scores || [])) map[sc.store_id] = sc
       setScoreMap(map)
       setLoading(false)
+      // open insight from ?id= query param
+      const idParam = urlParams.get('id')
+      if (idParam) {
+        const found = (normalized || []).find(x => x.id === idParam)
+        if (found) { setInsightStore(found); setSiTab('info'); setInsightOpen(true) }
+      }
     })
   }, [])
 
@@ -68,8 +111,15 @@ export default function Stores() {
       if (!(s.name||'').toLowerCase().includes(q) && !(s.city||'').toLowerCase().includes(q)) return false
     }
     if (statusFilter && s.status !== statusFilter) return false
+    if (regionFilter && s.region !== regionFilter) return false
+    if (formatFilter && s.format !== formatFilter) return false
+    if (peopleFilter === 'no_auditor' && s.auditor_count !== 0) return false
+    if (peopleFilter === 'no_auditee' && s.auditee_count !== 0) return false
     return true
   })
+  const regionOptions = options(REGIONS, stores.map(s => s.region))
+  const formatOptions = options(FORMATS, stores.map(s => s.format))
+  const typeOptions = options(TYPES, stores.map(s => s.type))
   const totalPages = Math.ceil(filtered.length / PP) || 1
   const safePage = page > totalPages ? 1 : page
   const pageData = filtered.slice((safePage - 1) * PP, safePage * PP)
@@ -85,17 +135,23 @@ export default function Stores() {
     setPage(1)
   }
 
-  function openInsight(id) {
+  function openInsight(id, tab = 'info', focus = null) {
     const s = stores.find(x => x.id === id)
     if (!s) return
     setInsightStore(s)
-    setSiTab('info')
+    setSiTab(tab)
+    setPeopleFocus(focus)
     setInsightOpen(true)
   }
 
+  // The People tab reports the store's counts back, so the list stays right.
+  const updateCounts = useCallback((id, auditors, auditees) => {
+    setStores(prev => prev.map(x => x.id === id ? { ...x, auditor_count: auditors, auditee_count: auditees } : x))
+  }, [])
+
   function openAdd() {
     setEditId(null)
-    setForm({ name: '', city: '', format: 'COCO', type: 'Standard', manager: '', region: 'North India', status: 'Operating' })
+    setForm(EMPTY_FORM)
     setFormOpen(true)
   }
 
@@ -103,29 +159,39 @@ export default function Stores() {
     const s = stores.find(x => x.id === id)
     if (!s) return
     setEditId(id)
-    setForm({ name: s.name, city: s.city, format: s.format || 'COCO', type: s.type || 'Standard', manager: s.manager || '', region: s.region || 'North India', status: s.status || 'Operating' })
+    setForm({ name: s.name, city: s.city, format: s.format || 'COCO', type: s.type || 'Standard', region: s.region || 'North India', status: s.status || 'Operating' })
     setFormOpen(true)
   }
 
   function saveStore() {
-    if (!form.name.trim() || !form.city.trim()) { alert('Fill in name and city'); return }
-    if (editId) {
-      setStores(prev => prev.map(s => s.id === editId ? { ...s, name: form.name.trim(), city: form.city.trim(), format: form.format, type: form.type, manager: form.manager || 'Unassigned', region: form.region, status: form.status } : s))
-      api.updateStore(editId, { name: form.name.trim(), city: form.city.trim(), format: form.format, type: form.type, region: form.region, status: form.status }).catch(() => {})
-      toast('Store updated')
-    } else {
-      const newId = 'ST' + String(stores.length + 1).padStart(3, '0')
-      setStores(prev => [...prev, { id: newId, name: form.name.trim(), city: form.city.trim(), region: form.region, format: form.format, type: form.type, manager: form.manager || 'Unassigned', status: form.status, contact: '', email: '', address: '' }])
-      toast('Store added')
-    }
-    setFormOpen(false)
-    setEditId(null)
+    if (saving) return
+    if (!form.name.trim() || !form.city.trim()) { toast.error('Fill in name and city'); return }
+    const fields = { name: form.name.trim(), city: form.city.trim(), format: form.format, type: form.type, region: form.region, status: form.status }
+    setSaving(true)
+    const call = editId
+      ? storesApi.update(editId, fields)
+      : storesApi.create({ id: nextStoreId(stores), ...fields })
+    call.then(saved => {
+      const st = normalizeStore(editId ? saved : { auditor_count: 0, auditee_count: 0, ...saved })
+      setStores(prev => editId ? prev.map(x => x.id === editId ? { ...x, ...st } : x) : [...prev, st])
+      toast(editId ? 'Store updated' : 'Store added')
+      setFormOpen(false)
+      // A new store: offer the next steps of onboarding.
+      if (!editId) setNextSteps(st)
+      setEditId(null)
+    }).catch(e => {
+      toast.error(e.message || 'Could not save the store')
+    }).finally(() => setSaving(false))
   }
 
-  function deleteStore(id) {
-    if (!window.confirm('Delete store?')) return
-    setStores(prev => prev.filter(s => s.id !== id))
-    toast('Store deleted')
+  function dehireStore(id) {
+    const s = stores.find(x => x.id === id)
+    if (!s || s.status === 'Dehired') return
+    if (!window.confirm(`Dehire ${s.name}? It stays in the list with status Dehired.`)) return
+    storesApi.update(id, { status: 'Dehired' }).then(saved => {
+      setStores(prev => prev.map(x => x.id === id ? normalizeStore(saved) : x))
+      toast('Store dehired')
+    }).catch(e => toast.error(e.message || 'Could not dehire the store'))
   }
 
   function handleExport() {
@@ -177,7 +243,8 @@ export default function Stores() {
             <Button key={q} size="sm" variant={selectedQ === q ? 'default' : 'outline'} onClick={() => setSelectedQ(q)}>{q.toUpperCase()}</Button>
           ))}
           <Button size="sm" variant="outline" onClick={handleExport}>&#x2B07; Export</Button>
-          <Button size="sm" onClick={openAdd}>+ Add Store</Button>
+          {/* People are added from a store's People tab. */}
+          <Button size="sm" onClick={() => openAdd()}>+ Add Store</Button>
         </div>
       </div>
 
@@ -193,11 +260,25 @@ export default function Stores() {
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">&#x1F50D;</span>
           <Input className="pl-8" placeholder="Search name, ID or city..." value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <select className={cn(fieldClass, 'h-[30px] w-auto cursor-pointer py-0 text-xs')} value={regionFilter} onChange={e => { setRegionFilter(e.target.value); setPage(1) }}>
+            <option value="">All regions</option>
+            {regionOptions.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <select className={cn(fieldClass, 'h-[30px] w-auto cursor-pointer py-0 text-xs')} value={formatFilter} onChange={e => { setFormatFilter(e.target.value); setPage(1) }}>
+            <option value="">All formats</option>
+            {formatOptions.map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+          <FormatLegend />
           <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === '' && 'border-primary bg-primary text-primary-foreground')} onClick={() => handleTabFilter('')}>All</button>
           <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === 'Operating' && 'border-primary bg-primary text-primary-foreground')} onClick={() => handleTabFilter('Operating')}>Operating</button>
           <button className={cn('rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground', statusFilter === 'Dehired' && 'border-primary bg-primary text-primary-foreground')} onClick={() => handleTabFilter('Dehired')}>Dehired</button>
-          <button className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-card text-[13px]" onClick={() => { setSearch(''); setStatusFilter(''); setPage(1) }}>&#x1F504;</button>
+          <select aria-label="People" className={cn(fieldClass, 'h-[30px] w-auto cursor-pointer py-0 text-xs', peopleFilter && 'border-primary bg-primary/10 font-semibold text-primary')} value={peopleFilter} onChange={e => { setPeopleFilter(e.target.value); setPage(1) }}>
+            <option value="">All people</option>
+            <option value="no_auditor">Without an auditor</option>
+            <option value="no_auditee">Without an auditee</option>
+          </select>
+          <button className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-card text-[13px]" onClick={() => { setSearch(''); setStatusFilter(''); setRegionFilter(''); setFormatFilter(''); setPeopleFilter(''); setPage(1) }}>&#x1F504;</button>
         </div>
       </div>
 
@@ -209,6 +290,7 @@ export default function Stores() {
               <TableHead>Status</TableHead>
               <TableHead>{selectedQ.toUpperCase()} Score</TableHead>
               <TableHead>Manager</TableHead>
+              <TableHead>People</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -219,7 +301,15 @@ export default function Stores() {
                   <div className="flex items-center gap-2">
                     <div className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-xs" style={{ background: '#e8eefa' }}>&#x1F3EA;</div>
                     <div>
-                      <div className="flex items-center gap-1.5 font-semibold">{s.name}{s.type && <span className="rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10.5px] font-medium text-gray-700">{s.type}</span>}</div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          className="font-semibold text-primary hover:underline"
+                          onClick={e => { e.stopPropagation(); navigate(storeScorecardLink(s.id, role)) }}
+                        >
+                          {s.name}
+                        </button>
+                        {s.type && <span className="rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10.5px] font-medium text-gray-700">{s.type}</span>}
+                      </div>
                       <div className="text-[11px] text-muted-foreground">{s.city}</div>
                     </div>
                   </div>
@@ -235,11 +325,17 @@ export default function Stores() {
                     <span className="text-[12.5px]">{s.manager}</span>
                   </div>
                 </TableCell>
+                <TableCell onClick={e => { e.stopPropagation(); openInsight(s.id, 'people') }}>
+                  <div className="flex flex-col items-start gap-1 text-[11.5px]">
+                    {s.auditor_count ? <span>{s.auditor_count} auditor{s.auditor_count === 1 ? '' : 's'}</span> : <span className="rounded bg-red-50 px-1.5 font-semibold text-red-700">No auditor</span>}
+                    {s.auditee_count ? <span>{s.auditee_count} auditee{s.auditee_count === 1 ? '' : 's'}</span> : <span className="rounded bg-amber-50 px-1.5 font-semibold text-amber-800">No auditee</span>}
+                  </div>
+                </TableCell>
                 <TableCell onClick={e => e.stopPropagation()}>
                   <div className="flex gap-1">
                     <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={() => openInsight(s.id)}>&#x1F441;</button>
                     <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px]" onClick={() => openEdit(s.id)}>&#x270F;&#xFE0F;</button>
-                    <button className="flex h-[25px] w-[25px] items-center justify-center rounded-md border border-border bg-card text-[11px] text-destructive" onClick={() => deleteStore(s.id)}>&#x1F5D1;</button>
+                    {s.status !== 'Dehired' && <button className="flex h-[25px] items-center justify-center rounded-md border border-border bg-card px-1.5 text-[11px] text-destructive" onClick={() => dehireStore(s.id)}>Dehire</button>}
                   </div>
                 </TableCell>
               </TableRow>
@@ -273,12 +369,14 @@ export default function Stores() {
           <div className="flex border-b border-border px-5">
             <div className={cn('cursor-pointer border-b-2 border-transparent px-4 py-2.5 text-[12.5px] font-semibold text-muted-foreground', siTab === 'info' && 'border-primary text-primary')} onClick={() => setSiTab('info')}>General Info</div>
             <div className={cn('cursor-pointer border-b-2 border-transparent px-4 py-2.5 text-[12.5px] font-semibold text-muted-foreground', siTab === 'perf' && 'border-primary text-primary')} onClick={() => setSiTab('perf')}>Performance</div>
+            <div className={cn('cursor-pointer border-b-2 border-transparent px-4 py-2.5 text-[12.5px] font-semibold text-muted-foreground', siTab === 'people' && 'border-primary text-primary')} onClick={() => setSiTab('people')}>People</div>
           </div>
           <div className="px-5 pb-1.5 pt-4">
             {siTab === 'info' && (
               <div>
                 <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Manager</span><span className="font-semibold text-foreground">{insightStore.manager || '—'}</span></div>
-                <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Type of Store</span><span className="font-semibold text-foreground">{insightStore.type || '—'}</span></div>
+                <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Format</span><span className="font-semibold text-foreground">{insightStore.format ? formatLabel(insightStore.format) : '—'}</span></div>
+                <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Type of Store</span><span className="font-semibold text-foreground">{insightStore.type || '—'}{typeNote(insightStore.type) && <span className="mt-0.5 block text-[11.5px] font-normal text-muted-foreground">{typeNote(insightStore.type)}</span>}</span></div>
                 <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Location</span><span className="font-semibold text-foreground">{insightStore.city}{insightStore.region ? ', ' + insightStore.region : ''}</span></div>
                 <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Contact</span><span className="font-semibold text-foreground">{insightStore.contact || '—'}</span></div>
                 <div className="grid grid-cols-[120px_1fr] gap-3.5 border-b border-border py-2.5 text-sm last:border-0"><span className="text-muted-foreground">Email</span><span className="font-semibold text-foreground">{insightStore.email || '—'}</span></div>
@@ -288,30 +386,52 @@ export default function Stores() {
             {siTab === 'perf' && (
               <div className="relative w-full" style={{ height: 170 }}><Line data={perfChartData(insightStore)} options={chartOpts} /></div>
             )}
+            {siTab === 'people' && <StorePeople storeId={insightStore.id} focus={peopleFocus} onCounts={updateCounts} />}
           </div>
           <ModalActions>
+            <Button size="sm" variant="outline" onClick={() => navigate(`/audits?new=1&store=${encodeURIComponent(insightStore.id)}`)}>Schedule audit</Button>
             <Button size="sm" variant="outline" onClick={() => setInsightOpen(false)}>Close</Button>
-            <Button size="sm" onClick={() => setInsightOpen(false)}>Full History</Button>
           </ModalActions>
         </Modal>
       )}
+
+      <Modal open={!!nextSteps} onClose={() => setNextSteps(null)}>
+        <ModalTitle>Store {nextSteps?.name} added</ModalTitle>
+        <p className="mb-3 text-[13px] text-foreground/80">Next steps for this store:</p>
+        <div className="grid gap-2">
+          <Button variant="outline" className="justify-start" onClick={() => { const st = nextSteps; setNextSteps(null); openInsight(st.id, 'people', 'auditor') }}>1. Assign an auditor</Button>
+          <Button variant="outline" className="justify-start" onClick={() => { const st = nextSteps; setNextSteps(null); openInsight(st.id, 'people', 'auditee') }}>2. Add an auditee</Button>
+          <Button variant="outline" className="justify-start" onClick={() => { const st = nextSteps; setNextSteps(null); navigate(`/audits?new=1&store=${encodeURIComponent(st.id)}`) }}>3. Schedule an audit</Button>
+        </div>
+        <ModalActions>
+          <Button variant="outline" onClick={() => setNextSteps(null)}>Done</Button>
+        </ModalActions>
+      </Modal>
 
       <Modal open={formOpen} onClose={() => setFormOpen(false)}>
         <ModalTitle>{editId ? 'Edit Store' : 'Add New Store'}</ModalTitle>
         <div className="grid gap-3">
           <div><label className={labelClass}>Store Name</label><Input placeholder="e.g. Phoenix Mall" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
           <div><label className={labelClass}>City</label><Input placeholder="e.g. Mumbai" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} /></div>
-          <div><label className={labelClass}>Format</label><select className={fieldClass} value={form.format} onChange={e => setForm(f => ({ ...f, format: e.target.value }))}><option>COCO</option><option>COFO</option><option>FOCO</option><option>FOFO</option></select></div>
-          <div><label className={labelClass}>Type of Store</label><select className={fieldClass} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}><option>Flagship</option><option>Standard</option><option>Compact</option><option>Kiosk</option></select></div>
-          <div><label className={labelClass}>Manager</label><Input placeholder="Manager name" value={form.manager} onChange={e => setForm(f => ({ ...f, manager: e.target.value }))} /></div>
-          <div><label className={labelClass}>Region</label><select className={fieldClass} value={form.region} onChange={e => setForm(f => ({ ...f, region: e.target.value }))}><option>North India</option><option>South India</option><option>East India</option><option>West India</option></select></div>
+          <div>
+            <label className={labelClass}>Format</label>
+            <select className={fieldClass} value={form.format} onChange={e => setForm(f => ({ ...f, format: e.target.value }))}>{formatOptions.map(o => <option key={o} value={o}>{formatLabel(o)}</option>)}</select>
+            {formatNote(form.format) && <p className="mt-1 text-[11.5px] text-muted-foreground">{formatNote(form.format)}</p>}
+          </div>
+          <div>
+            <label className={labelClass}>Type of Store</label>
+            <select className={fieldClass} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>{typeOptions.map(o => <option key={o}>{o}</option>)}</select>
+            {typeNote(form.type) && <p className="mt-1 text-[11.5px] text-muted-foreground">{typeNote(form.type)}</p>}
+          </div>
+          <div><label className={labelClass}>Region</label><select className={fieldClass} value={form.region} onChange={e => setForm(f => ({ ...f, region: e.target.value }))}>{regionOptions.map(o => <option key={o}>{o}</option>)}</select></div>
           <div><label className={labelClass}>Status</label><select className={fieldClass} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}><option>Operating</option><option>Dehired</option></select></div>
         </div>
         <ModalActions>
           <Button variant="outline" onClick={() => setFormOpen(false)}>Cancel</Button>
-          <Button onClick={saveStore}>{editId ? 'Save Changes' : 'Add Store'}</Button>
+          <Button onClick={saveStore} disabled={saving}>{editId ? 'Save Changes' : 'Add Store'}</Button>
         </ModalActions>
       </Modal>
+
     </>
   )
 }

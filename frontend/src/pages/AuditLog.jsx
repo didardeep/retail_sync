@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useApi } from '../components/useApi'
 import { Loading } from '../components/Loader'
@@ -6,6 +7,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { entityLink } from '@/lib/links'
 
 function formatTimestamp(iso) {
   if (!iso) return '—'
@@ -44,26 +46,40 @@ export default function AuditLog() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(logs || []).map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {formatTimestamp(row.created_at)}
-                  </TableCell>
-                  <TableCell>{row.user_email || '—'}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{row.action}</Badge>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {row.entity_type}
-                    {row.entity_id ? ` · ${row.entity_id}` : ''}
-                  </TableCell>
-                  <TableCell className="max-w-[380px] truncate text-muted-foreground">
-                    {Object.keys(row.details || {}).length
-                      ? JSON.stringify(row.details)
-                      : '—'}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {(logs || []).map((row) => {
+                const link = entityLink(row.entity_type, row.entity_id)
+                return (
+                  <TableRow key={row.id}>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {formatTimestamp(row.created_at)}
+                    </TableCell>
+                    <TableCell>{row.user_email || '—'}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{row.action}</Badge>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <span className="text-muted-foreground">{row.entity_type}</span>
+                      {row.entity_id && (
+                        <>
+                          {' · '}
+                          {link ? (
+                            <Link to={link} className="text-primary hover:underline">
+                              {row.entity_id}
+                            </Link>
+                          ) : (
+                            <span>{row.entity_id}</span>
+                          )}
+                        </>
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-[380px] truncate text-muted-foreground">
+                      {Object.keys(row.details || {}).length
+                        ? JSON.stringify(row.details)
+                        : '—'}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
               {!logs?.length && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
