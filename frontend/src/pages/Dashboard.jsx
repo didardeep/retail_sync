@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Pie, Bar } from 'react-chartjs-2';
+import { Pie, Bar, Line } from 'react-chartjs-2';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, loadSession } from '../api/client';
 import { Loading } from '@/components/Loader';
@@ -9,15 +9,15 @@ import Tile from '@/components/Tile';
 import PowerBiSample from '@/components/PowerBiSample';
 import ObservationsCard from '@/components/dashboard/ObservationsCard';
 import PlanningView from '@/components/dashboard/PlanningView';
+import ExecutionView from '@/components/dashboard/ExecutionView';
 import Panel, { Empty } from '@/components/charts/Panel';
-import InfoButton from '@/components/InfoButton';
 import { StoreView } from '@/components/store-dashboard/StoreView';
 import { avC, sColor, pbClass, prC, stC } from '../utils/helpers';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Drawer } from '../components/Modal';
-import { issuesLink, storesLink, storeScorecardLink } from '@/lib/links';
+import { auditsLink, issuesLink, storesLink, storeScorecardLink } from '@/lib/links';
 import { QUARTERS } from '@/lib/storeStats';
 import { CRITERIA } from '@/lib/scoreCriteria';
 import { COLORS, SCORE_TARGET, SERIES, scoreColor } from '@/lib/chartColors';
@@ -28,11 +28,20 @@ import {
 import {
   inScope, resolveScope, scopeFromParams, scopeTitle, storesInScope, wording,
 } from '@/lib/dashboardScope';
+import {
+  isSubmitted, issueSummary, overdueIssuesByStore, processCompliance, scoreTrend,
+} from '@/lib/executionStats';
 
 const VIEWS = [
   { key: 'planning', label: 'Audit Planning' },
   { key: 'execution', label: 'Audit Execution' },
 ];
+// Findings used to be a tab of its own; old links land on Audit Execution, which now holds it.
+const VIEW_ALIASES = { findings: 'execution' };
+
+function SectionHeading({ children }) {
+  return <h3 className="mb-2 mt-6 border-b border-border pb-1.5 text-[15px] font-bold text-foreground first:mt-0">{children}</h3>;
+}
 // The app's chart colours (lib/chartColors.js). Formats keep a fixed colour each;
 // score bands run from green (high) through amber to red (low), as elsewhere.
 const FORMAT_COLORS = { COCO: SERIES[0], COFO: SERIES[1], FOCO: SERIES[2], FOFO: SERIES[3] };
@@ -67,29 +76,71 @@ function LegendRows({ rows, onPick, value = (r) => r.count, extra }) {
   );
 }
 
-// Audit Execution: how the audits went - scores by store, format and over the
-// quarters, the observations by risk, and the issues raised. Everything passed
-// in is already limited to the stores in scope and the selected quarter.
-function ExecutionView({ scope, stores, scoreMap, issues, observations, audits, selectedQ }) {
+const CRITICALITY_TONE = 'bg-red-50 text-red-700 border-red-200';
+
+// Findings: what the audits found - scores over the quarters, compliance by
+// process, critical questions answered No, the questions failed most, store
+// scores, and how the issues raised are being followed up. Everything passed
+// in is already limited to the stores in scope and the selected quarter;
+// `details` comes from /api/dashboard/audit-details and is null while loading.
+function FindingsView({ scope, stores, scoreMap, issues, observations, audits, yearAudits, details, selectedQ }) {
   const navigate = useNavigate();
   const role = loadSession()?.user?.role;
   const words = wording(scope);
   const [drill, setDrill] = useState(null); // { title, items, link }
+  const [showAllCritical, setShowAllCritical] = useState(false);
 
   const { scored, unscored } = scoreStores(stores, scoreMap, selectedQ);
   const ranked = rankScored(scored);
   const qLabel = quarterLabel(selectedQ);
+  const loading = details === null;
+  const critical = details?.critical_failures || [];
+  const failedQuestions = details?.failed_questions || [];
 
-  // Headline numbers for the execution side.
-  const auditScores = audits.map((a) => a.score).filter((v) => typeof v === 'number');
+  // Headline numbers. Score tiles open the submitted audits of the quarter; the
+  // others jump to their panel on this page or list the items in the drawer.
+  const submittedLink = auditsLink({ status: 'completed', quarter: selectedQ === ALL_QUARTERS ? undefined : selectedQ });
+  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const openObservations = () => setDrill({
+    title: `Observations in ${qLabel} (${observations.length})`,
+    items: observations.map((o) => ({ title: o.observation || '--', badges: [], sub: [o.store, o.risk && `${o.risk} risk`, o.status].filter(Boolean).join(' • ') })),
+  });
+  const auditScores = audits.filter(isSubmitted).map((a) => a.score).filter((v) => typeof v === 'number');
   const avgAudit = averageScore(auditScores);
-  const openIssues = issues.filter((i) => i.status !== 'Closed').length;
   const tiles = [
-    { label: 'Average audit score', value: avgAudit !== null ? `${avgAudit}%` : '--', icon: '🎯', tint: '#ecfdf5' },
-    { label: 'Audits scored', value: auditScores.length, icon: '✅', tint: '#e8eefa' },
-    { label: 'Observations', value: observations.length, icon: '🔎', tint: '#fffbeb' },
-    { label: 'Open issues', value: openIssues, icon: '⚠️', tint: '#fde8e8', go: () => navigate('/issues') },
+    { label: 'Average audit score', value: avgAudit !== null ? `${avgAudit}%` : '--', icon: '🎯', tint: avgAudit !== null && avgAudit < SCORE_TARGET ? '#fde8e8' : '#ecfdf5', info: CRITERIA.avgScore, go: () => navigate(submittedLink) },
+    { label: 'Audits scored', value: auditScores.length, icon: '✅', tint: '#e8eefa', info: CRITERIA.auditsScored, go: () => navigate(submittedLink) },
+    { label: 'Critical failures', value: loading ? '…' : critical.length, icon: '⛔', tint: '#fde8e8', info: CRITERIA.criticalCount, go: () => scrollTo('critical-failures') },
+    { label: 'Observations', value: observations.length, icon: '🔎', tint: '#fffbeb', info: CRITERIA.observations, go: openObservations },
   ];
+
+  // Score trend: average audit score per quarter of the year, with the target.
+  const trend = scoreTrend(yearAudits);
+  const hasTrend = trend.some((q) => q.avg !== null);
+  const trendData = {
+    labels: trend.map((q) => q.quarter.toUpperCase()),
+    datasets: [
+      { label: 'Average score', data: trend.map((q) => q.avg), borderColor: COLORS.blue, backgroundColor: COLORS.blue, spanGaps: true, tension: 0.25, pointRadius: 4 },
+      { label: `Target ${SCORE_TARGET}%`, data: trend.map(() => SCORE_TARGET), borderColor: COLORS.gray, backgroundColor: COLORS.gray, borderDash: [5, 4], pointRadius: 0, borderWidth: 1.5 },
+    ],
+  };
+  const trendOpts = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: (c) => ` ${c.dataset.label}: ${c.parsed.y ?? '--'}%${c.datasetIndex === 0 ? ` (${trend[c.dataIndex].count} audits)` : ''}` } } },
+    scales: { y: PERCENT_AXIS, x: GRID_OFF },
+  };
+
+  // Compliance by process: Yes share of Yes and No answers, lowest first.
+  const processes = processCompliance(details?.by_process || []);
+  const processData = {
+    labels: processes.map((p) => p.process),
+    datasets: [{ label: 'Compliance', data: processes.map((p) => p.pct), backgroundColor: processes.map((p) => scoreColor(p.pct)), maxBarThickness: 22 }],
+  };
+  const processOpts = {
+    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => { const p = processes[c.dataIndex]; return ` ${p.pct}% (${p.yes} Yes, ${p.no} No, ${p.na} NA)`; } } } },
+    scales: { x: PERCENT_AXIS, y: GRID_OFF },
+  };
 
   // Observations by risk: a plain pie, the legend gives count and share.
   const riskD = groupObservationsByRisk(observations).map((g) => ({ ...g, label: g.level, color: RISK_COLORS[g.level] }));
@@ -98,20 +149,6 @@ function ExecutionView({ scope, stores, scoreMap, issues, observations, audits, 
     const g = riskD[i];
     setDrill({ title: `${g.label} risk observations (${g.count})`, items: g.items.map((o) => ({ title: o.observation || '--', badges: [], sub: o.store || '' })) });
   }
-
-  // Store scores: the top 10. The axis runs 0 to 100 so bar lengths compare honestly.
-  const barStores = ranked.slice(0, 10);
-  const storeBarNote = `${qLabel}, top ${barStores.length} of ${scored.length} scored`;
-  const storeBarData = {
-    labels: barStores.map((e) => e.store.name?.substring(0, 12) || e.store.id),
-    datasets: [{ label: 'Score', data: barStores.map((e) => e.score), backgroundColor: barStores.map((e) => scoreColor(e.score)), maxBarThickness: 32 }],
-  };
-  const storeBarOpts = {
-    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => ` ${c.parsed.y}%` } } },
-    // Names stay level (never slanted); when they do not all fit some are skipped and the tooltip names the bar.
-    scales: { y: PERCENT_AXIS, x: { ...GRID_OFF, ticks: { maxRotation: 0, autoSkipPadding: 6 } } }, onHover: pointer,
-    onClick: (_e, els) => { if (els.length) navigate(storeScorecardLink(barStores[els[0].index].store.id, role)); },
-  };
 
   // Format averages over scored stores only (unscored stores are not zeros).
   const fmtD = formatAverages(stores, scoreMap, selectedQ).map((f) => ({ label: f.format, v: f.avg, n: f.scoredCount, color: FORMAT_COLORS[f.format] || COLORS.gray }));
@@ -138,7 +175,18 @@ function ExecutionView({ scope, stores, scoreMap, issues, observations, audits, 
   const toRow = (e) => ({ n: `${e.store.name}, ${e.store.city}`, v: e.score, id: e.store.id });
   const t5 = ranked.slice(0, 5).map(toRow);
   const b5 = ranked.slice(-5).reverse().map(toRow);
+
+  // Issues: are the findings being fixed?
+  const iss = issueSummary(issues);
+  const issueTiles = [
+    { label: 'Open issues', value: iss.open, icon: '⚠️', tint: '#fffbeb', info: CRITERIA.openIssues, go: issuesLink({}) },
+    { label: 'Overdue issues', value: iss.overdue, icon: '🚨', tint: '#fde8e8', info: CRITERIA.overdueIssues, go: issuesLink({ kpi: 'overdue' }) },
+    { label: 'Closed issues', value: iss.closed, icon: '✅', tint: '#ecfdf5', info: CRITERIA.closedIssues, go: issuesLink({ kpi: 'completed' }) },
+    { label: 'Avg days to close', value: iss.avgDaysToClose ?? '--', icon: '📅', tint: '#f3f4f6', info: CRITERIA.daysToClose, go: issuesLink({ kpi: 'completed' }) },
+  ];
+  const overdueStores = overdueIssuesByStore(issues);
   const recentIssues = issues.slice(0, 5);
+  const criticalShown = showAllCritical ? critical : critical.slice(0, 6);
 
   const RankList = ({ title, rows, tone }) => (
     <div className="min-w-0 flex-1">
@@ -159,12 +207,75 @@ function ExecutionView({ scope, stores, scoreMap, issues, observations, audits, 
   return (
     <>
       <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {tiles.map((t) => <Tile key={t.label} icon={t.icon} tint={t.tint} label={t.label} value={t.value} onClick={t.go} />)}
+        {tiles.map((t) => <Tile key={t.label} icon={t.icon} tint={t.tint} label={t.label} value={t.value} info={t.info} onClick={t.go} />)}
       </div>
 
-      {/* Quarter by quarter: always every quarter of the year */}
-      <div className="mb-3 grid grid-cols-1 gap-3">
-        <Panel title={<>{words.risk}<InfoButton lines={CRITERIA.risk} /></>} hint={`${qLabel}, ${observations.length} observations`}>
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <Panel title="Audit score trend" info={CRITERIA.trend} hint={`${new Date().getFullYear()}, every quarter, average score of submitted audits`}>
+          {hasTrend ? <div className="relative h-[220px]"><Line data={trendData} options={trendOpts} /></div> : <Empty>No submitted audits with a score this year</Empty>}
+        </Panel>
+        <Panel title="Compliance by process" info={CRITERIA.process} hint={`${qLabel}, Yes answers as a share of Yes and No, lowest first`}>
+          {loading ? <Empty>Loading answers…</Empty> : processes.length ? (
+            <div className="relative" style={{ height: Math.max(160, processes.length * 34) }}><Bar data={processData} options={processOpts} /></div>
+          ) : <Empty>No answers from submitted audits in {qLabel}</Empty>}
+        </Panel>
+      </div>
+
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <Panel id="critical-failures" title="Critical failures" info={CRITERIA.critical} hint={`${qLabel}: High-criticality questions answered No. Click one to open the audit.`}>
+          {loading ? <Empty>Loading answers…</Empty> : critical.length ? (
+            <>
+              <ul>
+                {criticalShown.map((c, idx) => (
+                  <li key={`${c.audit_id}-${c.question_code}-${idx}`}>
+                    <button type="button" className="flex w-full items-start gap-2.5 border-b border-border py-2 text-left last:border-0 hover:bg-accent/40" onClick={() => navigate(auditsLink({ id: c.audit_id }))}>
+                      <span className={cn('mt-0.5 shrink-0 rounded border px-1.5 py-0.5 text-[10.5px] font-bold', CRITICALITY_TONE)}>{c.question_code || 'Q'}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="line-clamp-2 text-[12.5px] font-medium text-foreground">{c.question}</div>
+                        <div className="truncate text-[11px] text-muted-foreground">{c.store} &bull; {c.process} &bull; {c.date?.substring(0, 10)}</div>
+                      </div>
+                      {!c.issue_raised && <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10.5px] font-semibold text-amber-800">No issue raised</span>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {critical.length > 6 && (
+                <button type="button" className="mt-2 text-[11.5px] text-primary hover:underline" onClick={() => setShowAllCritical((v) => !v)}>
+                  {showAllCritical ? 'Show fewer' : `Show all ${critical.length}`}
+                </button>
+              )}
+            </>
+          ) : <Empty>No critical question was answered No in {qLabel}</Empty>}
+        </Panel>
+        <Panel title="Most-failed questions" info={CRITERIA.failed} hint={`${qLabel}: the questions answered No most often`}>
+          {loading ? <Empty>Loading answers…</Empty> : failedQuestions.length ? (
+            <ul>
+              {failedQuestions.map((f) => {
+                const rate = f.answered ? Math.round((f.no / f.answered) * 100) : 0;
+                return (
+                  <li key={f.question_id} className="border-b border-border py-2 last:border-0">
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="line-clamp-2 text-[12.5px] font-medium text-foreground">{f.text}</div>
+                        <div className="truncate text-[11px] text-muted-foreground">
+                          {f.code} &bull; {f.process} &bull; {f.criticality} criticality &bull; {f.stores} {f.stores === 1 ? 'store' : 'stores'}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="text-[13px] font-bold text-red-700">{f.no}&times; No</div>
+                        <div className="text-[10.5px] text-muted-foreground">{rate}% No rate</div>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : <Empty>No question was answered No in {qLabel}</Empty>}
+        </Panel>
+      </div>
+
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <Panel title={words.risk} info={CRITERIA.risk} hint={`${qLabel}, ${observations.length} observations`}>
           {riskD.length ? (
             <div className="flex items-center gap-4">
               <div className="relative size-[150px] shrink-0"><Pie data={riskData} options={pieOpts(openRisk)} /></div>
@@ -172,13 +283,7 @@ function ExecutionView({ scope, stores, scoreMap, issues, observations, audits, 
             </div>
           ) : <Empty>No observations in {qLabel}</Empty>}
         </Panel>
-      </div>
-
-      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
-        <Panel title={<>{words.storeBars}<InfoButton lines={CRITERIA.storeBars} /></>} hint={`${storeBarNote}. Green is ${SCORE_TARGET}% or above, amber 60 to ${SCORE_TARGET}%, red below 60. Click a bar to open the store.`}>
-          {barStores.length ? <div className="relative h-[220px]"><Bar data={storeBarData} options={storeBarOpts} /></div> : <Empty>No stores scored in {qLabel}</Empty>}
-        </Panel>
-        <Panel title={<>{words.distribution}<InfoButton lines={CRITERIA.distribution} /></>} hint={`${qLabel}, stores per score band`}>
+        <Panel title={words.distribution} info={CRITERIA.distribution} hint={`${qLabel}, stores per score band. Click a band to list its stores.`}>
           {scored.length ? (
             <div className="flex items-center gap-4">
               <div className="relative size-[140px] shrink-0"><Pie data={distData} options={pieOpts(openDist)} /></div>
@@ -192,13 +297,13 @@ function ExecutionView({ scope, stores, scoreMap, issues, observations, audits, 
       </div>
 
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <Panel title={<span className="flex items-center gap-1">{words.format}<InfoButton lines={CRITERIA.format} /><FormatLegend /></span>} hint={`${qLabel}, average score of the scored stores in each format`}>
+        <Panel title={<span className="flex items-center gap-1">{words.format}<FormatLegend /></span>} info={CRITERIA.format} hint={`${qLabel}, average score of the scored stores in each format`}>
           {fmtScored.length ? <div className="relative h-[200px]"><Bar data={fmtData} options={fmtOpts} /></div> : <Empty>No scored stores in {qLabel}</Empty>}
           {fmtD.some((d) => d.v === null) && (
             <p className="mt-2 text-[11px] text-muted-foreground">Not scored: {fmtD.filter((d) => d.v === null).map((d) => d.label).join(', ')}</p>
           )}
         </Panel>
-        <Panel title={words.topBottom} hint={qLabel}>
+        <Panel title={words.topBottom} info={CRITERIA.topBottom} hint={`${qLabel}. Click a store to open it.`}>
           <div className="flex flex-col gap-4 sm:flex-row">
             <RankList title="Top 5 stores" rows={t5} tone="text-emerald-700" />
             <RankList title="Bottom 5 stores" rows={b5} tone="text-red-700" />
@@ -206,9 +311,28 @@ function ExecutionView({ scope, stores, scoreMap, issues, observations, audits, 
         </Panel>
       </div>
 
-      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <ObservationsCard scope={scope} observations={observations} issues={issues} />
-        <Panel title={words.issues} action={<button type="button" className="text-[11px] text-muted-foreground hover:underline" onClick={() => navigate('/issues')}>View all &rarr;</button>}>
+      <h3 className="mb-2 mt-5 text-[13.5px] font-semibold text-foreground">Issue follow-up</h3>
+      <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {issueTiles.map((t) => <Tile key={t.label} icon={t.icon} tint={t.tint} label={t.label} value={t.value} info={t.info} onClick={t.go ? () => navigate(t.go) : undefined} />)}
+      </div>
+
+      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <Panel title="Overdue issues by store" info={CRITERIA.overdueByStore} hint={`${qLabel}. Click a store to see its issues.`}>
+          {overdueStores.length ? (
+            <ul>
+              {overdueStores.slice(0, 8).map((r) => (
+                <li key={r.storeId}>
+                  <button type="button" className="flex w-full items-center justify-between gap-2 border-b border-border py-1.5 text-left text-[12.5px] last:border-0 hover:bg-accent/40" onClick={() => navigate(issuesLink({ store: r.storeId }))}>
+                    <span className="min-w-0 truncate text-foreground">{r.store}</span>
+                    <span className="shrink-0 font-bold text-red-700">{r.count}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : <Empty>No overdue issues in {qLabel}</Empty>}
+        </Panel>
+        <ObservationsCard scope={scope} observations={observations} issues={issues} info={CRITERIA.observationsCard} />
+        <Panel title={words.issues} info={CRITERIA.recentIssues} action={<button type="button" className="text-[11px] text-muted-foreground hover:underline" onClick={() => navigate('/issues')}>View all &rarr;</button>}>
           {recentIssues.length ? recentIssues.map((i, idx) => (
             <button type="button" key={i.id} className={cn('flex w-full items-center justify-between gap-2.5 py-2 text-left', idx < recentIssues.length - 1 && 'border-b border-border')} onClick={() => navigate(issuesLink({ id: i.id }))}>
               <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avC(i.assignee || 'U'))}>{(i.assignee || 'U')[0]}</div>
@@ -249,7 +373,8 @@ function ExecutionView({ scope, stores, scoreMap, issues, observations, audits, 
   );
 }
 
-// Dashboard & Analytics. Two views, Audit Planning and Audit Execution (?view=),
+// Dashboard & Analytics. Two views, Audit Planning and Audit Execution (?view=); Execution
+// shows how the audits are going and then what they found,
 // for all stores or one store (?store=<id>), and for
 // all quarters of the year or one quarter.
 export default function Dashboard() {
@@ -258,7 +383,8 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const [selectedQ, setSelectedQ] = useState(ALL_QUARTERS);
   const [pbiOpen, setPbiOpen] = useState(false);
-  const view = VIEWS.some((v) => v.key === params.get('view')) ? params.get('view') : 'planning';
+  const asked = VIEW_ALIASES[params.get('view')] || params.get('view');
+  const view = VIEWS.some((v) => v.key === asked) ? asked : 'planning';
   const year = new Date().getFullYear();
 
   useEffect(() => {
@@ -298,6 +424,20 @@ export default function Dashboard() {
       quarterIssues: itemsOfAudits(inScope(data.issues, scoped), audits),
     };
   }, [data, scoped, selectedQ, year]);
+
+  // Start, approval and send-back times, and answer counts, for the audits in view.
+  const [details, setDetails] = useState(null);
+  const detailIds = quarterAudits.map((a) => a.id).join(',');
+  useEffect(() => {
+    if (!data) return undefined;
+    let cancelled = false;
+    setDetails(null);
+    const ids = detailIds ? detailIds.split(',') : [];
+    api.dashboardAuditDetails(ids)
+      .then((r) => { if (!cancelled) setDetails(r); })
+      .catch(() => { if (!cancelled) setDetails({ timing: {}, by_process: [], critical_failures: [], failed_questions: [] }); });
+    return () => { cancelled = true; };
+  }, [data, detailIds]);
 
   if (!data) return <Loading what="dashboard" />;
 
@@ -381,16 +521,28 @@ export default function Dashboard() {
           onPickQuarter={setSelectedQ}
         />
       ) : (
-        <ExecutionView
-          key={`exec${scope.kind}${scope.id}`}
-          scope={scope}
-          stores={scoped}
-          scoreMap={data.scoreMap}
-          issues={quarterIssues}
-          observations={quarterObservations}
-          audits={quarterAudits}
-          selectedQ={selectedQ}
-        />
+        <>
+          <SectionHeading>How the audits are going</SectionHeading>
+          <ExecutionView
+            key={`exec${scope.kind}${scope.id}`}
+            audits={quarterAudits}
+            timing={details ? details.timing : null}
+            quarter={selectedQ}
+          />
+          <SectionHeading>What the audits found</SectionHeading>
+          <FindingsView
+            key={`find${scope.kind}${scope.id}`}
+            scope={scope}
+            stores={scoped}
+            scoreMap={data.scoreMap}
+            issues={quarterIssues}
+            observations={quarterObservations}
+            audits={quarterAudits}
+            yearAudits={yearAudits}
+            details={details}
+            selectedQ={selectedQ}
+          />
+        </>
       )}
 
       <PowerBiSample open={pbiOpen} onClose={() => setPbiOpen(false)} />

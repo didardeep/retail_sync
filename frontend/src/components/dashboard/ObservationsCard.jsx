@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import InfoButton from '@/components/InfoButton';
 
 import { cn } from '@/lib/utils';
 import {
@@ -27,7 +28,7 @@ function Row({ text, count, dot }) {
 // Two lists with titles from the shared wording. For all stores the first is
 // ranked by how often an observation was recorded and the second by how many
 // times an issue was raised; for one store the first is the latest observations.
-export default function ObservationsCard({ scope, observations, issues }) {
+export default function ObservationsCard({ scope, observations, issues, info }) {
   const [tab, setTab] = useState('observations');
   const words = wording(scope);
   const oneStore = scope.kind === 'store';
@@ -36,7 +37,7 @@ export default function ObservationsCard({ scope, observations, issues }) {
 
   return (
     <div className="rounded-[10px] border border-border bg-card p-4">
-      <div className="mb-3 text-[13px] font-semibold text-foreground">{words[tab]}</div>
+      <div className="mb-3 flex items-center text-[13px] font-semibold text-foreground">{words[tab]}{info && <InfoButton lines={info} />}</div>
       <div className="mb-2 flex flex-wrap gap-1.5" role="tablist">
         {TABS.map((t) => (
           <button

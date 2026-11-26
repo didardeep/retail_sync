@@ -653,5 +653,6 @@ class Issue(Base):
             "due_date": self.due_date.isoformat() if self.due_date else None,
             "action_taken": self.action_taken, "evidence": self.evidence or [],
             "overdue": self.is_overdue, "meta": self.meta or {},
+            "closed_at": self.closed_at.isoformat() if self.closed_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

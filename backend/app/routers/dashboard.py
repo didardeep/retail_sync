@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session, joinedload
 
 from ..auth import require_roles
 from ..db import get_db
-from ..models import ROLE_ADMIN, ROLE_AUDIT_MANAGER, Audit, Issue, Store, StoreScore, User
+from ..models import (
+    ROLE_ADMIN, ROLE_AUDIT_MANAGER, Audit, AuditLog, AuditResponse, Issue, Store, StoreScore, User,
+)
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -56,6 +59,96 @@ def dashboard(
         "by_region": by_region,
         "top_stores": store_scores[:5],
         "bottom_stores": store_scores[-5:][::-1],
+    }
+
+
+class AuditDetailsRequest(BaseModel):
+    audit_ids: list[str] = Field(default_factory=list, max_length=5000)
+
+
+def _iso(value):
+    return value.isoformat() if value else None
+
+
+@router.post("/dashboard/audit-details")
+def audit_details(
+    body: AuditDetailsRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(ROLE_AUDIT_MANAGER, ROLE_ADMIN)),
+):
+    """What the audit list does not carry, for the audits the dashboard shows:
+    when each was started, approved and sent back (Execution), and how the
+    answers went (Findings): Yes/No by process, High-criticality questions
+    answered No, and the questions answered No most often."""
+    ids = list(dict.fromkeys(body.audit_ids))
+    if not ids:
+        return {"timing": {}, "by_process": [], "critical_failures": [], "failed_questions": []}
+    audits = {a.id: a for a in db.query(Audit).options(joinedload(Audit.store))
+              .filter(Audit.id.in_(ids)).all()}
+
+    timing = {aid: {"started_at": None, "approved_at": None, "returns": 0} for aid in audits}
+    logs = (db.query(AuditLog)
+            .filter(AuditLog.entity_type == "audit", AuditLog.entity_id.in_(list(audits)),
+                    AuditLog.action.in_(("approve_audit", "return_audit", "request_changes")))
+            .all())
+    for log in logs:
+        t = timing[log.entity_id]
+        if log.action == "approve_audit":
+            if t["approved_at"] is None or log.timestamp > t["approved_at"]:
+                t["approved_at"] = log.timestamp
+        else:
+            t["returns"] += 1
+    for aid, a in audits.items():
+        # Approved before approvals were logged: the decision time is the best we have.
+        if a.status == "Approved" and timing[aid]["approved_at"] is None:
+            timing[aid]["approved_at"] = a.decision_at
+
+    responses = (db.query(AuditResponse).options(joinedload(AuditResponse.question))
+                 .filter(AuditResponse.audit_id.in_(list(audits))).all())
+    by_process, failed, critical = {}, {}, []
+    for r in responses:
+        if not r.answer:
+            continue
+        t = timing[r.audit_id]
+        if t["started_at"] is None or (r.answered_at and r.answered_at < t["started_at"]):
+            t["started_at"] = r.answered_at
+        a = audits[r.audit_id]
+        if a.status not in ("Completed", "Approved"):
+            continue  # findings come from submitted audits only
+        q = r.question
+        process = (q.process if q else None) or "General"
+        row = by_process.setdefault(process, {"process": process, "yes": 0, "no": 0, "na": 0})
+        key = {"Yes": "yes", "No": "no"}.get(r.answer, "na")
+        row[key] += 1
+        if not q:
+            continue
+        f = failed.setdefault(q.id, {"question_id": q.id, "code": q.code, "text": q.text,
+                                    "process": process, "criticality": q.criticality or "Low",
+                                    "no": 0, "answered": 0, "stores": set()})
+        if r.answer in ("Yes", "No"):
+            f["answered"] += 1
+        if r.answer == "No":
+            f["no"] += 1
+            f["stores"].add(a.store_id)
+            if (q.criticality or "Low") == "High":
+                critical.append({
+                    "audit_id": a.id, "store_id": a.store_id,
+                    "store": a.store.name if a.store else None,
+                    "question_code": q.code, "question": q.text, "process": process,
+                    "remarks": r.remarks, "issue_raised": bool(r.issues),
+                    "date": _iso(a.submitted_at or a.scheduled_at),
+                })
+
+    failed_rows = sorted(
+        ({**f, "stores": len(f["stores"])} for f in failed.values() if f["no"]),
+        key=lambda f: (-f["no"], -f["stores"], f["code"] or ""))
+    critical.sort(key=lambda c: c["date"] or "", reverse=True)
+    return {
+        "timing": {aid: {k: (_iso(v) if k != "returns" else v) for k, v in t.items()}
+                   for aid, t in timing.items()},
+        "by_process": sorted(by_process.values(), key=lambda p: p["process"]),
+        "critical_failures": critical,
+        "failed_questions": failed_rows[:10],
     }
 
 

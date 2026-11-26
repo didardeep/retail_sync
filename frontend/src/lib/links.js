@@ -5,7 +5,7 @@
 //   /audits/:id                  (run or view one audit)
 //   /audits/:id/review           (review screen)
 //   /audits?stage&auditor&id&new=1   (/scheduling redirects here; new opens the schedule form)
-//   /issues?status&priority&store&audit&id
+//   /issues?status&priority&store&audit&kpi&id
 //   /stores?region&format&id
 //   /dashboard?store              (one store's view)
 //   /questions?tab=...
@@ -21,8 +21,8 @@ function buildLink(path, params = {}) {
   return parts.length ? `${path}?${parts.join('&')}` : path
 }
 
-export function auditsLink({ stage, status, store, region, quarter, id } = {}) {
-  return buildLink('/audits', { stage, status, store, region, quarter, id })
+export function auditsLink({ stage, status, store, region, quarter, auditor, id } = {}) {
+  return buildLink('/audits', { stage, status, store, region, quarter, auditor, id })
 }
 
 // Scheduling lives on the Audit page; `open` opens the schedule form.
@@ -30,8 +30,8 @@ export function schedulingLink({ stage, auditor, id, open } = {}) {
   return buildLink('/audits', { stage, auditor, id, new: open ? '1' : undefined })
 }
 
-export function issuesLink({ status, priority, store, audit, id } = {}) {
-  return buildLink('/issues', { status, priority, store, audit, id })
+export function issuesLink({ status, priority, store, audit, kpi, id } = {}) {
+  return buildLink('/issues', { status, priority, store, audit, kpi, id })
 }
 
 export function storesLink({ region, format, id } = {}) {

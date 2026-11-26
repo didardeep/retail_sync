@@ -70,6 +70,7 @@ export const api = {
   login: (email, password) =>
     request('/auth/login', { method: 'POST', body: { email, password } }),
   dashboard: () => request('/dashboard'),
+  dashboardAuditDetails: (auditIds) => request('/dashboard/audit-details', { method: 'POST', body: { audit_ids: auditIds } }),
   stores: (q = '') => request('/stores' + q),
   users: (role) => request('/users' + (role ? `?role=${role}` : '')),
   questions: (q = '') => request('/questions' + q),

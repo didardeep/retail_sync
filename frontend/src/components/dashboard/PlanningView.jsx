@@ -9,6 +9,7 @@ import {
   completionRate, groupAuditsByFormat, groupAuditsByRegion, planStage, quarterLabel,
 } from '@/lib/overviewStats';
 import { COLORS, seriesColor } from '@/lib/chartColors';
+import { CRITERIA } from '@/lib/scoreCriteria';
 
 
 const pointer = (event, elements) => {
@@ -43,10 +44,10 @@ export default function PlanningView({ audits, yearAudits, stores, quarter, year
 
   const counts = auditStageCounts(audits);
   const tiles = [
-    { label: 'Total audits', value: counts.total, icon: '📊', tint: '#f3f4f6', go: {} },
-    { label: 'Planned', value: counts.scheduled, icon: '📋', tint: '#e8eefa', go: { stage: 'scheduled' } },
-    { label: 'Ongoing', value: counts.in_progress, icon: '⏳', tint: '#fffbeb', go: { stage: 'in_progress' } },
-    { label: 'Completed', value: counts.done, icon: '✅', tint: '#ecfdf5', go: { status: 'completed' } },
+    { label: 'Total audits', value: counts.total, icon: '📊', tint: '#f3f4f6', go: {}, info: CRITERIA.totalAudits },
+    { label: 'Planned', value: counts.scheduled, icon: '📋', tint: '#e8eefa', go: { stage: 'scheduled' }, info: CRITERIA.planned },
+    { label: 'Ongoing', value: counts.in_progress, icon: '⏳', tint: '#fffbeb', go: { stage: 'in_progress' }, info: CRITERIA.ongoingPlan },
+    { label: 'Completed', value: counts.done, icon: '✅', tint: '#ecfdf5', go: { status: 'completed' }, info: CRITERIA.completedPlan },
   ];
   const rate = completionRate(audits);
 
@@ -112,15 +113,15 @@ export default function PlanningView({ audits, yearAudits, stores, quarter, year
   return (
     <>
       <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
-        {tiles.map((t) => <Tile key={t.label} icon={t.icon} tint={t.tint} label={t.label} value={t.value} onClick={() => link(t.go)} />)}
-        <Tile icon="🎯" tint="#ecfdf5" label="Completion rate" value={`${rate}%`} />
+        {tiles.map((t) => <Tile key={t.label} icon={t.icon} tint={t.tint} label={t.label} value={t.value} info={t.info} onClick={() => link(t.go)} />)}
+        <Tile icon="🎯" tint="#ecfdf5" label="Completion rate" value={`${rate}%`} info={CRITERIA.completionRate} onClick={() => link({ status: 'completed' })} />
       </div>
 
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[3fr_2fr]">
-        <Panel title="Audits by quarter" hint={`${year}, every quarter, by status. Click a quarter to show only it.`}>
+        <Panel title="Audits by quarter" info={CRITERIA.byQuarter} hint={`${year}, every quarter, by status. Click a quarter to show only it.`}>
           {yearAudits.length ? <div className="relative h-[240px]"><Bar data={quarterData} options={quarterOpts} /></div> : <Empty>No audits scheduled in {year}</Empty>}
         </Panel>
-        <Panel title="Current status" hint={`${qText}, ${audits.length} audits`}>
+        <Panel title="Current status" info={CRITERIA.status} hint={`${qText}, ${audits.length} audits`}>
           {audits.length ? (
             <>
               <div className="relative h-[170px]"><Bar data={statusData} options={statusOpts} /></div>
@@ -131,7 +132,7 @@ export default function PlanningView({ audits, yearAudits, stores, quarter, year
       </div>
 
       <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <Panel title="Audit distribution by region" hint={`${qText}. Click a region to list its audits.`}>
+        <Panel title="Audit distribution by region" info={CRITERIA.regionPlan} hint={`${qText}. Click a region to list its audits.`}>
           {regions.length ? (
             <div className="flex items-center gap-5">
               <div className="relative size-[170px] shrink-0"><Pie data={regionData} options={pieOpts(pickRegion)} /></div>
@@ -139,12 +140,12 @@ export default function PlanningView({ audits, yearAudits, stores, quarter, year
             </div>
           ) : <Empty>No audits in {qText}</Empty>}
         </Panel>
-        <Panel title="Audit distribution by store format" hint={`${qText}: audits planned and completed per format`}>
+        <Panel title="Audit distribution by store format" info={CRITERIA.formatPlan} hint={`${qText}: audits planned and completed per format`}>
           {formats.length ? <div className="relative h-[200px]"><Bar data={formatData} options={formatOpts} /></div> : <Empty>No audits in {qText}</Empty>}
         </Panel>
       </div>
 
-      <Panel title="Auditor workload" hint={`${qText}: audits given to each auditor and how many are completed`} className="mb-3">
+      <Panel title="Auditor workload" info={CRITERIA.workload} hint={`${qText}: audits given to each auditor and how many are completed`} className="mb-3">
         {workload.length ? (
           <div className="overflow-x-auto">
             <table className="w-full text-[12.5px]">

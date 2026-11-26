@@ -1,12 +1,14 @@
 import { cn } from '@/lib/utils';
+import InfoButton from '@/components/InfoButton';
 
-// Shared card chrome for dashboard widgets.
-export default function Panel({ title, hint, action, className, children }) {
+// Shared card chrome for dashboard widgets. `info` (lines of text) puts an "i"
+// button after the title that explains what the widget counts and how.
+export default function Panel({ id, title, hint, info, action, className, children }) {
   return (
-    <section className={cn('rounded-[10px] border border-border bg-card p-4', className)}>
+    <section id={id} className={cn('scroll-mt-4 rounded-[10px] border border-border bg-card p-4', className)}>
       <div className="mb-3 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="text-[13px] font-semibold text-foreground">{title}</h3>
+          <h3 className="flex flex-wrap items-center text-[13px] font-semibold text-foreground">{title}{info && <InfoButton lines={info} />}</h3>
           {hint && <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>}
         </div>
         {action}
