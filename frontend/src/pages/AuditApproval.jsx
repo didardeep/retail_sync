@@ -8,6 +8,7 @@ import {
   REVIEW_FILTERS, checkDecision, decisionBody, evidenceCount, reviewFilter, reviewProgress,
 } from '@/lib/auditReview';
 import { cn, fieldClass, labelClass } from '@/lib/utils';
+import { versionBadge } from '@/lib/questionVersions';
 import CriticalityBadge from '@/components/CriticalityBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,9 +39,11 @@ const STATUS_LABEL = { Completed: 'Awaiting review', 'Changes Requested': 'Retur
 
 // One question: its answer, the auditor's remarks and evidence, and a checkbox
 // for "check this again" that opens a box for the reason.
-function QuestionCard({ number, row, canReview, ticked, note, category, onTick, onNote, onCategory }) {
+function QuestionCard({ number, row, currentVersion, canReview, ticked, note, category, onTick, onNote, onCategory }) {
   const navigate = useNavigate();
   const badge = REVIEW_BADGE[row.review_status];
+  // Answered on an older wording of the question: say so, since the bank has moved on.
+  const older = versionBadge(row.question_version, currentVersion);
   const files = row.evidence?.length || 0;
 
   return (
@@ -60,6 +63,11 @@ function QuestionCard({ number, row, canReview, ticked, note, category, onTick, 
             <span className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Q{number} - {row.process}</span>
             <span className="flex flex-wrap gap-1.5">
               <CriticalityBadge item={row} />
+              {older && (
+                <Badge className="bg-slate-100 text-slate-700" title={`Answered on ${row.question_code} ${older.replace(', now', '; the question bank is now on')}`}>
+                  {older}
+                </Badge>
+              )}
               {row.risk && row.risk !== 'None' && <Badge className="bg-muted text-foreground/80">Risk: {row.risk}</Badge>}
               {badge && <Badge className={badge[1]}>{badge[0]}</Badge>}
             </span>
@@ -138,11 +146,19 @@ export default function AuditApproval() {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [auditees, setAuditees] = useState(null);   // the store's auditees, told when an audit is returned
+  const [currentVersions, setCurrentVersions] = useState({}); // question code -> current version
   const allowed = role === 'ADMIN' || role === 'AUDIT_MANAGER';
 
   useEffect(() => {
     if (allowed) api.audit(id).then(setAudit).catch(setError);
   }, [id, allowed]);
+
+  // The bank's current versions, to flag answers given on an older wording.
+  useEffect(() => {
+    if (!allowed) return;
+    api.questions().then((qs) => setCurrentVersions(Object.fromEntries((qs || []).map((q) => [q.code, q.version]))))
+      .catch(() => setCurrentVersions({}));
+  }, [allowed]);
 
   const storeId = audit?.store_id;
   useEffect(() => {
@@ -241,6 +257,7 @@ export default function AuditApproval() {
             key={row.id}
             number={numbers.get(row.id)}
             row={row}
+            currentVersion={currentVersions[row.question_code]}
             canReview={canReview}
             ticked={row.id in ticked}
             note={ticked[row.id]?.note || ''}

@@ -360,6 +360,11 @@ class Question(Base):
 
     meta = Column(JSON, default=dict)           # tags and anything client-specific
     created_at = Column(DateTime, default=dt.datetime.utcnow)
+    # Version history: who saved this version and why (like a commit's author and message).
+    edited_by_id = Column(String(12), ForeignKey("users.id"))
+    change_note = Column(Text)
+
+    edited_by = relationship("User", foreign_keys=[edited_by_id])
 
     def set_criticality(self, level):
         """Set the criticality and the scoring weight and critical flag that follow from it."""
@@ -382,6 +387,9 @@ class Question(Base):
             "approval_status": self.approval_status,
             "proposed_by_id": self.proposed_by_id,
             "meta": self.meta or {},
+            "edited_by": self.edited_by.name if self.edited_by else None,
+            "change_note": self.change_note,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 
@@ -518,6 +526,7 @@ class AuditResponse(Base):
             "id": self.id, "audit_id": self.audit_id,
             "question_id": self.question_id,
             "question_code": q.code if q else None,
+            "question_version": q.version if q else None,
             "question_text": q.text if q else None,
             "weight": q.weight if q else None,
             "criticality": (q.criticality or "Low") if q else None,

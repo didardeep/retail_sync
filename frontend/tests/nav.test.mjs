@@ -35,6 +35,8 @@ test('each role lands on a page it can open', () => {
     assert.ok(canAccess(role, first), `${role} lands on "${first}" but cannot open it`);
   }
   assert.equal(firstAllowedPage('AUDITOR'), 'my-dashboard');
+  assert.equal(firstAllowedPage('AUDIT_MANAGER'), 'stores');
+  assert.equal(firstAllowedPage('ADMIN'), 'dashboard');
 });
 
 test('titles resolve for nested and detail routes', () => {

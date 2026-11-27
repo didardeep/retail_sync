@@ -9,4 +9,13 @@ export const questionsApi = {
   approve: (id, decision, reason = '') =>
     request(`/questions/${id}/approve`, { method: 'POST', body: { decision, reason } }),
   deactivate: (id) => request(`/questions/${id}`, { method: 'DELETE' }),
+  // Version history (managers only).
+  versions: (code) => request(`/questions/${encodeURIComponent(code)}/versions`),
+  changes: (params = {}) => {
+    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString()
+    return request('/questions/changes' + (q ? `?${q}` : ''))
+  },
+  versionAudits: (id) => request(`/questions/${id}/audits`),
+  restore: (id, change_note = '') =>
+    request(`/questions/${id}/restore`, { method: 'POST', body: { change_note } }),
 }

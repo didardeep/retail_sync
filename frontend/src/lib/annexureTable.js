@@ -81,6 +81,12 @@ export function rowIsBlank(row) {
   return !row.label.trim() && row.cells.every((c) => !String(c).trim());
 }
 
+// True when at least one cell has something typed in it. Row names alone do not
+// count: they can come pre-filled from the layout. Same rule as the server's submit.
+export function hasValues(value) {
+  return (value?.rows || []).some((row) => (row.cells || []).some((c) => String(c ?? '').trim()));
+}
+
 // How many rows have something in them, for the "Annexure (3 rows)" button.
 export function filledCount(value) {
   return (value?.rows || []).filter((row) => !rowIsBlank(row)).length;

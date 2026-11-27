@@ -126,6 +126,11 @@ class QuestionEdit(ORMBase):
     is_critical: bool | None = None
     active: bool | None = None
     meta: dict[str, Any] | None = None
+    change_note: str | None = None     # optional "why", kept on the new version
+
+
+class QuestionRestore(ORMBase):
+    change_note: str | None = None
 
 
 # --------------------------------------------------------------------------

@@ -37,6 +37,8 @@ export function canAccess(role, page) {
 }
 
 export function firstAllowedPage(role) {
+  // The audit manager starts on Store Management; admin keeps the Dashboard.
+  if (role === 'AUDIT_MANAGER') return 'stores'
   const allowed = ROLE_PAGES[role]
   if (allowed === null) return 'dashboard'
   return allowed?.[0] || 'email'

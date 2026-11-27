@@ -40,7 +40,8 @@ function Row({ item, onClick, tone }) {
       <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{item.process}</div>
       <div className="whitespace-pre-line text-[13px] font-medium leading-snug text-foreground">{item.text}</div>
       {item.kind === 'unanswered' && <div className="mt-0.5 text-[11.5px] font-medium text-destructive">Not answered</div>}
-      {item.kind === 'no_proof' && <div className="mt-0.5 text-[11.5px] font-medium text-destructive">Answered No: add {proofLabel(item.missing)}</div>}
+      {item.kind === 'no_proof' && <div className="mt-0.5 text-[11.5px] font-medium text-destructive">Answered {item.answer}: add {item.answer === 'NA' ? 'a reason in the remarks' : proofLabel(item.missing)}</div>}
+      {item.kind === 'no_annexure' && <div className="mt-0.5 text-[11.5px] font-medium text-destructive">Annexure table is empty: fill it in</div>}
     </button>
   );
 }
@@ -83,8 +84,9 @@ export default function ClassicAuditReview() {
 
   const editable = isAuditorEditable(audit, user) && !result;
   const found = problems(audit);
-  // Both block submitting: questions not answered, and No answers without remarks and evidence.
-  const unanswered = found.filter((p) => p.kind === 'unanswered' || p.kind === 'no_proof');
+  // All block submitting: questions not answered, No without remarks and evidence,
+  // NA without a reason, and empty annexure tables.
+  const unanswered = found.filter((p) => ['unanswered', 'no_proof', 'no_annexure'].includes(p.kind));
   const raising = found.filter((p) => p.kind === 'critical_no');
   const { answered, total } = progress(audit);
   const preview = previewScore(audit);
@@ -123,9 +125,12 @@ export default function ClassicAuditReview() {
           setError(e2);
         }
       } else if (e.status === 400) {
-        setSubmitError(e.detail?.code === 'no_without_proof' || /answered No/.test(e.message || '')
-          ? 'Some questions answered No have no remarks or evidence. Add both before submitting.'
-          : 'Some questions are still unanswered. Answer them before submitting.');
+        const code = e.detail?.code;
+        setSubmitError(code === 'no_without_proof' || /answered No/.test(e.message || '')
+          ? 'Some questions answered No or NA are missing a reason (and, for No, evidence). Add them before submitting.'
+          : code === 'annexure_missing'
+            ? 'Some annexure tables are still empty. Fill them in before submitting.'
+            : 'Some questions are still unanswered. Answer them before submitting.');
         try {
           setAudit(await api.audit(id));
         } catch (e2) {

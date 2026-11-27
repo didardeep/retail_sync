@@ -342,6 +342,8 @@ export default function Audit() {
   }
 
   const iconBtn = 'flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card md:h-[26px] md:w-[26px]';
+  // On a phone the table scrolls sideways; pin Actions to the right edge so Start is always in reach.
+  const stickyActions = 'sticky right-0 z-[1] bg-card shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.15)]';
   const colCount = 7 + (isAuditor ? 0 : 1);
 
   return (
@@ -477,7 +479,7 @@ export default function Audit() {
               <TableHead>End</TableHead>
               {!isAuditor && <TableHead>Auditor</TableHead>}
               <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead className={stickyActions}>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -488,8 +490,15 @@ export default function Audit() {
               const overdue = isOverdue(s);
               const duration = durationLabel(s.start, s.due_at);
               const action = rowAction(s, ws.userId);
+              // Tapping anywhere on the row does the row's main action: an auditor starts or
+              // continues their audit, a manager opens the review, otherwise the details drawer opens.
+              const openRow = () => {
+                if (isAuditor && action !== 'view') ws.openRow(s);
+                else if (canReview(s)) navigate(`/audits/${s.id}/approve`);
+                else setFilter('id', s.id);
+              };
               return (
-                <TableRow key={s.key} className={cn(overdue && 'bg-red-50/40', s.id === justAdded && 'bg-blue-50/60')}>
+                <TableRow key={s.key} onClick={openRow} className={cn('cursor-pointer', overdue && 'bg-red-50/40', s.id === justAdded && 'bg-blue-50/60')}>
                   <TableCell>
                     <div className="flex items-center gap-1.5 text-[12.5px] font-semibold">
                       {s.id}
@@ -525,8 +534,9 @@ export default function Audit() {
                     )}
                     {scoreLabel(s) !== '--' && <div className="mt-1 text-[11px] text-muted-foreground">Score {scoreLabel(s)}</div>}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
+                  <TableCell className={stickyActions}>
+                    {/* Buttons do their own thing; stop the click reaching the row. */}
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       {isAuditor && action !== 'view' ? (
                         <Button size="sm" className="h-10 px-3 text-xs md:h-7 md:px-2.5 md:text-[11px]" disabled={ws.openingKey === s.key} onClick={() => ws.openRow(s)}>
                           {ACTION_LABELS[action]}

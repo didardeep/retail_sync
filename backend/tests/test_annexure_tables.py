@@ -3,7 +3,7 @@ import pytest
 
 from app.annexure_table import clean_data, clean_template
 from app.models import Question
-from test_classic_audit_flow import _checklist, _start
+from test_classic_audit_flow import _answer, _checklist, _start
 
 LAYOUT = {
     "columns": [{"name": "Opening", "type": "number"}, {"name": "Notes", "type": "text"}],
@@ -90,6 +90,28 @@ def test_editing_keeps_the_old_version_layout(client, tokens):
     assert r.json()["version"] == 2
 
 
+def test_an_edit_reaches_audits_started_afterwards_but_not_earlier_ones(client, tokens, db):
+    # The manager adds an annexure to a question already on a checklist; the next
+    # audit must show it, while an audit started before the edit keeps the old version.
+    cl = _checklist(db, [(1, False)])
+    before = _start(client, tokens, cl).json()
+    old_qid = before["responses"][0]["question_id"]
+
+    r = client.put(f"/api/questions/{old_qid}", headers=tokens["manager"],
+                   json={"meta": {"annexure": LAYOUT}})
+    assert r.status_code == 200, r.text
+    new_qid = r.json()["id"]
+
+    after = _start(client, tokens, cl, who="auditor2").json()
+    assert after["responses"][0]["question_id"] == new_qid
+    assert after["responses"][0]["annexure_template"]["row_labels"] == ["Counter 1", "Counter 2"]
+
+    db.expire_all()
+    kept = client.get(f"/api/audits/{before['id']}", headers=tokens["auditor1"]).json()
+    assert kept["responses"][0]["question_id"] == old_qid
+    assert kept["responses"][0]["annexure_template"] is None
+
+
 def test_auditor_saves_the_table_and_it_comes_back_with_the_layout(client, tokens, db):
     audit = _audit_with_annexure(client, tokens, db)
     data = {"rows": [{"label": "Counter 1", "cells": ["100", "ok"]}, {"label": "", "cells": ["", ""]}]}
@@ -118,3 +140,29 @@ def test_another_auditor_cannot_save_it(client, tokens, db):
     audit = _audit_with_annexure(client, tokens, db)
     r = _save(client, tokens, audit, 0, {"rows": []}, who="auditor2")
     assert r.status_code == 403
+
+
+def test_an_empty_annexure_blocks_submit_unless_the_answer_is_na(client, tokens, db):
+    audit = _audit_with_annexure(client, tokens, db)
+    for n in (0, 1):
+        _answer(client, tokens, audit, n, "Yes")
+    url = f"/api/audits/{audit['id']}/submit"
+
+    # Rows with only their names filled in still count as empty.
+    _save(client, tokens, audit, 0, {"rows": [{"label": "Counter 1", "cells": ["", ""]}]})
+    r = client.post(url, headers=tokens["auditor1"])
+    assert r.status_code == 400, r.text
+    assert r.json()["code"] == "annexure_missing"
+    assert r.json()["questions"][0]["id"] == audit["responses"][0]["id"]
+
+    # NA: the question does not apply, so neither does its table.
+    _answer(client, tokens, audit, 0, "NA")
+    assert client.post(url, headers=tokens["auditor1"]).status_code == 200
+
+
+def test_a_filled_annexure_lets_the_audit_submit(client, tokens, db):
+    audit = _audit_with_annexure(client, tokens, db)
+    for n in (0, 1):
+        _answer(client, tokens, audit, n, "Yes")
+    _save(client, tokens, audit, 0, {"rows": [{"label": "Counter 1", "cells": ["1500", ""]}]})
+    assert client.post(f"/api/audits/{audit['id']}/submit", headers=tokens["auditor1"]).status_code == 200

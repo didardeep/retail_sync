@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { CheckCircle2, CircleOff, ClipboardList, Clock, Pencil, Trash2 } from 'lucide-react'
+import { CheckCircle2, CircleOff, ClipboardList, Clock, History, Pencil, Trash2 } from 'lucide-react'
 import { useToast } from '../components/Toast'
 import { api, loadSession } from '../api/client'
 import { questionsApi } from '../api/questionsApi'
@@ -11,8 +11,10 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import Tile from '@/components/Tile'
-import { Modal, ModalTitle, ModalActions } from '../components/Modal'
+import { Drawer, Modal, ModalTitle, ModalActions } from '../components/Modal'
 import AnnexureBuilder from '@/components/AnnexureBuilder'
+import ChangeHistory from '@/components/questions/ChangeHistory'
+import VersionPanel from '@/components/questions/VersionPanel'
 import { cleanTemplate, templateProblem } from '@/lib/annexureTable'
 
 const PER_PAGE = 10
@@ -27,6 +29,8 @@ const STATUS_TEST = {
 function normalizeQ(q) {
   return {
     id: q.id || q.code,
+    code: q.code,
+    version: q.version || 1,
     text: q.text || '',
     proc: q.process || '',
     sp: q.sub_process || '',
@@ -39,7 +43,7 @@ function normalizeQ(q) {
   }
 }
 
-function QuestionBank() {
+function QuestionBank({ onOpenHistory, onOpenChanges, reloadKey }) {
   const toast = useToast()
   const role = loadSession()?.user?.role
   const isManager = role === 'ADMIN' || role === 'AUDIT_MANAGER'
@@ -60,7 +64,7 @@ function QuestionBank() {
   /* ── question modal state ── */
   const [showQModal, setShowQModal] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [qForm, setQForm] = useState({ proc: '', sp: '', text: '', at: '', level: 'Medium', tags: '', annexure: null })
+  const [qForm, setQForm] = useState({ proc: '', sp: '', text: '', at: '', level: 'Medium', tags: '', annexure: null, note: '' })
 
   /* ── process modal state ── */
   const [saving, setSaving] = useState(false)
@@ -82,7 +86,7 @@ function QuestionBank() {
       setResponseTypes(types)
       setLoading(false)
     }).catch(() => setLoading(false))
-  }, [])
+  }, [reloadKey])
 
   /* ────────────────── derived data ────────────────── */
   const qLower = search.toLowerCase()
@@ -126,7 +130,7 @@ function QuestionBank() {
   /* ────────────────── question modal helpers ────────────────── */
   function openAddQuestion() {
     setEditId(null)
-    setQForm({ proc: processes[0] || '', sp: '', text: '', at: responseTypes[0] || '', level: 'Medium', tags: '', annexure: null })
+    setQForm({ proc: processes[0] || '', sp: '', text: '', at: responseTypes[0] || '', level: 'Medium', tags: '', annexure: null, note: '' })
     setShowQModal(true)
   }
 
@@ -142,6 +146,7 @@ function QuestionBank() {
       level: item.level,
       tags: (item.tags || []).join(', '),
       annexure: item.meta?.annexure || null,
+      note: '',
     })
     setShowQModal(true)
   }
@@ -180,14 +185,22 @@ function QuestionBank() {
     if (editId) {
       const old = questions.find(q => q.id === editId)
       const { annexure: _dropped, ...rest } = old?.meta || {}
-      call = questionsApi.edit(editId, { ...body, meta: { ...rest, tags: parsedTags, ...(annexure ? { annexure } : {}) } })
+      call = questionsApi.edit(editId, {
+        ...body,
+        meta: { ...rest, tags: parsedTags, ...(annexure ? { annexure } : {}) },
+        change_note: qForm.note.trim() || null,
+      })
     } else {
       call = questionsApi.create({ ...body, meta: { tags: parsedTags, ...(annexure ? { annexure } : {}) } })
     }
     call.then(saved => {
       if (editId) replaceRow(editId, saved)
       else setQuestions(prev => [...prev, normalizeQ(saved)])
-      toast(editId ? 'Question updated (new version saved)' : (saved.approval_status === 'PENDING' ? 'Question submitted for approval' : 'Question added'))
+      // The server makes no new version when nothing changed and returns the current one.
+      const unchanged = editId && saved.id === editId
+      toast(editId
+        ? (unchanged ? 'Nothing changed, so no new version was saved' : `Question updated (saved as v${saved.version})`)
+        : (saved.approval_status === 'PENDING' ? 'Question submitted for approval' : 'Question added'))
       setShowQModal(false)
       setEditId(null)
     }).catch(e => {
@@ -336,6 +349,7 @@ function QuestionBank() {
           {CRITICALITIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         {hasFilters && <Button size="sm" variant="outline" onClick={clearAll}>Clear</Button>}
+        {onOpenChanges && <Button size="sm" variant="outline" onClick={onOpenChanges}><History className="size-4" />Change history</Button>}
         {isManager && <Button size="sm" variant="outline" onClick={openNewProcess}>+ New Process</Button>}
         <Button size="sm" onClick={openAddQuestion}>+ New Question</Button>
       </div>
@@ -361,6 +375,7 @@ function QuestionBank() {
                   <TableCell className="max-w-[460px] whitespace-normal">
                     <div className="text-[12.5px] font-semibold leading-snug">{item.text}</div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+                      {item.code && <span className="font-medium">{item.code}{item.version > 1 ? ` v${item.version}` : ''}</span>}
                       <span>{qTypeLabel(item.at) || 'No type'}</span>
                       {(item.tags || []).map(t => <span className="rounded border border-border bg-muted px-1.5 text-[10.5px]" key={t}>{t}</span>)}
                       {/* Proposed by an auditor: a manager approves or rejects it from the Actions column. */}
@@ -455,9 +470,26 @@ function QuestionBank() {
             <label className={labelClass}>Annexure (optional)</label>
             <AnnexureBuilder value={qForm.annexure} onChange={annexure => setQForm(f => ({ ...f, annexure }))} />
           </div>
+
+          {editId && (
+            <div>
+              <label className={labelClass} htmlFor="q-change-note">Reason for change (optional)</label>
+              <Input id="q-change-note" placeholder="e.g. Added a cash count table" value={qForm.note} onChange={e => setQForm(f => ({ ...f, note: e.target.value }))} />
+              <p className="mt-1 text-[11.5px] text-muted-foreground">Shown in the question's version history.</p>
+            </div>
+          )}
         </div>
 
         <ModalActions>
+          {editId && (() => {
+            const item = questions.find(q => q.id === editId)
+            return item?.code && (
+              <button type="button" className="mr-auto text-xs font-medium text-primary hover:underline"
+                onClick={() => { setShowQModal(false); onOpenHistory(item.code) }}>
+                View history (v{item.version})
+              </button>
+            )
+          })()}
           <Button variant="outline" onClick={() => setShowQModal(false)}>Cancel</Button>
           <Button onClick={saveQuestion} disabled={saving}>{editId ? 'Save Changes' : 'Add Question'}</Button>
         </ModalActions>
@@ -512,12 +544,40 @@ function QuestionBank() {
   )
 }
 
-// Audit Questions: the question bank.
+// Audit Questions: the question bank. Managers also get a "Change history" button
+// that opens every change in a side panel; a change opens that question's versions
+// on top of it, and closing those returns to the list.
 export default function Questions() {
+  const role = loadSession()?.user?.role
+  const isManager = role === 'ADMIN' || role === 'AUDIT_MANAGER'
+  const [showChanges, setShowChanges] = useState(false)
+  const [historyCode, setHistoryCode] = useState(null)
+  const [reloadKey, setReloadKey] = useState(0)
+
   return (
     <div className="space-y-4">
       <div className="inline-flex rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">Question bank</div>
-      <QuestionBank />
+      <QuestionBank
+        onOpenHistory={setHistoryCode}
+        onOpenChanges={isManager ? () => setShowChanges(true) : null}
+        reloadKey={reloadKey}
+      />
+      {isManager && (
+        <>
+          <Drawer open={showChanges} onClose={() => setShowChanges(false)} className="w-[720px]">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-base font-bold text-foreground">Change history</div>
+              <button type="button" className="text-[15px] text-muted-foreground" onClick={() => setShowChanges(false)} aria-label="Close">&times;</button>
+            </div>
+            {showChanges && <ChangeHistory onOpen={setHistoryCode} refreshKey={reloadKey} />}
+          </Drawer>
+          <VersionPanel
+            code={historyCode}
+            onClose={() => setHistoryCode(null)}
+            onRestored={() => setReloadKey(k => k + 1)}
+          />
+        </>
+      )}
     </div>
   );
 }

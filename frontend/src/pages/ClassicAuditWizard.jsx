@@ -8,7 +8,7 @@ import { categoryLabel, fixProgress, flaggedQuestions, stepFlagged } from '@/lib
 import { cn, fieldClass, labelClass } from '@/lib/utils';
 import {
   RISKS, firstUnansweredIndex, isAuditorEditable, missingProof, orderedQuestions,
-  parseQuestionParam, processes, progress, proofLabel,
+  answerPhrase, missingAnnexure, parseQuestionParam, processes, progress, proofLabel,
 } from '@/lib/classicAudit';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -184,7 +184,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
     const missing = missingProof({ ...cur, remarks: rem });
     const blocking = navigator.onLine ? missing : missing.filter((m) => m !== 'evidence');
     if (blocking.length) {
-      toast.error(`This question is answered No: add ${proofLabel(blocking)} before moving on.`);
+      toast.error(`This question is answered ${cur.answer}: add ${cur.answer === 'NA' ? 'a reason in the remarks' : proofLabel(blocking)} before moving on.`);
       return true;
     }
     if (missing.length) toast('Add the photo once you are back online. It is needed before you submit.');
@@ -270,7 +270,10 @@ export default function ClassicAuditWizard({ initialAudit }) {
   if (conflict) return <ConflictPanel audit={audit} message={conflict} busy={dismissing} onDismiss={dismiss} />;
 
   const { answered, total, percent } = progress(audit);
-  const proofNeeded = q.answer === 'No' && !lockedForChanges(audit, q);
+  // No needs remarks and evidence; NA needs remarks (why it does not apply).
+  const proofNeeded = (q.answer === 'No' || q.answer === 'NA') && !lockedForChanges(audit, q);
+  const evidenceNeeded = q.answer === 'No' && !lockedForChanges(audit, q);
+  const annexureNeeded = missingAnnexure(q) && !lockedForChanges(audit, q);
   const missingNow = missingProof({ ...q, remarks });
   const isLast = idx === questions.length - 1;
   const locked = lockedForChanges(audit, q);
@@ -357,14 +360,14 @@ export default function ClassicAuditWizard({ initialAudit }) {
 
         <div className="mt-4">
           <label className={labelClass} htmlFor="classic-remarks">
-            Remarks{proofNeeded && <span className="text-destructive"> * required for No</span>}
+            Remarks{proofNeeded && <span className="text-destructive"> * required for {q.answer}</span>}
           </label>
           <Textarea
             id="classic-remarks"
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
             onBlur={flush}
-            placeholder={proofNeeded ? 'What was wrong? Required when the answer is No.' : 'What did you observe?'}
+            placeholder={q.answer === 'NA' ? 'Why does this not apply here? Required for NA.' : proofNeeded ? 'What was wrong? Required when the answer is No.' : 'What did you observe?'}
             rows={3}
             disabled={locked}
             aria-invalid={proofNeeded && missingNow.includes('remarks')}
@@ -387,7 +390,7 @@ export default function ClassicAuditWizard({ initialAudit }) {
 
         <div className="mt-3">
           <div className={labelClass}>
-            Evidence{proofNeeded && <span className="text-destructive"> * required for No</span>}
+            Evidence{evidenceNeeded && <span className="text-destructive"> * required for No</span>}
           </div>
           <EvidencePicker
             key={q.id}
@@ -401,17 +404,22 @@ export default function ClassicAuditWizard({ initialAudit }) {
         </div>
         {proofNeeded && missingNow.length > 0 && (
           <div role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-[12.5px] text-red-800">
-            A No answer needs {proofLabel(missingNow)} before you can move on or submit.
+            {answerPhrase(q.answer)} needs {q.answer === 'NA' ? 'a reason in the remarks' : proofLabel(missingNow)} before you can move on or submit.
           </div>
         )}
 
         {q.annexure_template && (
           <div className="mt-3">
-            <div className={labelClass}>Annexure</div>
-            <Button type="button" variant="outline" className="h-11" onClick={() => setShowAnnexure(true)}>
+            <div className={labelClass}>
+              Annexure{q.answer !== 'NA' && !locked && <span className="text-destructive"> * required unless NA</span>}
+            </div>
+            <Button type="button" variant="outline" className={cn('h-11', annexureNeeded && 'border-destructive')} onClick={() => setShowAnnexure(true)}>
               {locked ? 'View annexure' : 'Fill annexure'}
               {filledCount(q.annexure) > 0 && ` (${filledCount(q.annexure)} ${filledCount(q.annexure) === 1 ? 'row' : 'rows'})`}
             </Button>
+            {annexureNeeded && (
+              <p className="mt-1 text-xs text-destructive">Fill in the annexure table before you submit.</p>
+            )}
             <Modal open={showAnnexure} onClose={() => setShowAnnexure(false)} className="w-[760px]">
               <ModalTitle>Annexure for this question</ModalTitle>
               <AnnexureGrid

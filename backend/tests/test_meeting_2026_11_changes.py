@@ -100,11 +100,18 @@ def test_no_without_remarks_or_evidence_blocks_submit(client, tokens, db, given,
     assert r.status_code == 200, r.text
 
 
-def test_yes_and_na_need_no_proof(client, tokens, db):
+def test_na_needs_a_reason_but_no_evidence_and_yes_needs_neither(client, tokens, db):
     cl = _checklist(db, [(1, False), (1, False)])
     a = _start(client, tokens, cl).json()
     _answer(client, tokens, a, 0, "Yes")
-    _answer(client, tokens, a, 1, "NA")
+    _answer(client, tokens, a, 1, "NA", remarks="")
+    r = client.post(f"/api/audits/{a['id']}/submit", headers=tokens["auditor1"])
+    assert r.status_code == 400, r.text
+    detail = r.json()
+    assert detail["code"] == "no_without_proof"
+    assert detail["questions"][0]["missing"] == ["remarks"]
+
+    _answer(client, tokens, a, 1, "NA", remarks="The store has no cash counter")
     assert client.post(f"/api/audits/{a['id']}/submit", headers=tokens["auditor1"]).status_code == 200
 
 

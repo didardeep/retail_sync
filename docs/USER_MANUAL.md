@@ -284,8 +284,13 @@ Later changes (row **Actions** in Audit Management):
 
 **Submit**
 
-1. Go to **Review**. It lists unanswered questions and shows a **Score preview**.
-2. When everything is answered, **Submit audit** and confirm.
+1. Go to **Review**. It lists what still blocks submitting and shows a **Score preview**.
+   Submitting needs:
+   - every question answered;
+   - a **No** to have remarks (what was wrong) and evidence;
+   - an **NA** to have remarks (why the question does not apply here);
+   - every **annexure table** to have at least one value, unless the question is answered NA.
+2. When nothing is left, **Submit audit** and confirm.
 3. The result card shows the final score and the issues raised. The audit is now **Completed** and
    appears in the Audit Manager's **Pending Approval**.
 

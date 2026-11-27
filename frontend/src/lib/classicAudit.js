@@ -1,6 +1,7 @@
 // Pure helpers for the checklist (Yes/No/NA) audit wizard.
 // No React and no network here so the rules can be unit tested.
 import { isAuditorEditable as isEditableStatus } from './statuses.js'
+import { hasValues } from './annexureTable.js'
 
 export const ANSWERS = ['Yes', 'No', 'NA']
 export const RISKS = ['', 'Low', 'Medium', 'High', 'Critical']
@@ -70,22 +71,35 @@ export function previewScore(audit) {
   return Math.round((earned / possible) * 10000) / 100
 }
 
-// What a No answer still lacks: it must say what was wrong (remarks) and show
-// it (evidence). Empty for any other answer. Same rule as the server's submit.
+// What an answer still lacks before submitting. A No must say what was wrong
+// (remarks) and show it (evidence); an NA must say why it does not apply
+// (remarks). Empty for Yes. Same rule as the server's submit.
 export function missingProof(q) {
-  if (q?.answer !== 'No') return []
+  if (q?.answer !== 'No' && q?.answer !== 'NA') return []
   const missing = []
   if (!String(q.remarks || '').trim()) missing.push('remarks')
-  if (!q.evidence?.length) missing.push('evidence')
+  if (q.answer === 'No' && !q.evidence?.length) missing.push('evidence')
   return missing
+}
+
+// An answered question whose annexure table is still empty. Required unless the
+// answer is NA (the question does not apply). Same rule as the server's submit.
+export function missingAnnexure(q) {
+  return !!(q?.answer && q.answer !== 'NA' && q.annexure_template && !hasValues(q.annexure))
+}
+
+// "A No answer" / "An NA answer", for messages.
+export function answerPhrase(answer) {
+  return `${answer === 'NA' ? 'An' : 'A'} ${answer} answer`
 }
 
 export function proofLabel(missing) {
   return missing.length === 2 ? 'remarks and evidence' : missing.join('')
 }
 
-// What the review screen needs to flag. kind is 'unanswered' or 'no_proof'
-// (a No without remarks or evidence; both block submit), or 'critical_no' (a
+// What the review screen needs to flag. kind is 'unanswered', 'no_proof' (a No
+// without remarks or evidence, or an NA without a reason) or 'no_annexure' (an
+// empty annexure table); all three block submit. Or 'critical_no' (a
 // critical question answered No with no issue raised yet; issues are never
 // raised automatically, the auditor decides).
 export function problems(audit) {
@@ -96,7 +110,9 @@ export function problems(audit) {
     if (!q.answer) {
       out.push({ kind: 'unanswered', ...base })
     } else if (missing.length) {
-      out.push({ kind: 'no_proof', missing, ...base })
+      out.push({ kind: 'no_proof', missing, answer: q.answer, ...base })
+    } else if (missingAnnexure(q)) {
+      out.push({ kind: 'no_annexure', ...base })
     }
     if (q.is_critical && q.answer === 'No' && !q.issue_id) {
       out.push({ kind: 'critical_no', ...base })

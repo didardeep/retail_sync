@@ -30,10 +30,12 @@ PROOF = {"remarks": "Seen in store", "evidence": [{"type": "photo", "url": "/api
 
 
 def _answer(client, tokens, audit, n, answer, who="auditor1", **extra):
-    """A No needs remarks and evidence to be submitted, so it gets them unless the
-    test passes its own."""
+    """A No needs remarks and evidence to be submitted, and an NA needs a reason,
+    so they get them unless the test passes its own."""
     if answer == "No":
         extra = {**PROOF, **extra}
+    elif answer == "NA":
+        extra = {"remarks": "Not applicable in this store", **extra}
     rid = audit["responses"][n]["id"]
     return client.put(f"/api/audits/{audit['id']}/responses/{rid}",
                       headers=tokens[who], json={"answer": answer, **extra})

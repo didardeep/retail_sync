@@ -17,7 +17,7 @@ whole documents against an audit.
 | A number column can have "Show total" (`total: true` on the column). The grid shows a Total row, computed live from the typed cells. The total is not stored. | The manager chooses which columns need a sum. Computing it on display means it can never disagree with the cells, and there is nothing extra to sync or validate. | Storing the total with the answer; automatic totals on every number column. |
 | Empty and unreadable cells count as nothing in a total; the Save button is already blocked for non-numbers. | A half-filled table still gives a sensible sum. | Showing an error in the total row. |
 | Managers and others see the table read-only in review, approval and the read-only audit page. | They need to read it, not change it. | Hidden from reviewers. |
+| An annexure must be filled before the audit can be submitted, unless the question is answered NA. "Filled" means at least one cell has a value; row names alone do not count, since they can come pre-filled from the layout. Checked on submit by the server (`missing_annexure`, error code `annexure_missing`) and shown beforehand in the app (`missingAnnexure`). | The manager's decision (26 Nov). NA means the question does not apply, so neither does its table. Moving between questions is not blocked, so the auditor can fill the table later. | Always required; a per-question "Required" tick on the layout. |
 
 ## Not included
-Excel or PDF export of the tables, formulas other than the column total, making an annexure mandatory before the
-audit can be submitted.
+Excel or PDF export of the tables, formulas other than the column total.

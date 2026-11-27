@@ -59,20 +59,35 @@ def _notify_auditees(db, audit, kind, title, key):
 
 
 def missing_proof(responses):
-    """Answers of No that still lack remarks or evidence. A No must say what was
-    wrong and show it, so these block submitting. Returns [(response, [what])]."""
+    """Answers that still lack what they need, so they block submitting.
+    A No must say what was wrong and show it (remarks and evidence); an NA must
+    say why the question does not apply (remarks). Returns [(response, [what])]."""
     out = []
     for r in responses:
-        if r.answer != "No":
+        if r.answer not in ("No", "NA"):
             continue
         missing = []
         if not (r.remarks or "").strip():
             missing.append("remarks")
-        if not r.evidence:
+        if r.answer == "No" and not r.evidence:
             missing.append("evidence")
         if missing:
             out.append((r, missing))
     return out
+
+
+def annexure_has_values(data):
+    """True when at least one cell of a filled-in annexure has something typed in it."""
+    return any(str(c).strip() for row in (data or {}).get("rows") or [] for c in row.get("cells") or [])
+
+
+def missing_annexure(responses):
+    """Answers whose question has an annexure table that is still empty. Required
+    unless the question was answered NA (it does not apply)."""
+    return [r for r in responses
+            if r.answer and r.answer != "NA" and r.question
+            and (r.question.meta or {}).get("annexure")
+            and not annexure_has_values(r.annexure)]
 
 
 def _progress_by_audit(db, audit_ids):
@@ -814,11 +829,19 @@ def submit_audit(
     no_proof = missing_proof(audit.responses)
     if no_proof:
         raise HTTPException(status_code=400, detail={
-            "error": f"{len(no_proof)} question{'s' if len(no_proof) != 1 else ''} answered No "
-                     "without remarks and evidence; add both before submitting",
+            "error": f"{len(no_proof)} question{'s' if len(no_proof) != 1 else ''} answered No or NA "
+                     "without a reason (and, for No, evidence); add them before submitting",
             "code": "no_without_proof", "count": len(no_proof),
             "questions": [{"id": r.id, "code": r.question.code if r.question else None,
                            "missing": m} for r, m in no_proof],
+        })
+    no_table = missing_annexure(audit.responses)
+    if no_table:
+        raise HTTPException(status_code=400, detail={
+            "error": f"{len(no_table)} annexure table{'s' if len(no_table) != 1 else ''} "
+                     "still empty; fill them in before submitting",
+            "code": "annexure_missing", "count": len(no_table),
+            "questions": [{"id": r.id, "code": r.question.code} for r in no_table],
         })
 
     audit.score = compute_audit_score(audit)

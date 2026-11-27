@@ -63,7 +63,7 @@ test('previewScore treats a missing weight as 1 and returns null when nothing is
 
 const PROOF = { remarks: 'Till short', evidence: [{ type: 'photo', url: '/api/evidence/a.jpg' }] };
 
-test('a No without remarks or evidence is a problem that says what is missing', () => {
+test('a No without remarks or evidence, or an NA without a reason, is a problem that says what is missing', () => {
   const a = audit([
     r('1', 'A', 'No'),
     r('2', 'A', 'No', { remarks: '  ', evidence: PROOF.evidence }),
@@ -71,9 +71,10 @@ test('a No without remarks or evidence is a problem that says what is missing', 
     r('4', 'A', 'No', PROOF),
     r('5', 'A', 'Yes'),
     r('6', 'A', 'NA'),
+    r('7', 'A', 'NA', { remarks: 'No cash counter in this store' }),
   ]);
   assert.deepEqual(problems(a).filter((x) => x.kind === 'no_proof').map((x) => [x.id, x.missing]),
-    [['1', ['remarks', 'evidence']], ['2', ['remarks']], ['3', ['evidence']]]);
+    [['1', ['remarks', 'evidence']], ['2', ['remarks']], ['3', ['evidence']], ['6', ['remarks']]]);
 });
 
 test('missingProof and proofLabel', async () => {
@@ -81,6 +82,9 @@ test('missingProof and proofLabel', async () => {
   assert.deepEqual(missingProof({ answer: 'Yes' }), []);
   assert.deepEqual(missingProof({ answer: 'No' }), ['remarks', 'evidence']);
   assert.deepEqual(missingProof({ answer: 'No', ...PROOF }), []);
+  // NA needs a reason, never evidence.
+  assert.deepEqual(missingProof({ answer: 'NA' }), ['remarks']);
+  assert.deepEqual(missingProof({ answer: 'NA', remarks: 'No cash counter here' }), []);
   assert.equal(proofLabel(['remarks', 'evidence']), 'remarks and evidence');
   assert.equal(proofLabel(['evidence']), 'evidence');
 });
@@ -123,4 +127,19 @@ test('parseQuestionParam validates the deep link', () => {
   assert.equal(parseQuestionParam('x', 5), null);
   assert.equal(parseQuestionParam(null, 5), null);
   assert.equal(parseQuestionParam('', 5), null);
+});
+
+test('an empty annexure blocks submit unless the answer is NA', async () => {
+  const { missingAnnexure, problems } = await import('../src/lib/classicAudit.js');
+  const template = { columns: [{ name: 'Cash', type: 'number' }], default_rows: 1 };
+  const named = { rows: [{ label: 'Till 1', cells: [''] }] };
+  assert.equal(missingAnnexure({ answer: 'Yes', annexure_template: template, annexure: null }), true);
+  assert.equal(missingAnnexure({ answer: 'Yes', annexure_template: template, annexure: named }), true);
+  assert.equal(missingAnnexure({ answer: 'Yes', annexure_template: template, annexure: { rows: [{ label: '', cells: ['50'] }] } }), false);
+  assert.equal(missingAnnexure({ answer: 'NA', annexure_template: template, annexure: null }), false);
+  assert.equal(missingAnnexure({ answer: null, annexure_template: template }), false);
+  assert.equal(missingAnnexure({ answer: 'Yes' }), false);
+
+  const a = audit([r('1', 'A', 'Yes', { annexure_template: template })]);
+  assert.deepEqual(problems(a).map((x) => x.kind), ['no_annexure']);
 });
